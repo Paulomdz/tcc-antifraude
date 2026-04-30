@@ -1,0 +1,16 @@
+pandas
+numpy
+scikit-learn
+streamlit
+plotly
+torch>=2.0
+tensorflow
+networkx
+matplotlib
+pyarrow
+scipy
+joblib
+crewai
+langchain-google-genai
+python-dotenv
+python-3.13.8

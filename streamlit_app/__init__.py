@@ -1,0 +1,1 @@
+"""Aplicação Streamlit para visualização de detecção de fraudes."""
