@@ -16,7 +16,7 @@ try:
     TORCH_GEO_AVAILABLE = True
 except ImportError:
     TORCH_GEO_AVAILABLE = False
-    print("⚠️  PyTorch Geometric não disponível. GNN será placeholder.")
+    print("AVISO: PyTorch Geometric não disponível. GNN será placeholder.")
 
 
 if TORCH_GEO_AVAILABLE:
@@ -233,7 +233,7 @@ def carregar_gnn(filepath="src/modelos/modelos_salvos/gnn_model.pt"):
 
 if not TORCH_GEO_AVAILABLE:
     def treinar_gnn(*args, **kwargs):
-        print("⚠️  PyTorch Geometric necessário para treinar GNN. Usando placeholder.")
+        print("AVISO: PyTorch Geometric necessário para treinar GNN. Usando placeholder.")
         return None, None
     
     def salvar_gnn(*args, **kwargs):

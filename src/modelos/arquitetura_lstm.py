@@ -13,7 +13,7 @@ try:
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
-    print("⚠️  PyTorch não disponível. LSTM será placeholder.")
+    print("AVISO: PyTorch não disponível. LSTM será placeholder.")
 
 
 if TORCH_AVAILABLE:
@@ -188,7 +188,7 @@ def carregar_lstm(filepath="src/modelos/modelos_salvos/lstm_model.pt"):
 
 if not TORCH_AVAILABLE:
     def treinar_lstm(*args, **kwargs):
-        print("⚠️  PyTorch necessário para treinar LSTM. Usando placeholder.")
+        print("AVISO: PyTorch necessário para treinar LSTM. Usando placeholder.")
         return None
     
     def salvar_lstm(*args, **kwargs):

@@ -207,7 +207,7 @@ def teste_simulacao():
         samples = df.sample(n=min(2, len(df)), random_state=42)
         
         for i, (_, tx) in enumerate(samples.iterrows(), 1):
-            print(f"\n✓ Analisando transação {i}...")
+            print(f"\n[OK] Analisando transação {i}...")
             tx_dict = tx.to_dict()
             resultado = orchestrate_transaction(tx_dict)
             
@@ -254,7 +254,7 @@ def main():
     total = len(resultados)
     
     for teste, resultado in resultados.items():
-        status = "PASSOU" if resultado else "❌ FALHOU"
+        status = "PASSOU" if resultado else "FALHOU"
         print(f"{teste:.<50} {status}")
     
     print(f"\nResultado Final: {passed}/{total} testes passaram")

@@ -29,7 +29,8 @@ def load_sample_transactions(n_samples: int = 10) -> List[Dict[str, Any]]:
 
     df = pd.read_parquet(PROCESSED_DATA_PATH)
 
-    sample_df = df.sample(n=n_samples, random_state=42)
+    # Removido random_state para variar as amostras a cada execução
+    sample_df = df.sample(n=n_samples)
     return sample_df.to_dict('records')
 
 
@@ -72,7 +73,7 @@ def main():
 
             result = run_crewai_simulation(transaction)
 
-            print("   📋 Resultado:")
+            print("   Resultado:")
             print(f"      Decisão: {result['decision']['decision']}")
             print(f"      Score Máximo: {result['decision']['score']:.3f}")
             print(f"      Justificativa: {result['decision']['justification'][:100]}...")

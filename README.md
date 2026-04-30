@@ -128,16 +128,16 @@ python run_simulation.py
 
 ## 📊 Status de Implementação
 
-### ✅ Totalmente Funcional
+### [OK] Totalmente Funcional
 - ✓ Pré-processamento PaySim
 - ✓ Isolation Forest (58% acurácia)
 - ✓ Sistema de inferência modular
 - ✓ Tradução 100% em português
 - ✓ Estrutura em português
 
-### 🔄 Código Pronto (Com Fallbacks)
-- ⚠️ LSTM (Código completo, PyTorch opcional)
-- ⚠️ GNN (Código completo, PyTorch Geometric opcional)
+### [PRONTO] Código Pronto (Com Fallbacks)
+- [PRONTO] LSTM (Código completo, PyTorch opcional)
+- [PRONTO] GNN (Código completo, PyTorch Geometric opcional)
 - ⚠️ CrewAI (Estrutura pronta para ativar)
 
 ### 🔮 Próximas Fases
