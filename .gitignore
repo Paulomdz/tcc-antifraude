@@ -1,0 +1,7 @@
+venv/
+.env
+.env.local
+__pycache__/
+src/modelos/modelos_salvos/*.pkl
+data/*.csv
+```
