@@ -67,7 +67,7 @@ if TORCH_AVAILABLE:
     
     
     class TransactionSequenceDataset(Dataset):
-        """Dataset que agrupa transações em sequências por cliente."""
+        """Dataset que agrupa transações em sequências por janela de tempo global."""
         
         def __init__(self, df, seq_length=10, feature_cols=None):
             self.df = df.copy()
@@ -83,82 +83,80 @@ if TORCH_AVAILABLE:
             self.sequences = []
             self.labels = []
             
-            for client, group in df.groupby('nameOrig'):
-                group = group.sort_values('step').reset_index(drop=True)
-                
-                for i in range(len(group) - seq_length):
-                    seq = group.iloc[i:i+seq_length][feature_cols].values
-                    label = group.iloc[i+seq_length]['isFraud']
-                    
-                    self.sequences.append(torch.FloatTensor(seq))
-                    self.labels.append(torch.FloatTensor([label]))
-        
+            # Usa uma janela deslizante global ordenada por tempo para gerar sequências.
+            sorted_df = self.df.sort_values('step').reset_index(drop=True)
+            for i in range(len(sorted_df) - self.seq_length):
+                seq = sorted_df.iloc[i:i+self.seq_length][self.feature_cols].values
+                label = sorted_df.iloc[i+self.seq_length]['isFraud']
+                self.sequences.append(torch.tensor(seq, dtype=torch.float32))
+                self.labels.append(torch.tensor([label], dtype=torch.float32))
+
         def __len__(self):
             return len(self.sequences)
-        
+
         def __getitem__(self, idx):
             return self.sequences[idx], self.labels[idx]
 
 
-def treinar_lstm(df_treino, epochs=20, batch_size=32, learning_rate=0.001):
-    """Treina o modelo LSTM."""
-    if not TORCH_AVAILABLE:
-        print("  PyTorch não disponível. Retornando None.")
-        return None
-    
-    print(" Treinando modelo LSTM...")
-    
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"✓ Usando dispositivo: {device}")
-    
-    dataset = TransactionSequenceDataset(df_treino, seq_length=10)
-    
-    if len(dataset) == 0:
-        print(" Dataset vazio. Não há sequências suficientes para treino.")
-        return None
-    
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    
-    model = LSTMFraudDetector().to(device)
-    
-    criterion = nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=3, verbose=True
-    )
-    
-    # Treinamento
-    for epoch in range(epochs):
-        total_loss = 0
-        correct = 0
-        total = 0
+    def treinar_lstm(df_treino, epochs=20, batch_size=32, learning_rate=0.001):
+        """Treina o modelo LSTM."""
+        if not TORCH_AVAILABLE:
+            print("  PyTorch não disponível. Retornando None.")
+            return None
         
-        for sequences, labels in dataloader:
-            sequences = sequences.to(device)
-            labels = labels.to(device)
+        print(" Treinando modelo LSTM...")
+        
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(f"Usando dispositivo: {device}")
+        
+        dataset = TransactionSequenceDataset(df_treino, seq_length=10)
+        
+        if len(dataset) == 0:
+            print(" Dataset vazio. Não há sequências suficientes para treino.")
+            return None
+        
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        
+        model = LSTMFraudDetector().to(device)
+        
+        criterion = nn.BCELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='min', factor=0.5, patience=3
+        )
+        
+        # Treinamento
+        for epoch in range(epochs):
+            total_loss = 0
+            correct = 0
+            total = 0
             
-            outputs = model(sequences)
-            loss = criterion(outputs, labels)
+            for sequences, labels in dataloader:
+                sequences = sequences.to(device)
+                labels = labels.to(device)
+                
+                outputs = model(sequences)
+                loss = criterion(outputs, labels)
+                
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                
+                total_loss += loss.item()
+                predictions = (outputs > 0.5).float()
+                correct += (predictions == labels).sum().item()
+                total += labels.size(0)
             
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            accuracy = 100 * correct / total if total > 0 else 0
+            avg_loss = total_loss / len(dataloader)
             
-            total_loss += loss.item()
-            predictions = (outputs > 0.5).float()
-            correct += (predictions == labels).sum().item()
-            total += labels.size(0)
+            if (epoch + 1) % 5 == 0:
+                print(f"Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f}, Acurácia: {accuracy:.2f}%")
+            
+            scheduler.step(avg_loss)
         
-        accuracy = 100 * correct / total if total > 0 else 0
-        avg_loss = total_loss / len(dataloader)
-        
-        if (epoch + 1) % 5 == 0:
-            print(f"Epoch {epoch+1}/{epochs} - Loss: {avg_loss:.4f}, Acurácia: {accuracy:.2f}%")
-        
-        scheduler.step(avg_loss)
-    
-    print("LSTM treinado com sucesso!")
-    return model
+        print("LSTM treinado com sucesso!")
+        return model
 
 
 def salvar_lstm(model, filepath="src/modelos/modelos_salvos/lstm_model.pt"):

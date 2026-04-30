@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 RAW_DATA_PATH = Path("data/PS_20174392719_1491204439457_log.csv")
-PROCESSED_DATA_PATH = Path("data/paysim_processed.parquet")
+PROCESSED_DATA_PATH = Path("data/paysim_dados_processados.parquet")
 
 
 def load_paysim(csv_path: Path = RAW_DATA_PATH) -> pd.DataFrame:

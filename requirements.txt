@@ -4,7 +4,7 @@ scikit-learn
 streamlit
 plotly
 torch>=2.0
-tensorflow
+torch-geometric>=2.7.0
 networkx
 matplotlib
 pyarrow
@@ -13,4 +13,3 @@ joblib
 crewai
 langchain-google-genai
 python-dotenv
-python-3.13.8
