@@ -1,4 +1,4 @@
-# ⚡ SUMÁRIO FINAL - TUDO FEITO (30 Abril 2026)
+# ⚡ SUMÁRIO FINAL - TUDO FEITO (22 Maio 2026)
 
 ## ✅ EXECUÇÃO COMPLETA
 
@@ -32,19 +32,60 @@ Tempo: ~5 segundos
 Status: ✅ Operacional
 ```
 
+### 4. API REST ✅
+```
+Framework:  FastAPI
+Endpoint:   POST /analise_transacao
+Health:     GET /
+Input:      JSON com dados da transação
+Output:     JSON com decisão + scores dos 3 agentes
+Arquivo:    src/api/main.py
+Como rodar: uvicorn src.api.main:app --reload
+Status:     ✅ Pronto
+```
+
+### 5. Dashboard Streamlit ✅
+```
+Framework: Streamlit
+Abas:
+  • Análise Individual (formulário manual)
+  • Análise em Lote   (upload CSV/Parquet, até 50 transações)
+  • Estatísticas      (pie chart, histograma, boxplot - Plotly)
+Arquivo:    src/dashboard/app.py
+Como rodar: streamlit run src/dashboard/app.py
+Status:     ✅ Pronto
+```
+
+### 6. Testes Unitários ✅
+```
+Framework:  pytest + pytest-cov
+Arquivos:   tests/test_preprocessamento.py
+            tests/test_modelos.py
+            tests/test_api.py
+            tests/test_dashboard.py
+Testes:     73 testes no total
+Cobertura:  ≥ 80% (configurada em pytest.ini)
+Como rodar: pytest
+Status:     ✅ Pronto
+```
+
 ---
 
 ## 🛠️ FERRAMENTAS USADAS
 
-| Layer | Ferramenta | Status |
-|-------|-----------|--------|
-| Dados | pandas + NumPy | ✅ |
-| ML | scikit-learn (IF) | ✅ 58% acurácia |
-| Deep Learning | PyTorch | 🔄 Opcional |
-| Grafos | PyTorch Geometric | 🔄 Opcional |
-| Agentes | CrewAI | ✅ |
-| LLM | Gemini 1.5 Flash | ✅ |
-| Storage | Parquet | ✅ |
+| Layer         | Ferramenta              | Status               |
+|---------------|-------------------------|----------------------|
+| Dados         | pandas + NumPy          | ✅                   |
+| ML            | scikit-learn (IF)       | ✅ 58% acurácia      |
+| Deep Learning | PyTorch                 | 🔄 Opcional          |
+| Grafos        | PyTorch Geometric       | 🔄 Opcional          |
+| Agentes       | CrewAI                  | ✅                   |
+| LLM           | Gemini 1.5 Flash        | ✅                   |
+| Storage       | Parquet                 | ✅                   |
+| API           | FastAPI + Uvicorn       | ✅ NOVO              |
+| Dashboard     | Streamlit + Plotly      | ✅ NOVO              |
+| Testes        | pytest + pytest-cov     | ✅ NOVO              |
+| HTTP Client   | httpx (TestClient)      | ✅ NOVO              |
 
 ---
 
@@ -77,63 +118,138 @@ Transação
 
 ---
 
+## 🔌 API REST — ENDPOINTS
+
+```
+GET  /
+     → {"status": "ok", "message": "..."}
+
+POST /analise_transacao
+     Body: {
+       "amount": 5000.0,
+       "type": "TRANSFER",
+       "nameOrig": "C1234567",
+       "nameDest": "C7654321",
+       "oldbalanceOrg": 10000.0,
+       "newbalanceOrig": 5000.0,
+       ...
+     }
+     Response: {
+       "decisao": "BLOQUEADO",
+       "score_final": 0.91,
+       "justificativa": "...",
+       "scores": {
+         "comportamental": 0.91,
+         "temporal": 0.75,
+         "identidade": 0.60
+       },
+       "agentes": { ... }
+     }
+```
+
+Documentação interativa: http://localhost:8000/docs
+
+---
 
 ## 📊 NÚMEROS
 
-| Métrica | Valor |
-|---------|-------|
-| Transações processadas | 6.362.620 |
-| Features criadas | 22 |
-| Acurácia IF | 58% |
-| Agentes | 4 |
-| Linhas código | 1.500+ |
-| Linhas docs | 3.000+ |
-| Arquivos criados | 7 |
-| Tempo preprocessamento | 30 seg |
-| Tempo simulação | 5 seg |
+| Métrica                   | Valor      |
+|---------------------------|------------|
+| Transações processadas    | 6.362.620  |
+| Features criadas          | 22         |
+| Acurácia IF               | 58%        |
+| Agentes                   | 4          |
+| Endpoints da API          | 2          |
+| Abas do dashboard         | 3          |
+| Testes unitários          | 73         |
+| Cobertura mínima          | 80%        |
+| Linhas código             | 2.500+     |
+| Linhas docs               | 3.000+     |
+| Arquivos Python criados   | 12+        |
+| Tempo preprocessamento    | 30 seg     |
+| Tempo simulação           | 5 seg      |
 
 ---
 
 ## 📁 ARQUIVOS NOVOS/PRINCIPAIS
 
 ```
-✅ paysim_dados_processados.parquet    (dados preprocessados)
-✅ isolation_forest.pkl                 (modelo treinado)
-✅ RESUMO_CURTO.md                      (este resumo!)
-✅ RESUMO_TECNICO.md                    (técnico detalhado)
-✅ GUIA_GITHUB.md                       (GitHub completo)
-✅ GITHUB_SIMPLES.md                    (GitHub visual)
-✅ INDICE.md                            (navegação)
+✅ paysim_dados_processados.parquet         (dados preprocessados)
+✅ isolation_forest.pkl                      (modelo treinado)
+
+── API REST ──────────────────────────────────────────────────────
+✅ src/api/__init__.py
+✅ src/api/main.py                           (FastAPI — POST /analise_transacao)
+
+── Dashboard ─────────────────────────────────────────────────────
+✅ src/dashboard/__init__.py
+✅ src/dashboard/app.py                      (Streamlit — 3 abas)
+
+── Testes ────────────────────────────────────────────────────────
+✅ tests/__init__.py
+✅ tests/conftest.py                         (fixtures compartilhadas)
+✅ tests/test_preprocessamento.py            (18 testes)
+✅ tests/test_modelos.py                     (20 testes)
+✅ tests/test_api.py                         (16 testes)
+✅ tests/test_dashboard.py                   (19 testes)
+
+── Config ────────────────────────────────────────────────────────
+✅ pytest.ini                                (cobertura ≥ 80%)
+✅ requirements.txt                          (atualizado: fastapi, uvicorn, httpx, pytest)
+
+── Docs ──────────────────────────────────────────────────────────
+✅ RESUMO_CURTO.md
+✅ RESUMO_TECNICO.md
+✅ GUIA_GITHUB.md
+✅ GITHUB_SIMPLES.md
+✅ INDICE.md
 ```
-
----
-
-## 🔌 PRÓXIMA FASE: API REST
-
-**Framework:** FastAPI/Flask  
-**Integração:** ClearSale PIX Antifraude  
-**Quando:** Próxima sessão  
 
 ---
 
 ## 🎯 STATUS FINAL
 
 ```
-✅ Preprocessamento: Completo
-✅ Isolation Forest: Treinado (58%)
-✅ LSTM: Pronto (standby)
-✅ GNN: Pronto (standby)
-✅ Agentes CrewAI: Funcionando
-✅ Simulação: Testada
-✅ Documentação: 3.000+ linhas
-✅ GitHub: Pronto para compartilhar
-🔄 API REST: Próximo (ClearSale)
+✅ Preprocessamento:    Completo
+✅ Isolation Forest:    Treinado (58%)
+✅ LSTM:                Pronto (standby)
+✅ GNN:                 Pronto (standby)
+✅ Agentes CrewAI:      Funcionando
+✅ Simulação:           Testada
+✅ API REST:            Completa (FastAPI)
+✅ Dashboard:           Completo (Streamlit)
+✅ Testes Unitários:    73 testes / cobertura ≥ 80%
+✅ Documentação:        3.000+ linhas
+✅ GitHub:              Pronto para compartilhar
 ```
 
 ---
 
+## 🚀 COMO RODAR O SISTEMA COMPLETO
 
-**Sistema completo, testado e pronto para apresentação TCC! 🎓✨**
+```bash
+# 1. Instalar dependências
+pip install -r requirements.txt
 
-Data: 30 de Abril de 2026  
-Status: ✅ OPERACIONAL
+# 2. API REST
+uvicorn src.api.main:app --reload
+#    → http://localhost:8000/docs
+
+# 3. Dashboard
+streamlit run src/dashboard/app.py
+#    → http://localhost:8501
+
+# 4. Testes
+pytest
+#    → relatório de cobertura no terminal
+
+# 5. Simulação legada
+python run_simulation.py
+```
+
+---
+
+**Sistema completo, testado e pronto para apresentação TCC! 🎓**
+
+Data: 22 de Maio de 2026
+Status: ✅ OPERACIONAL — API + Dashboard + Testes integrados
