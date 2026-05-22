@@ -13,3 +13,8 @@ joblib
 crewai
 langchain-google-genai
 python-dotenv
+fastapi
+uvicorn[standard]
+httpx
+pytest
+pytest-cov
