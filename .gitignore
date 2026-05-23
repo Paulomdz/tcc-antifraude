@@ -2,7 +2,6 @@
 
 ```
 venv/
-venv312/
 env/
 ENV/
 .venv/
