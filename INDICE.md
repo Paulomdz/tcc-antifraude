@@ -4,34 +4,34 @@ Bem-vindo! Aqui você encontra tudo o que foi implementado. Comece pelo document
 
 ---
 
-## 🚀 COMECE AQUI
+##  COMECE AQUI
 
-### ⚡ Quer rodar tudo agora? (30 segundos)
-👉 **[QUICK_START.md](QUICK_START.md)**
+###  Quer rodar tudo agora? (30 segundos)
+ **[QUICK_START.md](QUICK_START.md)**
 - Comandos prontos para copiar-colar
 - Troubleshooting rápido
 - Tabela de tempos
 
 ---
 
-## 📖 DOCUMENTAÇÃO TÉCNICA
+##  DOCUMENTAÇÃO TÉCNICA
 
-### 📋 Resumo do que foi feito (5 minutos)
-👉 **[FINAL_SUMMARY.md](FINAL_SUMMARY.md)**
+###  Resumo do que foi feito (5 minutos)
+ **[FINAL_SUMMARY.md](FINAL_SUMMARY.md)**
 - O que foi implementado nesta sessão
 - Arquivos criados e modificados
 - Checklist final
 - Estatísticas do projeto
 
-### 📊 Resumo detalhado de mudanças (10 minutos)
-👉 **[RESUMO_IMPLEMENTACAO.md](RESUMO_IMPLEMENTACAO.md)**
+###  Resumo detalhado de mudanças (10 minutos)
+ **[RESUMO_IMPLEMENTACAO.md](RESUMO_IMPLEMENTACAO.md)**
 - Todas as traduções
 - Todos os arquivos criados
 - Status de implementação
 - Próximos passos
 
-### 🧠 Guia Completo de Implementação (30 minutos)
-👉 **[GUIA_IMPLEMENTACAO.md](GUIA_IMPLEMENTACAO.md)**
+###  Guia Completo de Implementação (30 minutos)
+ **[GUIA_IMPLEMENTACAO.md](GUIA_IMPLEMENTACAO.md)**
 - Passo-a-passo LSTM (200+ linhas)
 - Passo-a-passo GNN (200+ linhas)
 - Como integrar CrewAI (300+ linhas)
@@ -39,8 +39,8 @@ Bem-vindo! Aqui você encontra tudo o que foi implementado. Comece pelo document
 - Resolução de dependências
 - Checklist de 5 fases
 
-### 📖 README Atualizado
-👉 **[README_NOVO.md](README_NOVO.md)**
+###  README Atualizado
+ **[README_NOVO.md](README_NOVO.md)**
 - Visão geral do projeto
 - Instalação passo-a-passo
 - Como usar cada componente
@@ -48,64 +48,64 @@ Bem-vindo! Aqui você encontra tudo o que foi implementado. Comece pelo document
 
 ---
 
-## 💻 CÓDIGO-FONTE
+##  CÓDIGO-FONTE
 
-### 🧪 Testes Completos
-👉 **[teste_sistema_completo.py](teste_sistema_completo.py)**
+###  Testes Completos
+ **[teste_sistema_completo.py](teste_sistema_completo.py)**
 ```bash
 python teste_sistema_completo.py
 ```
 - 6 testes integrados
 - Valida todos os componentes
 - Tempo: ~2-3 minutos
-- Resultado: 6/6 passam ✅
+- Resultado: 6/6 passam 
 
-### 🤖 Modelos de ML
+###  Modelos de ML
 
 #### LSTM - Análise Temporal
-👉 **[src/modelos/arquitetura_lstm.py](src/modelos/arquitetura_lstm.py)**
+**[src/modelos/arquitetura_lstm.py](src/modelos/arquitetura_lstm.py)**
 - 250+ linhas de código
 - Modelo bidirecional com atenção
 - Treina em ~10-15 minutos
 - Requer PyTorch (opcional)
 
 #### GNN - Análise de Grafos
-👉 **[src/modelos/arquitetura_gnn.py](src/modelos/arquitetura_gnn.py)**
+ **[src/modelos/arquitetura_gnn.py](src/modelos/arquitetura_gnn.py)**
 - 250+ linhas de código
 - GAT + GCN architecture
 - Treina em ~10-15 minutos
 - Requer PyTorch Geometric (opcional)
 
 #### Isolation Forest - Comportamental
-👉 **[src/modelos/treinamento/treinar_modelos.py](src/modelos/treinamento/treinar_modelos.py)**
+ **[src/modelos/treinamento/treinar_modelos.py](src/modelos/treinamento/treinar_modelos.py)**
 - Totalmente funcional
 - 58% de acurácia
 - Pronto para produção
 
-### 🔧 Infraestrutura
+###  Infraestrutura
 
 #### Pré-processamento
-👉 **[src/preprocessamento/carregar_paysim.py](src/preprocessamento/carregar_paysim.py)**
+ **[src/preprocessamento/carregar_paysim.py](src/preprocessamento/carregar_paysim.py)**
 - Carrega 6M+ transações
 - Processa em ~1-2 minutos
 
 #### Inferência
-👉 **[src/ferramentas/inferencia_modelos.py](src/ferramentas/inferencia_modelos.py)**
+ **[src/ferramentas/inferencia_modelos.py](src/ferramentas/inferencia_modelos.py)**
 - Carrega e executa todos os modelos
 - Interface unificada
 
 #### Orquestração
-👉 **[src/orquestração/fluxo_crewai.py](src/orquestração/fluxo_crewai.py)**
+ **[src/orquestração/fluxo_crewai.py](src/orquestração/fluxo_crewai.py)**
 - Coordena agentes
 - Estrutura pronta para CrewAI
 
 #### Agentes CrewAI
-👉 **[src/orquestração/definicoes_agentes.py](src/orquestração/definicoes_agentes.py)**
+ **[src/orquestração/definicoes_agentes.py](src/orquestração/definicoes_agentes.py)**
 - Definições dos 4 agentes
 - Integração com Gemini 1.5 Flash
 
 #### Principal
-👉 **[run_simulation.py](run_simulation.py)**
+ **[run_simulation.py](run_simulation.py)**
 - Script de entrada
 - Executa simulação completa
 
@@ -140,19 +140,19 @@ python teste_sistema_completo.py
 
 ---
 
-## 📊 ESTRUTURA DE PASTAS
+##  ESTRUTURA DE PASTAS
 
 ```
 Projeto TCC/
-├── 📖 QUICK_START.md             ← Comece aqui! (comandos)
-├── 📖 FINAL_SUMMARY.md           ← Resumo geral
-├── 📖 RESUMO_IMPLEMENTACAO.md    ← O que foi feito
-├── 📖 GUIA_IMPLEMENTACAO.md      ← Guia técnico (1000+ linhas)
-├── 📖 README_NOVO.md             ← README completo
-├── 📖 INDICE.md                  ← Este arquivo
+├──  QUICK_START.md             ← Comece aqui! (comandos)
+├──  FINAL_SUMMARY.md           ← Resumo geral
+├──  RESUMO_IMPLEMENTACAO.md    ← O que foi feito
+├──  GUIA_IMPLEMENTACAO.md      ← Guia técnico (1000+ linhas)
+├──  README_NOVO.md             ← README completo
+├── INDICE.md                  ← Este arquivo
 │
-├── 🧪 teste_sistema_completo.py  ← Testes (6/6 passam)
-├── 🚀 run_simulation.py          ← Simulação principal
+├──  teste_sistema_completo.py  ← Testes (6/6 passam)
+├──  run_simulation.py          ← Simulação principal
 │
 ├── data/
 │   ├── paysim_processed.parquet  ← Dataset processado
@@ -181,7 +181,7 @@ Projeto TCC/
 
 ---
 
-## ⏱️ TEMPOS ESPERADOS
+## ⏱ TEMPOS ESPERADOS
 
 | Ação | Tempo |
 |------|-------|
@@ -196,7 +196,7 @@ Projeto TCC/
 
 ---
 
-## 🎓 NÍVEL DE COMPLEXIDADE
+##  NÍVEL DE COMPLEXIDADE
 
 ### 🟢 Iniciante
 - QUICK_START.md
@@ -216,7 +216,7 @@ Projeto TCC/
 
 ---
 
-## 📊 ESTATÍSTICAS DA DOCUMENTAÇÃO
+##  ESTATÍSTICAS DA DOCUMENTAÇÃO
 
 | Documento | Linhas | Tempo Leitura |
 |-----------|--------|---------------|
@@ -229,7 +229,7 @@ Projeto TCC/
 
 ---
 
-## ✅ CHECKLIST DE EXPLORAÇÃO
+##  CHECKLIST DE EXPLORAÇÃO
 
 - [ ] Executar `python teste_sistema_completo.py`
 - [ ] Ler [FINAL_SUMMARY.md](FINAL_SUMMARY.md)
@@ -242,7 +242,7 @@ Projeto TCC/
 
 ---
 
-## 💬 RESUMO EM UMA FRASE
+##  RESUMO EM UMA FRASE
 
 **Seu TCC tem um sistema de detecção de fraudes com 3 modelos de ML (IF+LSTM+GNN) + agentes IA, tudo em português, testado e documentado!** 🚀
 

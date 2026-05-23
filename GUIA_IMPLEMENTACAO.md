@@ -1,12 +1,12 @@
-# 📚 GUIA DE IMPLEMENTAÇÃO: LSTM, GNN e CrewAI Conversacional
+#  GUIA DE IMPLEMENTAÇÃO: LSTM, GNN e CrewAI Conversacional
 
 ## Status Atual do Projeto
-✅ **Funcional:** Isolation Forest, Pré-processamento, Agentes básicos
-🔄 **Para Implementar:** LSTM real, GNN real, CrewAI conversacional completo
+ **Funcional:** Isolation Forest, Pré-processamento, Agentes básicos
+**Para Implementar:** LSTM real, GNN real, CrewAI conversacional completo
 
 ---
 
-## 1️⃣ IMPLEMENTAR LSTM (Long Short-Term Memory)
+## 1️ IMPLEMENTAR LSTM (Long Short-Term Memory)
 
 ### O que é LSTM?
 Rede neural recorrente especializada em capturar padrões temporais em sequências. No contexto de fraudes:
@@ -193,7 +193,7 @@ def treinar_lstm(df_treino, epochs=20, batch_size=32, learning_rate=0.001):
         
         scheduler.step(avg_loss)
     
-    print("✅ LSTM treinado com sucesso!")
+    print(" LSTM treinado com sucesso!")
     return model
 
 
@@ -201,7 +201,7 @@ def salvar_lstm(model, filepath="src/modelos/modelos_salvos/lstm_model.pt"):
     """Salva o modelo LSTM."""
     Path(filepath).parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), filepath)
-    print(f"💾 Modelo LSTM salvo em: {filepath}")
+    print(f" Modelo LSTM salvo em: {filepath}")
 
 
 def carregar_lstm(filepath="src/modelos/modelos_salvos/lstm_model.pt"):

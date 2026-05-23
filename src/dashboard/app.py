@@ -114,8 +114,8 @@ def main() -> None:
     st.caption("Detecção de fraudes em transações financeiras com ML multi-agente")
     st.divider()
 
-    tab_individual, tab_lote, tab_stats = st.tabs(
-        ["📋 Análise Individual", "📦 Análise em Lote", "📊 Estatísticas"]
+    tab_individual, tab_paysim, tab_lote, tab_stats = st.tabs(
+        ["📋 Análise Individual", "📊 Dataset PaySim", "📦 Análise em Lote", "📈 Estatísticas"]
     )
 
     # ------------------------------------------------------------------
@@ -169,71 +169,169 @@ def main() -> None:
                     st.error(f"Erro durante análise: {exc}")
 
     # ------------------------------------------------------------------
-    # Aba 2: Análise em Lote
+    # Aba 2: Dataset PaySim
+    # ------------------------------------------------------------------
+    with tab_paysim:
+        st.header("Dataset PaySim")
+        st.markdown("Visualize e explore transações do dataset PaySim processado.")
+
+        try:
+            from pathlib import Path
+            data_path = Path(__file__).resolve().parents[2] / "data" / "paysim_dados_processados.parquet"
+            
+            if data_path.exists():
+                df_paysim = pd.read_parquet(data_path)
+                
+                col1, col2, col3 = st.columns(3)
+                col1.metric("📊 Total de Transações", f"{len(df_paysim):,}")
+                col2.metric("🔴 Fraudes Detectadas", f"{df_paysim['isFraud'].sum():,}")
+                col3.metric("✅ Transações Legítimas", f"{(df_paysim['isFraud'] == 0).sum():,}")
+                
+                st.subheader("Distribuição de Transações")
+                tipo_counts = df_paysim["type"].value_counts()
+                import plotly.express as px
+                fig_tipo = px.bar(
+                    x=tipo_counts.index,
+                    y=tipo_counts.values,
+                    labels={"x": "Tipo de Transação", "y": "Quantidade"},
+                    title="Transações por Tipo",
+                    color_discrete_sequence=["#3498db"]
+                )
+                st.plotly_chart(fig_tipo, use_container_width=True)
+                
+                st.subheader("Amostra de Transações")
+                n_rows = st.slider("Mostrar primeiras N transações", min_value=5, max_value=100, value=10)
+                st.dataframe(df_paysim.head(n_rows), use_container_width=True)
+                
+                st.subheader("Estatísticas Descritivas")
+                st.dataframe(df_paysim.describe(), use_container_width=True)
+                
+            else:
+                st.warning(f"Dataset não encontrado em: {data_path}")
+                st.info("Execute: `python src/preprocessamento/carregar_paysim.py` para processar o dataset.")
+        except Exception as exc:
+            st.error(f"Erro ao carregar dataset: {exc}")
+
+    # ------------------------------------------------------------------
+    # Aba 3: Análise em Lote
     # ------------------------------------------------------------------
     with tab_lote:
         st.header("Análise em Lote")
-        st.markdown("Envie um arquivo **CSV** ou **Parquet** com transações para análise.")
+        
+        col_upload, col_dataset = st.columns(2)
+        
+        with col_upload:
+            st.subheader("📤 Enviar Arquivo")
+            st.markdown("Envie um arquivo **CSV** ou **Parquet** com transações para análise.")
+            uploaded = st.file_uploader(
+                "Selecione o arquivo de transações",
+                type=["csv", "parquet"],
+                help="Colunas obrigatórias: amount, nameOrig, nameDest, type",
+            )
+            
+            if uploaded is not None:
+                try:
+                    if uploaded.name.endswith(".csv"):
+                        df = pd.read_csv(uploaded)
+                    else:
+                        df = pd.read_parquet(uploaded)
 
-        uploaded = st.file_uploader(
-            "Selecione o arquivo de transações",
-            type=["csv", "parquet"],
-            help="Colunas obrigatórias: amount, nameOrig, nameDest, type",
-        )
+                    st.info(f"Arquivo carregado: **{len(df):,}** transações | Colunas: {list(df.columns)}")
+                    st.dataframe(df.head(10), use_container_width=True)
 
-        if uploaded is not None:
-            try:
-                if uploaded.name.endswith(".csv"):
-                    df = pd.read_csv(uploaded)
-                else:
-                    df = pd.read_parquet(uploaded)
+                    required_cols = {"amount", "nameOrig", "nameDest", "type"}
+                    missing = required_cols - set(df.columns)
+                    if missing:
+                        st.warning(f"Colunas obrigatórias ausentes: {missing}")
+                    else:
+                        max_rows = st.slider(
+                            "Número de transações a analisar",
+                            min_value=1,
+                            max_value=min(len(df), 50),
+                            value=min(5, len(df)),
+                        )
 
-                st.info(f"Arquivo carregado: **{len(df):,}** transações | Colunas: {list(df.columns)}")
-                st.dataframe(df.head(10), use_container_width=True)
+                        if st.button("🚀 Iniciar Análise em Lote", use_container_width=True):
+                            sample = df.head(max_rows)
+                            rows = []
+                            progress_bar = st.progress(0, text="Iniciando...")
 
-                required_cols = {"amount", "nameOrig", "nameDest", "type"}
-                missing = required_cols - set(df.columns)
-                if missing:
-                    st.warning(f"Colunas obrigatórias ausentes: {missing}")
-                else:
-                    max_rows = st.slider(
-                        "Número de transações a analisar",
-                        min_value=1,
-                        max_value=min(len(df), 50),
-                        value=min(5, len(df)),
-                    )
-
-                    if st.button("🚀 Iniciar Análise em Lote", use_container_width=True):
-                        sample = df.head(max_rows)
-                        rows = []
-                        progress_bar = st.progress(0, text="Iniciando...")
-
-                        for i, (_, row) in enumerate(sample.iterrows()):
-                            tx = row.to_dict()
-                            tx.setdefault("step_norm", float(tx.get("step", 100)) / 744.0)
-                            progress_bar.progress(
-                                (i + 1) / max_rows,
-                                text=f"Analisando transação {i + 1}/{max_rows}...",
-                            )
-                            try:
-                                res = run_analysis(tx)
-                                rows.append(build_result_row(tx, res))
-                            except Exception as exc:
-                                rows.append(
-                                    {"Tipo": tx.get("type", ""), "Erro": str(exc)}
+                            for i, (_, row) in enumerate(sample.iterrows()):
+                                tx = row.to_dict()
+                                tx.setdefault("step_norm", float(tx.get("step", 100)) / 744.0)
+                                progress_bar.progress(
+                                    (i + 1) / max_rows,
+                                    text=f"Analisando transação {i + 1}/{max_rows}...",
                                 )
+                                try:
+                                    res = run_analysis(tx)
+                                    rows.append(build_result_row(tx, res))
+                                except Exception as exc:
+                                    rows.append(
+                                        {"Tipo": tx.get("type", ""), "Erro": str(exc)}
+                                    )
 
-                        progress_bar.empty()
-                        st.success(f"Análise de {max_rows} transações concluída!")
-                        df_res = pd.DataFrame(rows)
-                        st.dataframe(df_res, use_container_width=True)
-                        st.session_state["batch_results"] = rows
+                            progress_bar.empty()
+                            st.success(f"Análise de {max_rows} transações concluída!")
+                            df_res = pd.DataFrame(rows)
+                            st.dataframe(df_res, use_container_width=True)
+                            st.session_state["batch_results"] = rows
 
+                except Exception as exc:
+                    st.error(f"Erro ao carregar arquivo: {exc}")
+        
+        with col_dataset:
+            st.subheader("📊 Usar Dataset PaySim")
+            st.markdown("Carregue transações diretamente do dataset processado.")
+            
+            try:
+                from pathlib import Path
+                data_path = Path(__file__).resolve().parents[2] / "data" / "paysim_dados_processados.parquet"
+                
+                if data_path.exists():
+                    if st.button("📥 Carregar PaySim Processado", use_container_width=True):
+                        df_paysim = pd.read_parquet(data_path)
+                        
+                        max_rows_paysim = st.slider(
+                            "Quantas transações do PaySim analisar?",
+                            min_value=1,
+                            max_value=min(len(df_paysim), 100),
+                            value=min(10, len(df_paysim)),
+                            key="paysim_slider"
+                        )
+                        
+                        if st.button("🚀 Analisar Amostra PaySim", use_container_width=True):
+                            sample = df_paysim.head(max_rows_paysim)
+                            rows = []
+                            progress_bar = st.progress(0, text="Iniciando análise PaySim...")
+                            
+                            for i, (_, row) in enumerate(sample.iterrows()):
+                                tx = row.to_dict()
+                                tx.setdefault("step_norm", float(tx.get("step", 100)) / 744.0)
+                                progress_bar.progress(
+                                    (i + 1) / max_rows_paysim,
+                                    text=f"Analisando {i + 1}/{max_rows_paysim}...",
+                                )
+                                try:
+                                    res = run_analysis(tx)
+                                    rows.append(build_result_row(tx, res))
+                                except Exception as exc:
+                                    rows.append(
+                                        {"Tipo": tx.get("type", ""), "Erro": str(exc)}
+                                    )
+                            
+                            progress_bar.empty()
+                            st.success(f"✅ Análise de {max_rows_paysim} transações concluída!")
+                            df_res = pd.DataFrame(rows)
+                            st.dataframe(df_res, use_container_width=True)
+                            st.session_state["batch_results"] = rows
+                else:
+                    st.warning("Dataset PaySim não encontrado.")
             except Exception as exc:
-                st.error(f"Erro ao carregar arquivo: {exc}")
+                st.error(f"Erro: {exc}")
 
     # ------------------------------------------------------------------
-    # Aba 3: Estatísticas
+    # Aba 4: Estatísticas
     # ------------------------------------------------------------------
     with tab_stats:
         st.header("Estatísticas das Análises")
