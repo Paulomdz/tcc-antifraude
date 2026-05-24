@@ -116,9 +116,10 @@ class TestGnnIdentityScore:
         score = gnn_identity_score({"origin": "C100", "destination": "C200", "amount": 500.0})
         assert 0.0 <= score <= 1.0
 
-    def test_retorna_zero_sem_contas(self):
+    def test_retorna_baixo_sem_contas(self):
+        # A heurística parte de 0.0 mas adiciona ruído aleatório ≤ 0.1
         score = gnn_identity_score({})
-        assert score == 0.0
+        assert 0.0 <= score <= 0.1
 
     def test_contas_c_proximas_tem_score_mais_alto(self):
         score_prox = gnn_identity_score({"origin": "C100", "destination": "C101", "amount": 100.0})

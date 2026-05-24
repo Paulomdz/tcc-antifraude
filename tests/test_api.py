@@ -23,149 +23,183 @@ _VALID_PAYLOAD = {
 }
 
 
+def _make_module(result: dict):
+    """Cria módulo mock com orchestrate_transaction retornando result."""
+    return type("M", (), {"orchestrate_transaction": staticmethod(lambda tx: result)})()
+
+
 class TestHealthCheck:
     """Testa o endpoint GET /."""
 
     def test_retorna_200(self):
-        response = client.get("/")
-        assert response.status_code == 200
+        assert client.get("/").status_code == 200
 
     def test_retorna_status_ok(self):
-        response = client.get("/")
-        assert response.json()["status"] == "ok"
+        assert client.get("/").json()["status"] == "ok"
 
     def test_retorna_mensagem(self):
-        response = client.get("/")
-        assert "message" in response.json()
+        assert "message" in client.get("/").json()
 
 
 class TestAnaliseTransacao:
     """Testa o endpoint POST /analise_transacao."""
 
-    def _mock_orchestrate(self, mock_result):
-        """Cria patch do importlib para retornar módulo mockado."""
-        mock_module = type("FakeModule", (), {"orchestrate_transaction": lambda tx: mock_result})()
-        return patch("importlib.import_module", return_value=mock_module)
-
     def test_aprovada_retorna_200(self, mock_orchestrate_result):
-        with self._mock_orchestrate(mock_orchestrate_result):
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
             response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
         assert response.status_code == 200
 
     def test_decisao_aprovado_presente_na_resposta(self, mock_orchestrate_result):
-        with self._mock_orchestrate(mock_orchestrate_result):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        data = response.json()
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            data = client.post("/analise_transacao", json=_VALID_PAYLOAD).json()
         assert data["decisao"] == "APROVADO"
 
     def test_resposta_tem_score_final(self, mock_orchestrate_result):
-        with self._mock_orchestrate(mock_orchestrate_result):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        data = response.json()
-        assert "score_final" in data
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            data = client.post("/analise_transacao", json=_VALID_PAYLOAD).json()
         assert isinstance(data["score_final"], float)
 
     def test_resposta_tem_scores_tres_agentes(self, mock_orchestrate_result):
-        with self._mock_orchestrate(mock_orchestrate_result):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        data = response.json()
-        assert "scores" in data
-        assert "comportamental" in data["scores"]
-        assert "temporal" in data["scores"]
-        assert "identidade" in data["scores"]
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            data = client.post("/analise_transacao", json=_VALID_PAYLOAD).json()
+        assert {"comportamental", "temporal", "identidade"} == set(data["scores"].keys())
 
     def test_resposta_tem_agentes_detalhados(self, mock_orchestrate_result):
-        with self._mock_orchestrate(mock_orchestrate_result):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        data = response.json()
-        assert "agentes" in data
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            data = client.post("/analise_transacao", json=_VALID_PAYLOAD).json()
         assert set(data["agentes"].keys()) == {"comportamental", "temporal", "identidade"}
 
     def test_agente_tem_score_label_explicacao(self, mock_orchestrate_result):
-        with self._mock_orchestrate(mock_orchestrate_result):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        agente = response.json()["agentes"]["comportamental"]
-        assert "score" in agente
-        assert "label" in agente
-        assert "explicacao" in agente
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            agente = client.post("/analise_transacao", json=_VALID_PAYLOAD).json()["agentes"]["comportamental"]
+        assert {"score", "label", "explicacao"} <= set(agente.keys())
 
     def test_resposta_tem_justificativa(self, mock_orchestrate_result):
-        with self._mock_orchestrate(mock_orchestrate_result):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        assert "justificativa" in response.json()
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            data = client.post("/analise_transacao", json=_VALID_PAYLOAD).json()
+        assert "justificativa" in data
 
     def test_decisao_bloqueado(self, sample_transaction):
-        blocked_result = {
+        blocked = {
             "transaction": sample_transaction,
             "behavior": {"score": 0.9, "label": "behavior", "details": {"explanation": "Alto risco."}},
             "temporal": {"score": 0.85, "label": "temporal", "details": {"explanation": "Padrão anômalo."}},
             "identity": {"score": 0.7, "label": "identity", "details": {"explanation": "Conta suspeita."}},
-            "decision": {
-                "decision": "Recusada",
-                "score": 0.9,
-                "justification": "Decisão: Recusada.",
-                "specialist_outputs": {},
-            },
+            "decision": {"decision": "Recusada", "score": 0.9, "justification": "Recusada.", "specialist_outputs": {}},
         }
-        with self._mock_orchestrate(blocked_result):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        assert response.json()["decisao"] == "BLOQUEADO"
+        with patch("importlib.import_module", return_value=_make_module(blocked)):
+            data = client.post("/analise_transacao", json=_VALID_PAYLOAD).json()
+        assert data["decisao"] == "BLOQUEADO"
 
     def test_decisao_revisao(self, sample_transaction):
-        review_result = {
+        review = {
             "transaction": sample_transaction,
             "behavior": {"score": 0.6, "label": "behavior", "details": {"explanation": "Risco médio."}},
             "temporal": {"score": 0.55, "label": "temporal", "details": {"explanation": "Desvio leve."}},
-            "identity": {"score": 0.5, "label": "identity", "details": {"explanation": "Conexão incomum."}},
+            "identity": {"score": 0.5, "label": "identity", "details": {"explanation": "Incomum."}},
             "decision": {
                 "decision": "Revisão Humana necessária",
                 "score": 0.6,
-                "justification": "Decisão: Revisão Humana necessária.",
+                "justification": "Revisão.",
                 "specialist_outputs": {},
             },
         }
-        with self._mock_orchestrate(review_result):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        assert response.json()["decisao"] == "REVISÃO"
+        with patch("importlib.import_module", return_value=_make_module(review)):
+            data = client.post("/analise_transacao", json=_VALID_PAYLOAD).json()
+        assert data["decisao"] == "REVISÃO"
 
     def test_payload_invalido_sem_amount_retorna_422(self):
         payload = {k: v for k, v in _VALID_PAYLOAD.items() if k != "amount"}
-        response = client.post("/analise_transacao", json=payload)
-        assert response.status_code == 422
+        assert client.post("/analise_transacao", json=payload).status_code == 422
 
     def test_payload_minimo_apenas_amount(self):
-        mock_result = {
+        minimal_result = {
             "transaction": {"amount": 100.0},
             "behavior": {"score": 0.1, "label": "behavior", "details": {"explanation": "OK"}},
             "temporal": {"score": 0.1, "label": "temporal", "details": {"explanation": "OK"}},
             "identity": {"score": 0.1, "label": "identity", "details": {"explanation": "OK"}},
-            "decision": {
-                "decision": "Aprovada",
-                "score": 0.1,
-                "justification": "Baixo risco.",
-                "specialist_outputs": {},
-            },
+            "decision": {"decision": "Aprovada", "score": 0.1, "justification": "Baixo risco.", "specialist_outputs": {}},
         }
-        mock_module = type("M", (), {"orchestrate_transaction": lambda tx: mock_result})()
-        with patch("importlib.import_module", return_value=mock_module):
-            response = client.post("/analise_transacao", json={"amount": 100.0})
-        assert response.status_code == 200
+        with patch("importlib.import_module", return_value=_make_module(minimal_result)):
+            assert client.post("/analise_transacao", json={"amount": 100.0}).status_code == 200
 
     def test_erro_na_analise_retorna_500(self):
-        mock_module = type("M", (), {
-            "orchestrate_transaction": staticmethod(lambda tx: (_ for _ in ()).throw(RuntimeError("falha interna")))
+        bad_module = type("M", (), {
+            "orchestrate_transaction": staticmethod(
+                lambda tx: (_ for _ in ()).throw(RuntimeError("falha interna"))
+            )
         })()
-        with patch("importlib.import_module", return_value=mock_module):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        assert response.status_code == 500
+        with patch("importlib.import_module", return_value=bad_module):
+            assert client.post("/analise_transacao", json=_VALID_PAYLOAD).status_code == 500
 
     def test_modelo_nao_encontrado_retorna_503(self):
-        mock_module = type("M", (), {
-            "orchestrate_transaction": staticmethod(lambda tx: (_ for _ in ()).throw(FileNotFoundError("pkl ausente")))
+        bad_module = type("M", (), {
+            "orchestrate_transaction": staticmethod(
+                lambda tx: (_ for _ in ()).throw(FileNotFoundError("pkl ausente"))
+            )
         })()
-        with patch("importlib.import_module", return_value=mock_module):
-            response = client.post("/analise_transacao", json=_VALID_PAYLOAD)
-        assert response.status_code == 503
+        with patch("importlib.import_module", return_value=bad_module):
+            assert client.post("/analise_transacao", json=_VALID_PAYLOAD).status_code == 503
+
+
+class TestAnaliseLote:
+    """Testa o endpoint POST /analise_lote."""
+
+    def _lote_payload(self, n: int = 2) -> dict:
+        return {"transacoes": [_VALID_PAYLOAD] * n}
+
+    def test_retorna_200_com_lote_valido(self, mock_orchestrate_result):
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            response = client.post("/analise_lote", json=self._lote_payload(2))
+        assert response.status_code == 200
+
+    def test_total_correto(self, mock_orchestrate_result):
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            data = client.post("/analise_lote", json=self._lote_payload(3)).json()
+        assert data["total"] == 3
+
+    def test_contagem_aprovados_correta(self, mock_orchestrate_result):
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            data = client.post("/analise_lote", json=self._lote_payload(2)).json()
+        assert data["aprovados"] == 2
+
+    def test_resultados_tem_mesmo_tamanho_que_total(self, mock_orchestrate_result):
+        with patch("importlib.import_module", return_value=_make_module(mock_orchestrate_result)):
+            data = client.post("/analise_lote", json=self._lote_payload(2)).json()
+        assert len(data["resultados"]) == 2
+
+    def test_lote_vazio_retorna_422(self):
+        assert client.post("/analise_lote", json={"transacoes": []}).status_code == 422
+
+    def test_erro_individual_nao_para_lote(self, mock_orchestrate_result):
+        call_count = 0
+
+        def side_effect(tx):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("falha na primeira")
+            return mock_orchestrate_result
+
+        error_module = type("M", (), {"orchestrate_transaction": staticmethod(side_effect)})()
+        with patch("importlib.import_module", return_value=error_module):
+            data = client.post("/analise_lote", json=self._lote_payload(2)).json()
+        assert len(data["resultados"]) == 2
+        assert data["resultados"][0]["decisao"] == "ERRO"
+        assert data["resultados"][1]["decisao"] == "APROVADO"
+
+
+class TestImportError:
+    """Testa o comportamento quando o módulo de orquestração não está disponível."""
+
+    def test_importerror_analise_transacao_retorna_500(self):
+        with patch("importlib.import_module", side_effect=ImportError("crewai ausente")):
+            assert client.post("/analise_transacao", json=_VALID_PAYLOAD).status_code == 500
+
+    def test_importerror_analise_lote_retorna_500(self):
+        with patch("importlib.import_module", side_effect=ImportError("crewai ausente")):
+            payload = {"transacoes": [_VALID_PAYLOAD]}
+            assert client.post("/analise_lote", json=payload).status_code == 500
 
 
 class TestDecisionMap:

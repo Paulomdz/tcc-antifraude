@@ -1,0 +1,11 @@
+[run]
+source = src
+
+[report]
+# Arquivos de arquitetura de modelos e scripts de treinamento requerem
+# integração com PyTorch/dados reais — excluídos da cobertura unitária.
+omit =
+    src/modelos/arquitetura_lstm.py
+    src/modelos/arquitetura_gnn.py
+    src/modelos/treinamento/treinar_modelos.py
+    src/orquestração/definicoes_agentes.py
