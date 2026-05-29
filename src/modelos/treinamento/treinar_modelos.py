@@ -14,7 +14,7 @@ from sklearn.metrics import classification_report
 # Adiciona o diretório raiz ao path para imports
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
-from src.preprocessamento.carregar_paysim import PROCESSED_DATA_PATH
+from src.preprocessamento.carregar_paysim import resolve_processed_data_path
 from src.ferramentas.inferencia_modelos import extract_behavior_features
 from src.modelos.arquitetura_lstm import treinar_lstm, salvar_lstm
 from src.modelos.arquitetura_gnn import treinar_gnn, salvar_gnn
@@ -115,11 +115,12 @@ def main():
     print("=" * 60)
 
     # Carrega dados processados
-    if not PROCESSED_DATA_PATH.exists():
-        print(" Dados processados não encontrados. Execute load_paysim.py primeiro.")
+    processed_path = resolve_processed_data_path()
+    if not processed_path.exists():
+        print(" Dados processados não encontrados. Execute src/preprocessamento/carregar_paysim.py primeiro.")
         return
 
-    df = pd.read_parquet(PROCESSED_DATA_PATH)
+    df = pd.read_parquet(processed_path)
     print(f" Dataset carregado: {len(df)} registros")
 
     # Prepara amostra balanceada

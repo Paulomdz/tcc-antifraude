@@ -12,10 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 app = FastAPI(
-    title="ClearSafe Antifraude API",
+    title="SISTEMA MULTIAGENTE DE IA PARA DETECÇÃO DE FRAUDES EM TRANSAÇÕES FINANCEIRAS",
     description=(
         "Detecção de fraudes em transações financeiras usando três modelos de ML "
-        "(Isolation Forest, LSTM e GNN) orquestrados por agentes especializados.\n\n"
+        "(Isolation Forest, LSTM e GNN) orquestrados por agentes especializados com IA. "
+        "Implementação de regras rígidas de risco bancário brasileiro.\n\n"
         "**Decisões possíveis:** `APROVADO` · `REVISÃO` · `BLOQUEADO`"
     ),
     version="1.0.0",
@@ -52,8 +53,6 @@ class TransacaoInput(BaseModel):
     oldbalanceOrg: float = Field(default=0.0, ge=0.0, description="Saldo anterior da origem")
     newbalanceOrig: float = Field(default=0.0, ge=0.0, description="Novo saldo da origem")
     nameDest: str = Field(default="", description="Identificador da conta de destino")
-    oldbalanceDest: float = Field(default=0.0, ge=0.0, description="Saldo anterior do destino")
-    newbalanceDest: float = Field(default=0.0, ge=0.0, description="Novo saldo do destino")
     step_norm: float = Field(default=0.5, ge=0.0, le=1.0, description="Step normalizado [0, 1]")
 
 

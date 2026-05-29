@@ -6,7 +6,25 @@ import numpy as np
 import pandas as pd
 
 RAW_DATA_PATH = Path("data/PS_20174392719_1491204439457_log.csv")
-PROCESSED_DATA_PATH = Path("data/paysim_dados_processados.parquet")
+DEFAULT_PROCESSED_DATA_PATH = Path("data/paysim_processed.parquet")
+LEGACY_PROCESSED_DATA_PATH = Path("data/paysim_dados_processados.parquet")
+PROCESSED_DATA_PATH = DEFAULT_PROCESSED_DATA_PATH
+
+
+def resolve_processed_data_path(path: str | Path | None = None) -> Path:
+    """Resolve o caminho do parquet processado, priorizando o nome padrão."""
+    candidate = Path(path) if path is not None else PROCESSED_DATA_PATH
+
+    if candidate.exists():
+        return candidate
+
+    if DEFAULT_PROCESSED_DATA_PATH.exists():
+        return DEFAULT_PROCESSED_DATA_PATH
+
+    if LEGACY_PROCESSED_DATA_PATH.exists():
+        return LEGACY_PROCESSED_DATA_PATH
+
+    return candidate if path is not None else PROCESSED_DATA_PATH
 
 
 def load_paysim(csv_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
@@ -51,8 +69,9 @@ def preprocess_paysim(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def save_processed(df: pd.DataFrame, output_path: Path = PROCESSED_DATA_PATH) -> None:
+def save_processed(df: pd.DataFrame, output_path: Path = DEFAULT_PROCESSED_DATA_PATH) -> None:
     """Salva o DataFrame processado em formato Parquet para uso posterior."""
+    output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
     print(f"Dados processados salvos em: {output_path}")
@@ -61,7 +80,7 @@ def save_processed(df: pd.DataFrame, output_path: Path = PROCESSED_DATA_PATH) ->
 def main(raw_path: str | None = None, output_path: str | None = None) -> None:
     """Ponto de entrada para carregar, processar e salvar o dataset PaySim."""
     csv_path = Path(raw_path) if raw_path else RAW_DATA_PATH
-    processed_path = Path(output_path) if output_path else PROCESSED_DATA_PATH
+    processed_path = Path(output_path) if output_path else DEFAULT_PROCESSED_DATA_PATH
 
     raw_df = load_paysim(csv_path)
     processed_df = preprocess_paysim(raw_df)

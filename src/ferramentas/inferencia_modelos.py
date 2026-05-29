@@ -31,7 +31,7 @@ def load_pickle_model(filename: str) -> Any:
 
 
 def extract_behavior_features(transaction: Dict[str, Any]) -> np.ndarray:
-    """Extrai features numéricas relevantes para o modelo de comportamento."""
+    """Extrai features reais e compatíveis com os modelos treinados."""
     features = [
         float(transaction.get("amount", 0.0)),
         float(transaction.get("oldbalanceOrg", 0.0)),

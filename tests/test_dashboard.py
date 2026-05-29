@@ -146,7 +146,7 @@ class TestRandomTransaction:
     def test_contem_campos_obrigatorios(self):
         tx = random_transaction()
         expected = {"step", "type", "amount", "nameOrig", "oldbalanceOrg",
-                    "newbalanceOrig", "nameDest", "oldbalanceDest", "newbalanceDest", "step_norm"}
+                    "newbalanceOrig", "nameDest", "step_norm"}
         assert expected <= set(tx.keys())
 
     def test_amount_positivo(self):
@@ -156,7 +156,7 @@ class TestRandomTransaction:
     def test_step_dentro_do_intervalo(self):
         for _ in range(10):
             step = random_transaction()["step"]
-            assert 1 <= step <= 744
+            assert 0 <= step <= 1439
 
     def test_step_norm_entre_zero_e_um(self):
         for _ in range(10):
@@ -244,21 +244,18 @@ class TestRenderStats:
 
 
 class TestRunAnalysis:
-    """Testa run_analysis com módulo de orquestração mockado."""
+    """Testa run_analysis com a mesma lógica da simulação."""
 
-    def test_chama_orchestrate_transaction(self, sample_transaction, mock_orchestrate_result):
-        mock_module = MagicMock()
-        mock_module.orchestrate_transaction.return_value = mock_orchestrate_result
-        with patch("importlib.import_module", return_value=mock_module):
+    def test_chama_run_crewai_simulation(self, sample_transaction, mock_orchestrate_result):
+        with patch("run_simulation.run_crewai_simulation", return_value=mock_orchestrate_result) as mock_run:
             from src.dashboard.app import run_analysis
             result = run_analysis(sample_transaction)
+
         assert result == mock_orchestrate_result
-        mock_module.orchestrate_transaction.assert_called_once_with(sample_transaction)
+        mock_run.assert_called_once_with(sample_transaction)
 
     def test_propaga_excecao_do_modulo(self, sample_transaction):
-        mock_module = MagicMock()
-        mock_module.orchestrate_transaction.side_effect = RuntimeError("Falha no modelo")
-        with patch("importlib.import_module", return_value=mock_module):
+        with patch("run_simulation.run_crewai_simulation", side_effect=RuntimeError("Falha no modelo")):
             from src.dashboard.app import run_analysis
             with pytest.raises(RuntimeError, match="Falha no modelo"):
                 run_analysis(sample_transaction)

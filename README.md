@@ -1,219 +1,202 @@
-# Simulador de Detecção de Fraudes Financeiras com IA Multiagente
+# SISTEMA MULTIAGENTE DE IA PARA DETECÇÃO DE FRAUDES EM TRANSAÇÕES FINANCEIRAS
 
-Sistema avançado de detecção de fraudes financeiras usando múltiplos modelos de ML (Isolation Forest, LSTM, GNN) orquestrados por agentes IA conversacionais via CrewAI e Google Gemini 1.5 Flash.
+Projeto acadêmico e experimental para detecção de fraudes financeiras com múltiplos modelos de Machine Learning, orquestração de agentes e interfaces para uso em linha de comando, API e dashboard.
 
-## 🎯 Visão Geral
+Este sistema combina técnicas de análise comportamental, sequencial e de grafo para classificar transações como aprovadas, sujeitas a revisão ou bloqueadas, com base em scores de risco calculados por especialistas de IA.
 
-Um sistema que simula transações bancárias e detecta fraudes analisando:
-- **Padrões Comportamentais**: Anomalias em valores e saldos (Isolation Forest)
-- **Sequências Temporais**: Desvios no histórico de transações (LSTM)
-- **Redes de Contas**: Conexões suspeitas entre contas (GNN)
+## Visão Geral
 
-Tudo integrado via agentes IA que conversam entre si usando Google Gemini 1.5 Flash.
+O software foi desenvolvido para simular e analisar transações bancárias sintéticas do dataset PaySim, identificando padrões suspeitos que podem indicar fraude. A arquitetura integra:
 
-## 📁 Estrutura do Projeto 
+- Isolation Forest para detecção de anomalias comportamentais;
+- LSTM para análise temporal de sequências de transações;
+- GNN para modelagem de relações entre contas;
+- CrewAI e Gemini para orquestração multiagente;
+- FastAPI e Streamlit para uso em API e interface visual.
 
-```
+## Objetivo
+
+O objetivo principal é demonstrar como uma solução multiagente pode apoiar a detecção de risco financeiro em cenários de fraude, oferecendo uma base modular para pesquisa, apresentação acadêmica e prototipagem.
+
+## Funcionalidades Principais
+
+- Carregamento e pré-processamento de dados PaySim;
+- Treinamento e inferência de modelos de fraude;
+- Análise de transações individuais e em lote;
+- Orquestração de especialistas com score consolidado;
+- API REST para integração com sistemas externos;
+- Dashboard interativo para visualização do resultado.
+
+## Público-Alvo
+
+- estudantes e pesquisadores em IA/ML;
+- equipes de risco, compliance e fraude;
+- desenvolvedores interessados em protótipos financeiros;
+- projetos de TCC ou demonstrações acadêmicas.
+
+## Problemas que Resolve
+
+- reduz a dependência de revisão manual de transações;
+- ajuda a identificar padrões atípicos em grandes volumes;
+- oferece uma abordagem híbrida entre modelos clássicos e IA generativa;
+- funciona como base para prototipação de sistemas de alerta antifraude.
+
+## Arquitetura do Projeto
+
+### Tecnologias e Bibliotecas
+
+- Python
+- pandas, numpy
+- scikit-learn
+- PyTorch e PyTorch Geometric (modelos LSTM/GNN)
+- FastAPI
+- Streamlit
+- CrewAI
+- Google Gemini / langchain-google-genai
+- python-dotenv
+- pytest
+
+### Estrutura Principal
+
+```text
 .
-├── data/
-│   ├── PS_20174392719_1491204439457_log.csv.zip  # PaySim (bruto)
-│   └── paysim_processed.parquet                   # Processado
-│
+├── data/                           # Dados brutos e processados
 ├── src/
-│   ├── preprocessamento/              # Carregamento e limpeza
-│   │   ├── carregar_paysim.py
-│   │   └── __init__.py
-│   │
-│   ├── modelos/                       # Modelos de ML
-│   │   ├── treinamento/
-│   │   │   ├── treinar_modelos.py
-│   │   │   └── __init__.py
-│   │   ├── arquitetura_lstm.py
-│   │   ├── arquitetura_gnn.py
-│   │   ├── modelos_salvos/
-│   │   └── __init__.py
-│   │
-│   ├── ferramentas/                   # Inferência
-│   │   ├── inferencia_modelos.py
-│   │   ├── ferramentas_crewai.py
-│   │   └── __init__.py
-│   │
-│   └── orquestração/                  # CrewAI
-│       ├── definicoes_agentes.py
-│       ├── fluxo_crewai.py
-│       ├── tarefas_crewai.py
-│       └── __init__.py
-│
-├── .env                               # Chave API Gemini
-├── run_simulation.py                  # Script principal
-├── teste_sistema_completo.py         # Suite de testes
-├── GUIA_IMPLEMENTACAO.md             # Guia detalhado
-├── requirements.txt
-└── README.md
+│   ├── api/                        # API FastAPI
+│   ├── dashboard/                  # Interface Streamlit
+│   ├── ferramentas/                # Inferência e ferramentas de agentes
+│   ├── modelos/                    # LSTM, GNN e treinamento
+│   └── preprocessamento/           # Leitura e limpeza do PaySim
+├── tests/                          # Testes automatizados
+├── run_simulation.py               # Simulação principal
+├── teste_sistema_completo.py       # Verificação do sistema
+└── requirements.txt                # Dependências do projeto
 ```
 
-## ⚙️ Instalação
+## Fluxo de Funcionamento
 
-### 1. Setup Básico
+1. O dataset PaySim é carregado a partir de data/PS_20174392719_1491204439457_log.csv.
+2. O módulo de pré-processamento converte, limpa e genera features como amount_log, step_norm e indicadores de saldo.
+3. Os modelos de ML são treinados ou carregados a partir de src/modelos/modelos_salvos.
+4. A inferência calcula scores de risco comportamental, temporal e de identidade.
+5. A orquestração multiagente agrega esses scores e produz uma decisão final.
+6. O resultado é entregue por linha de comando, API REST ou dashboard interativo.
+
+## Como Executar
+
+### 1. Preparar o ambiente
+
 ```bash
-cd c:\Users\paulo\Desktop\Uni\TCC
-python -m venv venv
-venv\Scripts\activate
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 2. Preparar Dados
-```bash
-# Descompacte PS_20174392719_1491204439457_log.csv.zip em data/
+### 2. Preparar os dados
+
+O arquivo bruto do PaySim deve estar em:
+
+```text
+data/PS_20174392719_1491204439457_log.csv
 ```
 
-### 3. Configuração (Opcional)
-Arquivo `.env` já contém chave Gemini. Para alterar:
-```
-GOOGLE_API_KEY=sua_chave_aqui
-```
+Em seguida, execute:
 
-## 🚀 Como Usar
-
-### ⚡ Opção 1: Suite Completa de Testes (Recomendado)
-```bash
-python teste_sistema_completo.py
-```
-Executa todos os testes e mostra o status de cada componente.
-
-### 📊 Opção 2: Componentes Individuais
-
-**Pré-processar:**
 ```bash
 python src/preprocessamento/carregar_paysim.py
 ```
 
-**Treinar Isolation Forest:**
-```bash
-python -c "
-from src.modelos.treinamento.treinar_modelos import *
-import pandas as pd
-df = pd.read_parquet('data/paysim_processed.parquet')
-modelo = train_isolation_forest(prepare_balanced_sample(df, 5000))
-save_model(modelo, 'isolation_forest.pkl')
-"
-```
+### 3. Executar a simulação
 
-**Treinar LSTM (requer PyTorch):**
-```bash
-python -c "
-from src.modelos.arquitetura_lstm import treinar_lstm, salvar_lstm
-import pandas as pd
-df = pd.read_parquet('data/paysim_processed.parquet')
-model = treinar_lstm(df.sample(2000), epochs=20)
-salvar_lstm(model) if model else None
-"
-```
-
-**Treinar GNN (requer PyTorch Geometric):**
-```bash
-python -c "
-from src.modelos.arquitetura_gnn import treinar_gnn, salvar_gnn
-import pandas as pd
-df = pd.read_parquet('data/paysim_processed.parquet')
-model, ds = treinar_gnn(df.sample(2000), epochs=20)
-salvar_gnn(model, ds) if model else None
-"
-```
-
-**Executar Simulação:**
 ```bash
 python run_simulation.py
 ```
 
-## 📊 Status de Implementação
+### 4. Executar a API
 
-### ✅ Totalmente Funcional
-- ✓ Pré-processamento PaySim
-- ✓ Isolation Forest (58% acurácia)
-- ✓ Sistema de inferência modular
-- ✓ Tradução 100% em português
-- ✓ Estrutura em português
-
-### 🔄 Código Pronto (Com Fallbacks)
-- ⚠️ LSTM (Código completo, PyTorch opcional)
-- ⚠️ GNN (Código completo, PyTorch Geometric opcional)
-- ⚠️ CrewAI (Estrutura pronta para ativar)
-
-### 🔮 Próximas Fases
-- [ ] Ativar CrewAI conversacional com agentes reais
-- [ ] Dashboard Streamlit
-- [ ] API REST em produção
-- [ ] Testes unitários
-
-## 🧠 Modelos de ML
-
-| Modelo | Status | Entrada | Saída | Acurácia |
-|--------|--------|---------|-------|----------|
-| **Isolation Forest** | ✅ Ativo | Transação | Score 0-1 | 58% |
-| **LSTM** | ⚠️ Pronto | Sequência | Score 0-1 | - |
-| **GNN** | ⚠️ Pronto | Grafo | Score 0-1 | - |
-
-## 📖 Documentação Completa
-
-Veja `GUIA_IMPLEMENTACAO.md` para:
-- Passo-a-passo LSTM e GNN
-- Como integrar CrewAI conversacional
-- Resolvendo dependências (PyTorch)
-- Checklist de implementação
-- Código completo de exemplo
-
-## 🔧 Troubleshooting
-
-**PyTorch não instala:**
 ```bash
-pip install torch --index-url https://download.pytorch.org/whl/nightly/cpu
+python -m uvicorn src.api.main:app --reload --port 8000
 ```
 
-**Dados não encontrados:**
-- Descompacte: `data/PS_20174392719_1491204439457_log.csv.zip`
+Acesse a documentação da API em:
 
-**CrewAI com erro:**
-```bash
-pip uninstall crewai -y && pip install crewai langchain-google-genai
+```text
+http://localhost:8000/docs
 ```
 
-**Verificar ambiente:**
+### 5. Executar o dashboard
+
 ```bash
-python -c "import torch; print('✓ PyTorch'); import crewai; print('✓ CrewAI')"
+python -m streamlit run src/dashboard/app.py --server.headless true --server.port 8502
 ```
 
-## 📝 Exemplo de Uso
+## Exemplo de Uso
 
 ```python
-from src.orquestração.fluxo_crewai import orchestrate_transaction
 import pandas as pd
+from src.orquestração.fluxo_crewai import orchestrate_transaction
 
-df = pd.read_parquet('data/paysim_processed.parquet')
-transacao = df.iloc[0].to_dict()
+# Carrega transação processada
+transacao = pd.read_parquet("data/paysim_processed.parquet").iloc[0].to_dict()
 
 resultado = orchestrate_transaction(transacao)
-
-print(f"Decisão: {resultado['decision']['label']}")
-print(f"Score: {resultado['decision']['fraud_score']:.3f}")
+print("Decisão:", resultado["decision"]["decision"])
+print("Score final:", round(resultado["decision"]["score"], 3))
 ```
 
-## 📚 Arquivos Principais
+## Status Atual do Projeto
 
-- **run_simulation.py** - Simulação completa
-- **teste_sistema_completo.py** - Suite de testes
-- **GUIA_IMPLEMENTACAO.md** - Documentação detalhada
-- **src/modelos/arquitetura_lstm.py** - LSTM com atenção
-- **src/modelos/arquitetura_gnn.py** - GNN com GAT+GCN
-- **src/ferramentas/inferencia_modelos.py** - Carregamento de modelos
+### Funcionalidades já estruturadas
 
-## 🎓 Referências
+- Pré-processamento do PaySim
+- Inferência modular por modelos
+- API REST com FastAPI
+- Dashboard com Streamlit
+- Orquestração multiagente com CrewAI
 
-- PyTorch: https://pytorch.org/tutorials/
+### Componentes opcionais ou dependentes de instalação
+
+- LSTM
+- GNN
+- integração completa com Gemini/CrewAI
+
+Esses módulos estão implementados na base do projeto e podem ser ativados conforme o ambiente e as dependências disponíveis.
+
+## Casos de Uso
+
+- demonstração de TCC em IA aplicada à fraude;
+- análise de risco em transações financeiras sintéticas;
+- prototipagem de sistemas antifraude;
+- integração com painéis de compliance e análise de risco.
+
+## Diferenciais
+
+- arquitetura modular e extensível;
+- combinação de múltiplos modelos de risco;
+- integração entre IA tradicional e IA generativa;
+- suporte para API e dashboard a partir da mesma base de código;
+- foco em aprendizado, pesquisa e prototipação prática.
+
+## Limitações
+
+- o dataset é simulado (PaySim), não representando necessariamente dados reais de instituições financeiras;
+- alguns componentes avançados dependem de bibliotecas pesadas, como PyTorch e PyTorch Geometric;
+- a orquestração multiagente pode precisar de ajustes finos conforme a disponibilidade da API Gemini e das dependências instaladas.
+
+## Melhorias Futura
+
+- adicionar métricas avançadas de avaliação (precision, recall, F1-score);
+- integrar dados reais anonimizados;
+- melhorar a robustez da API e do dashboard;
+- ampliar a orquestração multiagente com agentes mais especializados;
+- implementar monitoramento e histórico de análises.
+
+## Referências
+
+- PyTorch: https://pytorch.org/
 - PyTorch Geometric: https://pytorch-geometric.readthedocs.io/
 - CrewAI: https://docs.crewai.com/
-- Google Gemini: https://ai.google.dev/
-- Isolation Forest: https://scikit-learn.org/stable/modules/ensemble.html#isolation-forest
+- FastAPI: https://fastapi.tiangolo.com/
+- Streamlit: https://streamlit.io/
+- PaySim: https://www.compred.org/PaySim/
 
-
----

@@ -37,14 +37,14 @@ python --version
 ## 🔄 Fluxo Completo de Execução
 
 ### **PASSO 1: Preparar Dados**
-```bash
-python src/preprocessamento/carregar_paysim.py
+```powershell
+.\venv\Scripts\python.exe src/preprocessamento/carregar_paysim.py
 ```
 📊 Carrega `data/PS_20174392719_1491204439457_log.csv` e cria `data/paysim_processed.parquet`
 
 ### **PASSO 2: Testar Sistema**
-```bash
-python teste_sistema_completo.py
+```powershell
+.\venv\Scripts\python.exe -m pytest -q
 ```
 ✅ Executa 6 testes (preprocessamento, modelos, API, dashboard)
 - Esperado: **6/6 PASSARAM** ✅
@@ -93,8 +93,8 @@ if m:
 ```
 
 ### **PASSO 4: Executar Sistema Completo**
-```bash
-python run_simulation.py
+```powershell
+.\venv\Scripts\python.exe run_simulation.py
 ```
 🤖 Orquestra agentes CrewAI para análise de fraudes em tempo real
 
@@ -108,10 +108,11 @@ python run_simulation.py
 source venv/bin/activate     # Linux/Mac
 
 # 2. Dados + Testes
-python src/preprocessamento/carregar_paysim.py && python teste_sistema_completo.py
+.\venv\Scripts\python.exe src/preprocessamento/carregar_paysim.py
+.\venv\Scripts\python.exe -m pytest -q
 
 # 3. Treinar + Rodar
-python run_simulation.py
+.\venv\Scripts\python.exe run_simulation.py
 ```
 
 ---
@@ -119,14 +120,14 @@ python run_simulation.py
 ## 📱 Alternativas de Execução
 
 ### Dashboard Streamlit
-```bash
-streamlit run src/dashboard/app.py
+```powershell
+.\venv\Scripts\python.exe -m streamlit run src/dashboard/app.py --server.headless true --server.port 8502
 ```
 🌐 Acessa em `http://localhost:8501`
 
 ### API FastAPI
-```bash
-uvicorn src.api.main:app --reload --port 8000
+```powershell
+.\venv\Scripts\python.exe -m uvicorn src.api.main:app --reload --port 8000
 ```
 📡 Acessa em `http://localhost:8000/docs`
 
@@ -201,10 +202,10 @@ tcc-antifraude/
 ## 💡 Próximos Passos
 
 1. ✅ Completar setup acima
-2. 🎯 Executar `python run_simulation.py` para ver agentes em ação
-3. 📊 Abrir dashboard: `streamlit run src/dashboard/app.py`
-4. 📡 Explorar API: `uvicorn src.api.main:app --reload`
-5. 🧪 Rodar testes: `pytest -v`
+2. 🎯 Executar `.\venv\Scripts\python.exe run_simulation.py` para ver agentes em ação
+3. 📊 Abrir dashboard: `.\venv\Scripts\python.exe -m streamlit run src/dashboard/app.py --server.headless true --server.port 8502`
+4. 📡 Explorar API: `.\venv\Scripts\python.exe -m uvicorn src.api.main:app --reload --port 8000`
+5. 🧪 Rodar testes: `.\venv\Scripts\python.exe -m pytest -q`
 
 ---
 
@@ -242,8 +243,8 @@ print(f"Score: {resultado['decision']['fraud_score']:.3f}")
 
 ## 🎯 Checklist de Validação
 
-- [ ] `python teste_sistema_completo.py` → 6/6 testes
-- [ ] `python run_simulation.py` → Análise de transações
+- [ ] `.\venv\Scripts\python.exe -m pytest -q` → testes completos
+- [ ] `.\venv\Scripts\python.exe run_simulation.py` → análise de transações
 - [ ] `python -c "import crewai; print('OK')"` → CrewAI funcional
 - [ ] `python -c "from src.modelos.arquitetura_lstm import *; print('OK')"` → LSTM importa
 - [ ] `python -c "from src.modelos.arquitetura_gnn import *; print('OK')"` → GNN importa
@@ -284,4 +285,4 @@ python -c "import shutil; shutil.rmtree('src/__pycache__', ignore_errors=True); 
 
 ---
 
-**🎉 Seu projeto está pronto! Execute `python teste_sistema_completo.py` e veja tudo funcionando!**
+**🎉 Seu projeto está pronto! Execute `.\venv\Scripts\python.exe -m pytest -q` e veja tudo funcionando!**

@@ -1,6 +1,5 @@
-"""Dashboard Streamlit — ClearSafe Antifraude."""
+"""Dashboard Streamlit — Sistema Multiagente de IA para detecção de fraudes."""
 
-import importlib
 import random
 import sys
 from pathlib import Path
@@ -12,14 +11,17 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-# ---------------------------------------------------------------------------
+
 # Constantes
-# ---------------------------------------------------------------------------
 
 _DECISION_MAP = {
     "Aprovada": "APROVADO",
+    "APROVADO": "APROVADO",
     "Revisão Humana necessária": "REVISÃO",
+    "REVISÃO MANUAL": "REVISÃO",
+    "REVISÃO": "REVISÃO",
     "Recusada": "BLOQUEADO",
+    "BLOQUEADO": "BLOQUEADO",
 }
 
 _DECISION_ICON = {
@@ -41,7 +43,14 @@ _DECISION_FG = {
 }
 
 _TX_TYPES = ["TRANSFER", "CASH_OUT", "PAYMENT", "DEBIT", "CASH_IN"]
-
+_MAX_FINANCIAL_VALUE = 9_999_999.00
+_MAX_BATCH_ROWS = 500
+_MAX_UPLOAD_MB = 1024
+_RISK_RULES_TEXT = (
+    "Regras de risco ativadas: débito/transferência ≥ R$ 10.000 entre 00:00 e 05:59 "
+    "é bloqueado automaticamente com score 0.95; o dashboard utiliza formato brasileiro "
+    "e horário 24h em toda a interface."
+)
 _CSS = """
 <style>
 /* Fundo e corpo */
@@ -107,9 +116,7 @@ div[data-testid="stButton"] button {
 </style>
 """
 
-# ---------------------------------------------------------------------------
 # Funções auxiliares puras (testáveis sem Streamlit)
-# ---------------------------------------------------------------------------
 
 
 def map_decision(raw: str) -> str:
@@ -123,9 +130,10 @@ def decision_icon(decision: str) -> str:
 
 
 def run_analysis(transaction: dict) -> dict:
-    """Executa análise de fraude chamando o pipeline de orquestração."""
-    fluxo = importlib.import_module("src.orquestração.fluxo_crewai")
-    return fluxo.orchestrate_transaction(transaction)
+    """Executa a análise com a mesma lógica validada em run_simulation."""
+    import run_simulation
+
+    return run_simulation.run_crewai_simulation(transaction)
 
 
 def build_result_row(tx: dict, resultado: dict) -> dict:
@@ -133,7 +141,7 @@ def build_result_row(tx: dict, resultado: dict) -> dict:
     decisao = map_decision(resultado["decision"]["decision"])
     return {
         "Tipo": tx.get("type", ""),
-        "Valor (R$)": tx.get("amount", 0.0),
+        "Valor (R$)": float(tx.get("amount", 0.0)),
         "Origem": tx.get("nameOrig", ""),
         "Destino": tx.get("nameDest", ""),
         "Comportamental": round(float(resultado["behavior"]["score"]), 3),
@@ -144,29 +152,96 @@ def build_result_row(tx: dict, resultado: dict) -> dict:
     }
 
 
+def _normalize_step(step: float | int) -> float:
+    """Normaliza HH:MM para o intervalo [0, 1] em 24h completos."""
+    total_minutes = float(step) % 1440.0
+    return total_minutes / 1440.0
+
+
+def _time_to_minutes(value: str) -> int:
+    """Converte string HH:MM em minutos do dia."""
+    try:
+        hh, mm = map(int, str(value).split(":", 1))
+        return (hh % 24) * 60 + (mm % 60)
+    except ValueError:
+        return 0
+
+
+def _minutes_to_hh_mm(minutes: int) -> str:
+    """Converte minutos do dia para string HH:MM em formato 24h."""
+    try:
+        minutes = int(minutes) % 1440
+        hh = minutes // 60
+        mm = minutes % 60
+        return f"{hh:02d}:{mm:02d}"
+    except (ValueError, TypeError):
+        return "00:00"
+
+
+def _is_valid_24h_time(value: str) -> bool:
+    """Valida se a string está no formato HH:MM de 24h."""
+    try:
+        hh, mm = map(int, str(value).strip().split(':', 1))
+        return 0 <= hh < 24 and 0 <= mm < 60
+    except (ValueError, AttributeError):
+        return False
+
+
+def _format_banking_amount(value: float) -> float:
+    """Arredonda valores financeiros no padrão bancário real (2 casas decimais)."""
+    return round(float(value), 2)
+
+
+def _format_currency(value: float) -> str:
+    """Formata valores com separadores de milhares e 2 casas decimais."""
+    return f"{float(value):,.2f}".replace(",", "~").replace(".", ",").replace("~", ".")
+
+
+def _format_currency_br(value: float) -> str:
+    """Formata valores em estilo brasileiro para exibição no dashboard."""
+    return f"R$ {float(value):,.2f}".replace(",", "~").replace(".", ",").replace("~", ".")
+
+
+def _calculate_new_balance(old_balance: float, amount: float, tx_type: str) -> float:
+    """Calcula o novo saldo conforme a natureza da transação."""
+    old_balance = _format_banking_amount(old_balance)
+    amount = _format_banking_amount(amount)
+    if str(tx_type).upper() in {"CASH_IN"}:
+        return _format_banking_amount(old_balance + amount)
+    return _format_banking_amount(old_balance - amount)
+
+
+def _safe_session_value(key: str, fallback: float) -> float:
+    """Garante que valores antigos da sessão não ultrapassem o limite do widget."""
+    try:
+        value = float(st.session_state.get(key, fallback))
+    except (TypeError, ValueError):
+        value = float(fallback)
+    return min(max(value, 0.0), _MAX_FINANCIAL_VALUE)
+
+
 def random_transaction() -> dict:
-    """Gera uma transação aleatória para simulação."""
-    amount = round(random.uniform(100.0, 180_000.0), 2)
-    bal_org = round(random.uniform(amount, amount * 4), 2)
-    step = random.randint(1, 744)
+    """Gera uma transação aleatória com valores bancários realistas."""
+    tx_type = random.choice(_TX_TYPES)
+    amount = _format_banking_amount(random.uniform(10.0, _MAX_FINANCIAL_VALUE))
+    bal_org = _format_banking_amount(random.uniform(amount, amount * 6))
+    max_daily_limit = _MAX_FINANCIAL_VALUE
+    if amount > max_daily_limit:
+        amount = _format_banking_amount(max_daily_limit)
+    step = random.randint(0, 1439)
     return {
         "step": step,
-        "type": random.choice(_TX_TYPES),
+        "type": tx_type,
         "amount": amount,
         "nameOrig": f"C{random.randint(1_000_000, 9_999_999)}",
         "oldbalanceOrg": bal_org,
-        "newbalanceOrig": round(max(bal_org - amount, 0.0), 2),
+        "newbalanceOrig": _calculate_new_balance(bal_org, amount, tx_type),
         "nameDest": f"C{random.randint(1_000_000, 9_999_999)}",
-        "oldbalanceDest": round(random.uniform(0.0, 40_000.0), 2),
-        "newbalanceDest": round(random.uniform(0.0, 40_000.0) + amount, 2),
-        "step_norm": step / 744.0,
+        "step_norm": _normalize_step(step),
     }
 
 
-# ---------------------------------------------------------------------------
 # Componentes de renderização
-# ---------------------------------------------------------------------------
-
 
 def _decision_badge(decisao: str) -> None:
     bg = _DECISION_BG.get(decisao, "#e9ecef")
@@ -214,9 +289,7 @@ def _render_single_result(resultado: dict) -> None:
     _render_agent_scores(resultado)
 
 
-# ---------------------------------------------------------------------------
 # Seção de Estatísticas (função pública para testabilidade)
-# ---------------------------------------------------------------------------
 
 
 def render_stats(resultados: list) -> None:
@@ -312,15 +385,13 @@ def render_stats(resultados: list) -> None:
         st.warning("Instale `plotly` para visualizar os gráficos: `pip install plotly`")
 
 
-# ---------------------------------------------------------------------------
 # Interface principal
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:
-    """Ponto de entrada do dashboard ClearSafe Antifraude."""
+    """Ponto de entrada do dashboard SISTEMA MULTIAGENTE DE IA PARA DETECÇÃO DE FRAUDES EM TRANSAÇÕES FINANCEIRAS."""
     st.set_page_config(
-        page_title="ClearSafe Antifraude",
+        page_title="SISTEMA MULTIAGENTE DE IA PARA DETECÇÃO DE FRAUDES EM TRANSAÇÕES FINANCEIRAS",
         page_icon="🛡️",
         layout="wide",
         initial_sidebar_state="collapsed",
@@ -332,20 +403,24 @@ def main() -> None:
     st.markdown(
         """
         <div class="cs-header">
-            <h1>🛡️ ClearSafe Antifraude</h1>
-            <p>Detecção inteligente de fraudes em transações financeiras</p>
+            <h1>🛡️ SISTEMA MULTIAGENTE DE IA PARA DETECÇÃO DE FRAUDES EM TRANSAÇÕES FINANCEIRAS</h1>
+            <p>Identidade profissional, formato brasileiro e regras de risco bancário aplicadas em tempo real.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+    st.info(_RISK_RULES_TEXT, icon="✅")
+    st.caption("Moeda exibida em R$ · Horário em 24h · Limite de análise até R$ 9.999.999,00")
+
     tab_individual, tab_lote, tab_stats = st.tabs(
         ["🔍 Análise Individual", "📦 Análise em Lote", "📊 Estatísticas"]
     )
 
-    # ------------------------------------------------------------------
+
     # Aba 1: Análise Individual
-    # ------------------------------------------------------------------
+
+
     with tab_individual:
         st.header("Analisar Transação")
 
@@ -371,45 +446,78 @@ def main() -> None:
                     index=_TX_TYPES.index(_ss("type", "TRANSFER")),
                 )
                 amount = st.number_input(
-                    "Valor (R$)", min_value=0.0, value=float(_ss("amount", 5_000.0)), step=500.0
+                    "Valor da transação (R$)",
+                    min_value=0.0,
+                    max_value=_MAX_FINANCIAL_VALUE,
+                    value=_safe_session_value("amount", 5_000.0),
+                    step=0.01,
+                    format="%.2f",
                 )
                 name_orig = st.text_input("Conta Origem", value=_ss("nameOrig", "C1234567"))
                 old_bal_org = st.number_input(
-                    "Saldo Anterior — Origem (R$)", value=float(_ss("oldbalanceOrg", 10_000.0)), step=500.0
+                    "Saldo anterior — Origem (R$)",
+                    min_value=0.0,
+                    max_value=_MAX_FINANCIAL_VALUE,
+                    value=_safe_session_value("oldbalanceOrg", 10_000.0),
+                    step=0.01,
+                    format="%.2f",
                 )
+                auto_new_balance = _calculate_new_balance(float(old_bal_org), float(amount), tipo)
+
+                st.caption(
+                    "Pré-visualização do saldo: "
+                    f"{_format_currency_br(float(old_bal_org))} "
+                    f"{'+' if str(tipo).upper() == 'CASH_IN' else '-'} "
+                    f"{_format_currency_br(float(amount))} = "
+                    f"{_format_currency_br(float(auto_new_balance))}"
+                )
+
                 new_bal_org = st.number_input(
-                    "Novo Saldo — Origem (R$)", value=float(_ss("newbalanceOrig", 5_000.0)), step=500.0
+                    "Novo saldo — Origem (R$)",
+                    min_value=-_MAX_FINANCIAL_VALUE,
+                    max_value=_MAX_FINANCIAL_VALUE,
+                    value=auto_new_balance,
+                    step=0.01,
+                    format="%.2f",
+                    disabled=True,
                 )
 
             with col_b:
-                step = st.number_input(
-                    "Step (hora da simulação)", min_value=1, max_value=744, value=int(_ss("step", 100))
+                step_text = st.text_input(
+                    "Hora da simulação (HH:MM)",
+                    value=f"{int(_ss('step', 12 * 60)) // 60:02d}:{int(_ss('step', 12 * 60)) % 60:02d}",
+                    placeholder="00:00 até 23:59",
                 )
                 name_dest = st.text_input("Conta Destino", value=_ss("nameDest", "C7654321"))
-                old_bal_dest = st.number_input(
-                    "Saldo Anterior — Destino (R$)", value=float(_ss("oldbalanceDest", 1_000.0)), step=500.0
-                )
-                new_bal_dest = st.number_input(
-                    "Novo Saldo — Destino (R$)", value=float(_ss("newbalanceDest", 6_000.0)), step=500.0
-                )
 
             submitted = st.form_submit_button(
                 "🔍 Analisar Transação", use_container_width=True, type="primary"
             )
 
         if submitted:
+            if not _is_valid_24h_time(step_text):
+                st.error("Informe a hora no formato 24h válido: HH:MM (ex.: 03:30).")
+                submitted = False
+
+        if submitted:
+            calculated_new_balance = _calculate_new_balance(float(old_bal_org), float(amount), tipo)
             tx = {
-                "step": int(step),
+                "step": _time_to_minutes(step_text),
                 "type": tipo,
                 "amount": float(amount),
                 "nameOrig": name_orig,
                 "oldbalanceOrg": float(old_bal_org),
-                "newbalanceOrig": float(new_bal_org),
+                "newbalanceOrig": calculated_new_balance,
                 "nameDest": name_dest,
-                "oldbalanceDest": float(old_bal_dest),
-                "newbalanceDest": float(new_bal_dest),
-                "step_norm": float(step) / 744.0,
+                "step_norm": _normalize_step(_time_to_minutes(step_text)),
             }
+            st.caption(
+                "Cálculo aplicado: "
+                f"{_format_currency_br(float(old_bal_org))} "
+                f"{'+' if str(tipo).upper() == 'CASH_IN' else '-'} "
+                f"{_format_currency_br(float(amount))} = "
+                f"{_format_currency_br(float(calculated_new_balance))}"
+            )
             with st.spinner("Analisando com agentes de IA..."):
                 try:
                     resultado = run_analysis(tx)
@@ -420,9 +528,8 @@ def main() -> None:
                 except Exception as exc:
                     st.error(f"Erro durante análise: {exc}")
 
-    # ------------------------------------------------------------------
     # Aba 2: Análise em Lote
-    # ------------------------------------------------------------------
+
     with tab_lote:
         st.header("Análise em Lote")
         st.markdown(
@@ -457,8 +564,8 @@ def main() -> None:
                     max_rows = st.slider(
                         "Quantas transações analisar?",
                         min_value=1,
-                        max_value=min(len(df), 50),
-                        value=min(5, len(df)),
+                        max_value=min(len(df), _MAX_BATCH_ROWS),
+                        value=min(100, len(df)),
                     )
 
                     if st.button("🚀 Iniciar Análise em Lote", use_container_width=True, type="primary"):
@@ -468,7 +575,8 @@ def main() -> None:
 
                         for i, (_, row) in enumerate(sample.iterrows()):
                             tx = row.to_dict()
-                            tx.setdefault("step_norm", float(tx.get("step", 100)) / 744.0)
+                            tx.setdefault("step", _time_to_minutes(str(tx.get("step", "00:00"))))
+                            tx.setdefault("step_norm", _normalize_step(tx.get("step", 0)))
                             bar.progress(
                                 (i + 1) / max_rows,
                                 text=f"Analisando transação {i + 1} de {max_rows}…",
@@ -487,9 +595,7 @@ def main() -> None:
             except Exception as exc:
                 st.error(f"Erro ao carregar arquivo: {exc}")
 
-    # ------------------------------------------------------------------
     # Aba 3: Estatísticas
-    # ------------------------------------------------------------------
     with tab_stats:
         st.header("Estatísticas das Análises")
         render_stats(st.session_state.get("batch_results", []))

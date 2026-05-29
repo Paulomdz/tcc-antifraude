@@ -63,6 +63,24 @@ class TestOrchestrateBatch:
         assert mock_tools["behavior"].call_count == 2
 
 
+class TestJudgeTool:
+    """Testa a lógica de decisão consolidada dos especialistas."""
+
+    def test_nao_bloqueia_quando_score_medio_esta_baixo(self):
+        from src.ferramentas.ferramentas_crewai import judge_tool
+
+        result = judge_tool(
+            transaction={"amount": 100.0},
+            behavior_score=0.10,
+            temporal_score=0.20,
+            identity_score=0.95,
+            specialist_outputs={},
+        )
+
+        assert result["decision"] == "Aprovada" or result["decision"] == "Revisão Humana necessária"
+        assert result["score"] < 0.8
+
+
 class TestOrchestrateSingle:
     """Testa orchestrate_transaction com ferramentas mockadas."""
 

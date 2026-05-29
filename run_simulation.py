@@ -39,17 +39,17 @@ def run_crewai_simulation(transaction: Dict[str, Any]) -> Dict[str, Any]:
 
     result = orchestrate_transaction(transaction)
 
-    max_score = max(result['behavior']['score'], result['temporal']['score'], result['identity']['score'])
+    score = float(result['decision']['score'])
 
-    if max_score >= 0.8:
+    if score >= 0.75:
         decision = "BLOQUEADO"
-        justification = f"Transação bloqueada devido a alto risco detectado (score: {max_score:.3f})."
-    elif max_score >= 0.5:
+        justification = f"Transação bloqueada devido a alto risco detectado (score: {score:.3f})."
+    elif score >= 0.45:
         decision = "REVISÃO MANUAL"
-        justification = f"Transação requer revisão manual devido a risco moderado (score: {max_score:.3f})."
+        justification = f"Transação requer revisão manual devido a risco moderado (score: {score:.3f})."
     else:
         decision = "APROVADO"
-        justification = f"Transação aprovada - risco baixo detectado (score: {max_score:.3f})."
+        justification = f"Transação aprovada - risco baixo detectado (score: {score:.3f})."
 
     result['decision']['decision'] = decision
     result['decision']['justification'] = justification
