@@ -1,5 +1,6 @@
 """Testes unitários para inferência de modelos ML."""
 
+import math
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -54,10 +55,28 @@ class TestIsolationForestScore:
         assert isinstance(score, float)
 
     def test_valor_correto_com_modelo_mockado(self, sample_transaction):
+        # O score é normalizado via sigmoid (ver src/ferramentas/inferencia_modelos.py):
+        # score = 1 / (1 + exp(decision_function * escala)), escala=10.
         mock_model = MagicMock()
         mock_model.decision_function.return_value = np.array([-0.5])
         score = isolation_forest_score(sample_transaction, model=mock_model)
+        expected = 1.0 / (1.0 + math.exp(-0.5 * 10.0))
+        assert score == pytest.approx(expected)
+
+    def test_score_neutro_no_ponto_zero(self, sample_transaction):
+        # decision_function == 0 (ponto neutro do Isolation Forest) deve
+        # mapear para o meio do intervalo normalizado.
+        mock_model = MagicMock()
+        mock_model.decision_function.return_value = np.array([0.0])
+        score = isolation_forest_score(sample_transaction, model=mock_model)
         assert score == pytest.approx(0.5)
+
+    def test_score_sempre_entre_zero_e_um(self, sample_transaction):
+        for raw in (-5.0, -1.0, -0.1, 0.0, 0.1, 1.0, 5.0):
+            mock_model = MagicMock()
+            mock_model.decision_function.return_value = np.array([raw])
+            score = isolation_forest_score(sample_transaction, model=mock_model)
+            assert 0.0 <= score <= 1.0
 
     def test_anomalia_tem_score_positivo(self, sample_transaction):
         mock_model = MagicMock()
@@ -130,8 +149,11 @@ class TestGnnIdentityScore:
     def test_valor_alto_aumenta_score(self):
         score_normal = gnn_identity_score({"origin": "C100", "destination": "C500", "amount": 1000.0})
         score_alto = gnn_identity_score({"origin": "C100", "destination": "C500", "amount": 100000.0})
-        # Score com valor muito alto deve ser >= score normal (pode ter ruído)
+        # Ambos os scores têm ruído aleatório (±0.1); comparamos tipo e faixa,
+        # não uma desigualdade estrita (poderia ser flaky).
+        assert isinstance(score_normal, float)
         assert isinstance(score_alto, float)
+        assert 0.0 <= score_alto <= 1.0
 
     def test_conta_m_destino_tem_score_baixo(self):
         score = gnn_identity_score({"origin": "C100", "destination": "M999", "amount": 500.0})

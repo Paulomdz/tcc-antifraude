@@ -2,7 +2,6 @@
 
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from src.api.main import app, _DECISION_MAP
@@ -24,8 +23,15 @@ _VALID_PAYLOAD = {
 
 
 def _make_module(result: dict):
-    """Cria módulo mock com orchestrate_transaction retornando result."""
-    return type("M", (), {"orchestrate_transaction": staticmethod(lambda tx: result)})()
+    """Cria módulo mock com orchestrate_transaction retornando result.
+
+    Aceita ``**kwargs`` porque a API agora chama ``orchestrate_transaction``
+    com o parâmetro extra ``use_llm_judge`` (True na análise individual,
+    False na análise em lote).
+    """
+    return type(
+        "M", (), {"orchestrate_transaction": staticmethod(lambda tx, **kwargs: result)}
+    )()
 
 
 class TestHealthCheck:
@@ -174,7 +180,7 @@ class TestAnaliseLote:
     def test_erro_individual_nao_para_lote(self, mock_orchestrate_result):
         call_count = 0
 
-        def side_effect(tx):
+        def side_effect(tx, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:

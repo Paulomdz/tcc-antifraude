@@ -1,5 +1,6 @@
 """Ferramentas de inferência de modelos de ML."""
 
+import math
 from pathlib import Path
 import pickle
 from typing import Any, Dict
@@ -43,14 +44,34 @@ def extract_behavior_features(transaction: Dict[str, Any]) -> np.ndarray:
     return np.array(features)
 
 
+# Fator de escala do sigmoid usado para normalizar o decision_function do
+# Isolation Forest em [0, 1]. `decision_function` do sklearn não é limitado
+# por natureza (valores mais negativos = mais anômalo); sem essa normalização
+# o score comportamental podia sair do intervalo [0, 1] documentado (ex.:
+# valores negativos), o que é a causa do exemplo `score_comportamental =
+# -0.037` observado na monografia (§4.1), em contradição com a normalização
+# declarada em §3.6. Este valor de escala é um ajuste razoável para a faixa
+# típica do decision_function; uma calibração formal exigiria validação com
+# dados reais rotulados (fora do escopo deste ajuste).
+_IF_SCORE_SCALE = 10.0
+
+
 def isolation_forest_score(transaction: Dict[str, Any], model: Any = None) -> float:
-    """Retorna um score de anomalia da transação usando um Isolation Forest."""
+    """Retorna um score de anomalia da transação usando um Isolation Forest.
+
+    O score é normalizado em [0, 1] via sigmoid sobre o `decision_function`
+    (mais próximo de 1 = mais anômalo/suspeito), conforme a normalização
+    declarada para todos os agentes.
+    """
     if model is None:
         model = load_pickle_model("isolation_forest.pkl")
     features = extract_behavior_features(transaction)
     features = features.reshape(1, -1)
-    prediction = model.decision_function(features)
-    return float(-prediction[0])
+    prediction = float(model.decision_function(features)[0])
+    # decision_function negativo = anômalo -> sigmoid(-prediction * escala)
+    # se aproxima de 1 quanto mais negativo (mais anômalo) for `prediction`.
+    score = 1.0 / (1.0 + math.exp(prediction * _IF_SCORE_SCALE))
+    return float(score)
 
 
 def lstm_sequence_score(sequence: list[Dict[str, Any]], model: Any = None) -> float:

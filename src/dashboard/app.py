@@ -129,11 +129,18 @@ def decision_icon(decision: str) -> str:
     return _DECISION_ICON.get(decision, "⚪")
 
 
-def run_analysis(transaction: dict) -> dict:
-    """Executa a análise com a mesma lógica validada em run_simulation."""
+def run_analysis(transaction: dict, use_llm_judge: bool = True) -> dict:
+    """Executa a análise com a mesma lógica validada em run_simulation.
+
+    ``use_llm_judge=True`` (padrão, usado na análise individual) tenta o
+    Agente Juiz real via CrewAI/Gemini, com fallback automático para a regra
+    determinística. ``use_llm_judge=False`` (usado na análise em lote) pula
+    direto para a regra determinística, evitando uma chamada de API por
+    transação em lotes de até 500 itens.
+    """
     import run_simulation
 
-    return run_simulation.run_crewai_simulation(transaction)
+    return run_simulation.run_crewai_simulation(transaction, use_llm_judge=use_llm_judge)
 
 
 def build_result_row(tx: dict, resultado: dict) -> dict:
@@ -165,6 +172,36 @@ def _time_to_minutes(value: str) -> int:
         return (hh % 24) * 60 + (mm % 60)
     except ValueError:
         return 0
+
+
+def _coerce_step_to_hour(value) -> int:
+    """Normaliza o campo ``step`` vindo de um upload em lote para hora do dia.
+
+    Aceita: ausente/NaN (usa meio-dia como padrão), string "HH:MM" (upload
+    manual) ou valor já numérico — que pode ser tanto a hora do dia (0-23)
+    quanto o step bruto do PaySim (1-744, horas desde o início da simulação).
+    Em todos os casos numéricos, o valor é mantido como está e a hora do dia
+    correta é obtida depois via `% 24` (ver `_hora_do_dia` em
+    `ferramentas_crewai.py`).
+    """
+    if value is None:
+        return 12
+    if isinstance(value, float) and pd.isna(value):
+        return 12
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return 12
+        if ":" in stripped:
+            return _time_to_minutes(stripped) // 60
+        try:
+            return int(float(stripped))
+        except ValueError:
+            return 12
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 12
 
 
 def _minutes_to_hh_mm(minutes: int) -> str:
@@ -221,23 +258,29 @@ def _safe_session_value(key: str, fallback: float) -> float:
 
 
 def random_transaction() -> dict:
-    """Gera uma transação aleatória com valores bancários realistas."""
+    """Gera uma transação aleatória com valores bancários realistas.
+
+    ``step`` representa a HORA do dia (0-23), a mesma convenção usada em todo
+    o pipeline (ver ``_hora_do_dia`` em ``ferramentas_crewai.py``): tanto para
+    dados reais do PaySim (step = horas desde o início da simulação, 1-744)
+    quanto para entrada interativa, ``step % 24`` recupera a hora do dia.
+    ``step_norm`` mantém precisão de minuto (fração do dia) como feature
+    auxiliar para os modelos de ML.
+    """
     tx_type = random.choice(_TX_TYPES)
     amount = _format_banking_amount(random.uniform(10.0, _MAX_FINANCIAL_VALUE))
     bal_org = _format_banking_amount(random.uniform(amount, amount * 6))
-    max_daily_limit = _MAX_FINANCIAL_VALUE
-    if amount > max_daily_limit:
-        amount = _format_banking_amount(max_daily_limit)
-    step = random.randint(0, 1439)
+    step_minutes = random.randint(0, 1439)
+    hour = step_minutes // 60
     return {
-        "step": step,
+        "step": hour,
         "type": tx_type,
         "amount": amount,
         "nameOrig": f"C{random.randint(1_000_000, 9_999_999)}",
         "oldbalanceOrg": bal_org,
         "newbalanceOrig": _calculate_new_balance(bal_org, amount, tx_type),
         "nameDest": f"C{random.randint(1_000_000, 9_999_999)}",
-        "step_norm": _normalize_step(step),
+        "step_norm": _normalize_step(step_minutes),
     }
 
 
@@ -264,7 +307,7 @@ def _render_agent_scores(resultado: dict) -> None:
         score = float(resultado[key]["score"])
         explanation = resultado[key]["details"]["explanation"]
         with col:
-            st.markdown(f'<div class="agent-card">', unsafe_allow_html=True)
+            st.markdown('<div class="agent-card">', unsafe_allow_html=True)
             st.metric(label=label, value=f"{score:.3f}")
             st.progress(min(max(score, 0.0), 1.0))
             st.caption(explanation)
@@ -472,7 +515,9 @@ def main() -> None:
                     f"{_format_currency_br(float(auto_new_balance))}"
                 )
 
-                new_bal_org = st.number_input(
+                # Campo somente leitura (o valor é sempre recalculado a partir do
+                # saldo anterior, valor e tipo); não precisamos do retorno.
+                st.number_input(
                     "Novo saldo — Origem (R$)",
                     min_value=-_MAX_FINANCIAL_VALUE,
                     max_value=_MAX_FINANCIAL_VALUE,
@@ -485,7 +530,7 @@ def main() -> None:
             with col_b:
                 step_text = st.text_input(
                     "Hora da simulação (HH:MM)",
-                    value=f"{int(_ss('step', 12 * 60)) // 60:02d}:{int(_ss('step', 12 * 60)) % 60:02d}",
+                    value=f"{int(_ss('step', 12)) % 24:02d}:00",
                     placeholder="00:00 até 23:59",
                 )
                 name_dest = st.text_input("Conta Destino", value=_ss("nameDest", "C7654321"))
@@ -501,15 +546,16 @@ def main() -> None:
 
         if submitted:
             calculated_new_balance = _calculate_new_balance(float(old_bal_org), float(amount), tipo)
+            step_minutes_form = _time_to_minutes(step_text)
             tx = {
-                "step": _time_to_minutes(step_text),
+                "step": step_minutes_form // 60,
                 "type": tipo,
                 "amount": float(amount),
                 "nameOrig": name_orig,
                 "oldbalanceOrg": float(old_bal_org),
                 "newbalanceOrig": calculated_new_balance,
                 "nameDest": name_dest,
-                "step_norm": _normalize_step(_time_to_minutes(step_text)),
+                "step_norm": _normalize_step(step_minutes_form),
             }
             st.caption(
                 "Cálculo aplicado: "
@@ -520,7 +566,7 @@ def main() -> None:
             )
             with st.spinner("Analisando com agentes de IA..."):
                 try:
-                    resultado = run_analysis(tx)
+                    resultado = run_analysis(tx, use_llm_judge=True)
                     st.success("Análise concluída.")
                     _render_single_result(resultado)
                 except FileNotFoundError as exc:
@@ -575,14 +621,16 @@ def main() -> None:
 
                         for i, (_, row) in enumerate(sample.iterrows()):
                             tx = row.to_dict()
-                            tx.setdefault("step", _time_to_minutes(str(tx.get("step", "00:00"))))
-                            tx.setdefault("step_norm", _normalize_step(tx.get("step", 0)))
+                            tx["step"] = _coerce_step_to_hour(tx.get("step"))
+                            tx.setdefault(
+                                "step_norm", _normalize_step((tx["step"] % 24) * 60)
+                            )
                             bar.progress(
                                 (i + 1) / max_rows,
                                 text=f"Analisando transação {i + 1} de {max_rows}…",
                             )
                             try:
-                                res = run_analysis(tx)
+                                res = run_analysis(tx, use_llm_judge=False)
                                 rows.append(build_result_row(tx, res))
                             except Exception as exc:
                                 rows.append({"Tipo": tx.get("type", ""), "Erro": str(exc)})

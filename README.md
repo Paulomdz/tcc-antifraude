@@ -52,7 +52,7 @@ O objetivo principal é demonstrar como uma solução multiagente pode apoiar a 
 - FastAPI
 - Streamlit
 - CrewAI
-- Google Gemini / langchain-google-genai
+- Google Gemini (via suporte nativo do CrewAI, sem langchain-google-genai)
 - python-dotenv
 - pytest
 
@@ -91,6 +91,10 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
+
+(Opcional, para ativar o Agente Juiz com Gemini de verdade) copie
+`.env.example` para `.env` e preencha `GOOGLE_API_KEY`. Sem isso, o sistema
+funciona normalmente usando a regra de decisão determinística como fallback.
 
 ### 2. Preparar os dados
 
@@ -137,7 +141,7 @@ import pandas as pd
 from src.orquestração.fluxo_crewai import orchestrate_transaction
 
 # Carrega transação processada
-transacao = pd.read_parquet("data/paysim_processed.parquet").iloc[0].to_dict()
+transacao = pd.read_parquet("data/paysim_dados_processados.parquet").iloc[0].to_dict()
 
 resultado = orchestrate_transaction(transacao)
 print("Decisão:", resultado["decision"]["decision"])
@@ -156,11 +160,16 @@ print("Score final:", round(resultado["decision"]["score"], 3))
 
 ### Componentes opcionais ou dependentes de instalação
 
-- LSTM
-- GNN
-- integração completa com Gemini/CrewAI
+- LSTM (requer PyTorch instalado)
+- GNN (requer PyTorch Geometric instalado)
+- Agente Juiz via LLM real (requer `GOOGLE_API_KEY` configurada — veja `.env.example`)
 
-Esses módulos estão implementados na base do projeto e podem ser ativados conforme o ambiente e as dependências disponíveis.
+Todos esses módulos possuem fallback automático: sem PyTorch instalado, LSTM/GNN
+retornam um placeholder controlado; sem `GOOGLE_API_KEY` configurada (ou se a
+chamada ao Gemini falhar por qualquer motivo), o Agente Juiz usa uma regra de
+decisão determinística equivalente, sem quebrar a aplicação. Veja
+`docs/CORRECOES_APLICADAS.md` para o detalhamento de como essa integração foi
+implementada e testada.
 
 ## Casos de Uso
 
@@ -190,6 +199,13 @@ Esses módulos estão implementados na base do projeto e podem ser ativados conf
 - melhorar a robustez da API e do dashboard;
 - ampliar a orquestração multiagente com agentes mais especializados;
 - implementar monitoramento e histórico de análises.
+
+## Documentação Adicional
+
+- `docs/CORRECOES_APLICADAS.md` — histórico de correções aplicadas ao código
+  para alinhá-lo à monografia (Agente Juiz real via CrewAI/Gemini, correção do
+  cálculo de horário, normalização de scores etc.).
+- `docs/RELATORIO_REVISAO_CODIGO.md` — relatório de revisão de código.
 
 ## Referências
 

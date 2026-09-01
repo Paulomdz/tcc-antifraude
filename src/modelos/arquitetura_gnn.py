@@ -1,11 +1,7 @@
 """Arquitetura e treinamento do modelo GNN para análise de grafos."""
 
-import numpy as np
-import pandas as pd
 from pathlib import Path
 import pickle
-from typing import Dict, Tuple
-from collections import defaultdict
 
 try:
     import torch

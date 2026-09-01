@@ -46,7 +46,16 @@ _DECISION_MAP: Dict[str, str] = {
 class TransacaoInput(BaseModel):
     """Dados de entrada de uma transação financeira."""
 
-    step: int = Field(default=1, ge=1, description="Step de tempo da simulação (1–744)")
+    step: int = Field(
+        default=12,
+        ge=0,
+        description=(
+            "Hora da transação: use 0–23 para indicar a hora do dia (interativo), "
+            "ou o step bruto do PaySim (1–744, horas desde o início da simulação) "
+            "quando a transação vier do dataset real — em ambos os casos a hora do "
+            "dia é obtida internamente por `step % 24`."
+        ),
+    )
     type: str = Field(default="TRANSFER", description="Tipo da transação")
     amount: float = Field(..., ge=0.0, description="Valor da transação em R$")
     nameOrig: str = Field(default="", description="Identificador da conta de origem")
@@ -211,7 +220,7 @@ def analise_lote(payload: LoteInput) -> ResultadoLote:
 
     for i, tx in enumerate(payload.transacoes):
         try:
-            resultado = fluxo.orchestrate_transaction(tx.model_dump())
+            resultado = fluxo.orchestrate_transaction(tx.model_dump(), use_llm_judge=False)
             parsed = _parse_resultado(resultado)
             if parsed.decisao == "APROVADO":
                 aprovados += 1

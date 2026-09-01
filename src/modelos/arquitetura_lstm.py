@@ -1,9 +1,6 @@
 """Arquitetura e treinamento do modelo LSTM para análise temporal."""
 
-import numpy as np
-import pandas as pd
 from pathlib import Path
-import pickle
 
 # Suporte a PyTorch - versão simplificada que funciona com CPU
 try:

@@ -1,18 +1,11 @@
 """Script principal para executar o simulador de detecção de fraudes com CrewAI."""
 
-import os
-from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 import pandas as pd
 from dotenv import load_dotenv
 
 from src.orquestração.fluxo_crewai import orchestrate_transaction
-from src.ferramentas.ferramentas_crewai import (
-    behavior_specialist_tool,
-    identity_specialist_tool,
-    temporal_specialist_tool,
-)
 from src.preprocessamento.carregar_paysim import PROCESSED_DATA_PATH
 
 # Carrega variáveis de ambiente
@@ -34,27 +27,17 @@ def load_sample_transactions(n_samples: int = 10) -> List[Dict[str, Any]]:
     return sample_df.to_dict('records')
 
 
-def run_crewai_simulation(transaction: Dict[str, Any]) -> Dict[str, Any]:
-    """Executa a simulação completa com agentes CrewAI."""
+def run_crewai_simulation(transaction: Dict[str, Any], use_llm_judge: bool = True) -> Dict[str, Any]:
+    """Executa a simulação completa com o Agente Juiz (CrewAI + Gemini) para uma transação.
 
-    result = orchestrate_transaction(transaction)
-
-    score = float(result['decision']['score'])
-
-    if score >= 0.75:
-        decision = "BLOQUEADO"
-        justification = f"Transação bloqueada devido a alto risco detectado (score: {score:.3f})."
-    elif score >= 0.45:
-        decision = "REVISÃO MANUAL"
-        justification = f"Transação requer revisão manual devido a risco moderado (score: {score:.3f})."
-    else:
-        decision = "APROVADO"
-        justification = f"Transação aprovada - risco baixo detectado (score: {score:.3f})."
-
-    result['decision']['decision'] = decision
-    result['decision']['justification'] = justification
-
-    return result
+    A decisão final e a justificativa retornadas são exatamente as produzidas
+    por ``orchestrate_transaction`` — ou pelo Juiz-LLM real, ou (em fallback)
+    pela regra determinística. Anteriormente esta função recalculava a
+    decisão a partir do score com limiares diferentes (0.75/0.45) dos usados
+    pelo Juiz (0.80/0.50) e descartava a justificativa original; isso foi
+    corrigido para não haver mais duas fontes de verdade divergentes.
+    """
+    return orchestrate_transaction(transaction, use_llm_judge=use_llm_judge)
 
 
 def main():
@@ -69,7 +52,7 @@ def main():
 
         for i, transaction in enumerate(transactions, 1):
             print(f"\nAnalisando Transação {i}/{len(transactions)}")
-            print(f"   Tipo: {transaction.get('type')}, Valor: ${transaction.get('amount', 0):.2f}")
+            print(f"   Tipo: {transaction.get('type')}, Valor: R$ {transaction.get('amount', 0):.2f}")
 
             result = run_crewai_simulation(transaction)
 
@@ -83,9 +66,9 @@ def main():
     except Exception as e:
         print(f"Erro durante execução: {e}")
         print("Verifique se:")
-        print("- O dataset foi processado (execute load_paysim.py)")
+        print("- O dataset foi processado (execute src/preprocessamento/carregar_paysim.py)")
         print("- As dependências estão instaladas")
-        print("- A chave API do Gemini está configurada no .env")
+        print("- A chave API do Gemini está configurada no .env (opcional — sem ela, o sistema usa a regra determinística)")
 
 
 if __name__ == "__main__":

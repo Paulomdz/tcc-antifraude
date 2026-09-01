@@ -1,6 +1,5 @@
 """Treinamento dos modelos de detecção de fraude."""
 
-import os
 import sys
 from pathlib import Path
 import pickle
@@ -8,7 +7,6 @@ import pickle
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 
 # Adiciona o diretório raiz ao path para imports
@@ -42,6 +40,86 @@ def prepare_balanced_sample(df: pd.DataFrame, n_samples: int = 10000) -> pd.Data
     return balanced_df
 
 
+def load_balanced_sample_from_parquet(
+    processed_path: Path, n_samples: int = 10000, random_state: int = 42
+) -> pd.DataFrame:
+    """Monta uma amostra balanceada lendo o Parquet processado em blocos.
+
+    O dataset real do PaySim processado (~6,3M linhas) não cabe
+    confortavelmente em memória em ambientes com pouca RAM disponível.
+    Como o treinamento só precisa de uma amostra balanceada pequena
+    (``n_samples``), esta função lê o arquivo Parquet um row-group por vez
+    (via ``pyarrow``), separando as linhas de fraude (raras, então mantidas
+    todas) das linhas normais (das quais coleta uma amostra proporcional em
+    cada bloco), sem nunca materializar o dataset inteiro em memória.
+    """
+    import pyarrow.parquet as pq
+
+    pf = pq.ParquetFile(str(processed_path))
+    total_rows = pf.metadata.num_rows
+    n_fraud_target = n_samples // 2
+    n_non_fraud_target = n_samples - n_fraud_target
+
+    # Amostra cada bloco de não-fraude a uma taxa um pouco maior que a
+    # necessária (fator de folga), garantindo (com alta probabilidade) mais
+    # candidatos não-fraude do que o necessário ao final, sem ter que
+    # carregar todas as linhas não-fraude do dataset.
+    slack_factor = 3.0
+    non_fraud_rate = min(1.0, (n_non_fraud_target * slack_factor) / max(total_rows, 1))
+
+    rng = np.random.default_rng(random_state)
+    fraud_chunks = []
+    non_fraud_chunks = []
+
+    for row_group_idx in range(pf.num_row_groups):
+        chunk = pf.read_row_group(row_group_idx).to_pandas()
+
+        fraud_part = chunk[chunk["isFraud"] == 1]
+        if len(fraud_part) > 0:
+            fraud_chunks.append(fraud_part)
+
+        non_fraud_part = chunk[chunk["isFraud"] == 0]
+        if len(non_fraud_part) > 0 and non_fraud_rate > 0:
+            mask = rng.random(len(non_fraud_part)) < non_fraud_rate
+            sampled = non_fraud_part[mask]
+            if len(sampled) > 0:
+                non_fraud_chunks.append(sampled)
+
+    fraud_pool = (
+        pd.concat(fraud_chunks, ignore_index=True) if fraud_chunks else pd.DataFrame()
+    )
+    non_fraud_pool = (
+        pd.concat(non_fraud_chunks, ignore_index=True)
+        if non_fraud_chunks
+        else pd.DataFrame()
+    )
+
+    n_fraud = min(len(fraud_pool), n_fraud_target)
+    n_non_fraud = min(len(non_fraud_pool), n_non_fraud_target)
+
+    fraud_sample = (
+        fraud_pool.sample(n=n_fraud, random_state=random_state)
+        if n_fraud > 0
+        else fraud_pool
+    )
+    non_fraud_sample = (
+        non_fraud_pool.sample(n=n_non_fraud, random_state=random_state)
+        if n_non_fraud > 0
+        else non_fraud_pool
+    )
+
+    balanced_df = pd.concat([fraud_sample, non_fraud_sample], ignore_index=True)
+    balanced_df = balanced_df.sample(frac=1, random_state=random_state).reset_index(
+        drop=True
+    )
+
+    print(f"Amostra balanceada criada (a partir de {total_rows:,} linhas): "
+          f"{len(balanced_df)} registros".replace(",", "."))
+    print(f"Fraudes: {len(fraud_sample)}, Não-fraudes: {len(non_fraud_sample)}")
+
+    return balanced_df
+
+
 def train_isolation_forest(df: pd.DataFrame) -> IsolationForest:
     """Treina o modelo Isolation Forest para detecção comportamental."""
     print(" Treinando Isolation Forest...")
@@ -63,7 +141,6 @@ def train_isolation_forest(df: pd.DataFrame) -> IsolationForest:
     model.fit(X)
 
     # Avaliação básica
-    scores = model.decision_function(X)
     predictions = model.predict(X)
 
     # Converte para labels de classificação (1 = normal, -1 = anomalia)
@@ -120,11 +197,10 @@ def main():
         print(" Dados processados não encontrados. Execute src/preprocessamento/carregar_paysim.py primeiro.")
         return
 
-    df = pd.read_parquet(processed_path)
-    print(f" Dataset carregado: {len(df)} registros")
-
-    # Prepara amostra balanceada
-    train_df = prepare_balanced_sample(df, n_samples=10000)
+    # Lê o Parquet em blocos e já monta a amostra balanceada, evitando
+    # carregar o dataset completo (que pode ter milhões de linhas) inteiro
+    # em memória de uma só vez.
+    train_df = load_balanced_sample_from_parquet(processed_path, n_samples=10000)
 
     # Treina Isolation Forest
     if_model = train_isolation_forest(train_df)

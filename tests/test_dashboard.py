@@ -154,9 +154,11 @@ class TestRandomTransaction:
             assert random_transaction()["amount"] > 0
 
     def test_step_dentro_do_intervalo(self):
+        # step representa a HORA do dia (0-23), consistente com a convenção
+        # usada em ferramentas_crewai.py (hora = step % 24).
         for _ in range(10):
             step = random_transaction()["step"]
-            assert 0 <= step <= 1439
+            assert 0 <= step <= 23
 
     def test_step_norm_entre_zero_e_um(self):
         for _ in range(10):
@@ -252,7 +254,14 @@ class TestRunAnalysis:
             result = run_analysis(sample_transaction)
 
         assert result == mock_orchestrate_result
-        mock_run.assert_called_once_with(sample_transaction)
+        mock_run.assert_called_once_with(sample_transaction, use_llm_judge=True)
+
+    def test_lote_usa_use_llm_judge_false(self, sample_transaction, mock_orchestrate_result):
+        with patch("run_simulation.run_crewai_simulation", return_value=mock_orchestrate_result) as mock_run:
+            from src.dashboard.app import run_analysis
+            run_analysis(sample_transaction, use_llm_judge=False)
+
+        mock_run.assert_called_once_with(sample_transaction, use_llm_judge=False)
 
     def test_propaga_excecao_do_modulo(self, sample_transaction):
         with patch("run_simulation.run_crewai_simulation", side_effect=RuntimeError("Falha no modelo")):
