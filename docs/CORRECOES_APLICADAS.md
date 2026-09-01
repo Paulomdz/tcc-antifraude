@@ -142,27 +142,48 @@ está limpo (exceto um padrão intencional pré-existente em
   do arquivo inteiro, pelo mesmo motivo de memória. Rodado de ponta a ponta
   com o dataset real: 6/6 testes passaram.
 
+## 9. PyTorch e PyTorch Geometric instalados; LSTM e GNN treinados de verdade
+
+- Instalados `torch==2.5.1` e `torch-geometric==2.8.0.post1` (build CPU para
+  linux/aarch64 — versões anteriores/posteriores do torch nesse arquitetura
+  ou vêm com dependências CUDA obrigatórias mesmo sem GPU, ou têm
+  incompatibilidade de ABI com numpy 2.x; a 2.5.1 é a primeira a resolver
+  ambos os problemas nesta plataforma).
+- Rodei `python -m src.modelos.treinamento.treinar_modelos` com PyTorch
+  disponível: os três modelos foram treinados de ponta a ponta sobre o
+  dataset real do PaySim — Isolation Forest (amostra balanceada de 10 mil
+  transações), LSTM (10 épocas, acurácia ~79% na própria amostra de treino)
+  e GNN (10 épocas) — e salvos em `src/modelos/modelos_salvos/` (
+  `isolation_forest.pkl`, `lstm_model.pt`, `gnn_model.pt`).
+- `teste_sistema_completo.py` roda 6/6 com os três modelos reais ativos
+  (antes, LSTM/GNN caíam no fallback por falta de PyTorch).
+- Aviso não crítico observado: `torch.load(..., weights_only=False)` (usado
+  em `inferencia_modelos.py` para carregar `lstm_model.pt`/`gnn_model.pt`)
+  emite um `FutureWarning` do PyTorch sobre uma mudança de padrão de
+  segurança em versões futuras — não afeta o funcionamento atual, mas é uma
+  migração recomendada (`weights_only=True` ou `add_safe_globals`) para uma
+  versão futura do PyTorch.
+
 ## O que NÃO foi alterado (limitações que continuam valendo)
 
-- **LSTM e GNN não foram treinados** com o dataset real: exigem
-  `torch`/`torch-geometric`, que não estão instalados no ambiente onde este
-  processamento rodou. O padrão de fallback já existente
-  (`TORCH_AVAILABLE`/placeholder) cobre isso — `treinar_modelos.py` roda sem
-  erro e reporta "modelo não foi treinado". Para treiná-los de fato, instale
-  PyTorch (e PyTorch Geometric) no ambiente e rode
-  `python -m src.modelos.treinamento.treinar_modelos` novamente.
 - O Isolation Forest retreinado tem acurácia baixa (~59%) na própria amostra
   de treino — isso reflete as features simples usadas
   (`extract_behavior_features`: valores brutos de saldo/valor + `step_norm`)
   e o `contamination=0.5` fixo, não um bug de código. Ajustar/enriquecer as
   features ou o contamination é uma decisão de modelagem para a monografia,
   não uma correção de bug.
+- LSTM e GNN foram treinados por poucas épocas (10) sobre uma amostra
+  pequena (10 mil / 2 mil transações) — suficiente para validar que o
+  pipeline funciona de ponta a ponta com PyTorch real, mas não uma
+  otimização de hiperparâmetros nem uma avaliação formal (precisão, recall,
+  F1) do desempenho desses modelos.
 - O padrão de "redefinição" em `arquitetura_lstm.py`/`arquitetura_gnn.py`
   (funções definidas uma vez com PyTorch disponível, e de novo como
-  placeholder quando não disponível) continua funcionando corretamente, só é
-  esteticamente confuso para linters — não mexi nisso para não arriscar
-  quebrar o caminho com PyTorch real, que não pude testar aqui (torch não foi
-  instalado neste ambiente).
+  placeholder quando não disponível) continua existindo no código — agora
+  testado com PyTorch real disponível (o caminho "com PyTorch" foi exercido
+  de fato nesta rodada), mas ainda esteticamente confuso para linters; não
+  mexi na estrutura em si, só confirmei que os dois caminhos (com e sem
+  PyTorch) funcionam corretamente.
 
 ## Para testar de verdade com o Gemini
 

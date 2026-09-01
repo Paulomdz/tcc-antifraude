@@ -176,13 +176,13 @@ decisão determinística equivalente, sem quebrar a aplicação. Veja
 `docs/CORRECOES_APLICADAS.md` para o detalhamento de como essa integração foi
 implementada e testada.
 
-O `isolation_forest.pkl` incluído no repositório já foi retreinado com uma
-amostra balanceada do dataset real do PaySim (5.000 fraudes e 5.000
-não-fraudes, extraídas das 8.213 fraudes existentes entre as 6,36 milhões de
-transações). LSTM e GNN continuam como placeholder porque PyTorch/PyTorch
-Geometric não foram instalados no ambiente onde este treinamento rodou —
-instale-os e rode `python -m src.modelos.treinamento.treinar_modelos`
-novamente para treiná-los de fato.
+Com PyTorch e PyTorch Geometric instalados, os três modelos (Isolation
+Forest, LSTM e GNN) já foram treinados de ponta a ponta com o dataset real do
+PaySim: o `isolation_forest.pkl` usa uma amostra balanceada (5.000 fraudes e
+5.000 não-fraudes, das 8.213 fraudes existentes entre as 6,36 milhões de
+transações); `lstm_model.pt` e `gnn_model.pt` foram treinados sobre a mesma
+amostra (10 épocas). Rode `python -m src.modelos.treinamento.treinar_modelos`
+novamente a qualquer momento para retreinar todos os modelos.
 
 ## Casos de Uso
 
@@ -202,15 +202,15 @@ novamente para treiná-los de fato.
 ## Limitações
 
 - o dataset é simulado (PaySim), não representando necessariamente dados reais de instituições financeiras;
-- alguns componentes avançados dependem de bibliotecas pesadas, como PyTorch e PyTorch Geometric;
+- alguns componentes avançados dependem de bibliotecas pesadas, como PyTorch e PyTorch Geometric (já instaladas e usadas no treinamento mais recente);
 - a orquestração multiagente pode precisar de ajustes finos conforme a disponibilidade da API Gemini e das dependências instaladas;
 - o Isolation Forest retreinado usa features simples (valores brutos de saldo/valor e step_norm) e `contamination` fixo em 0,5, resultando em acurácia modesta (~59% na própria amostra de treino) — enriquecer as features é uma melhoria de modelagem, não um bug de código;
-- LSTM e GNN ainda não foram treinados com dados reais (dependem de PyTorch/PyTorch Geometric, não instalados no ambiente usado para o treinamento mais recente).
+- LSTM e GNN foram treinados apenas por poucas épocas (10) sobre uma amostra de 10 mil/2 mil transações — suficiente para validar o pipeline de ponta a ponta, mas não uma otimização de hiperparâmetros ou avaliação formal de desempenho.
 
 ## Melhorias Futura
 
 - adicionar métricas avançadas de avaliação (precision, recall, F1-score);
-- treinar LSTM e GNN com o dataset real (requer instalar PyTorch/PyTorch Geometric);
+- ampliar o treinamento de LSTM e GNN (mais épocas, mais dados, ajuste de hiperparâmetros);
 - enriquecer as features do Isolation Forest para melhorar a acurácia;
 - melhorar a robustez da API e do dashboard;
 - ampliar a orquestração multiagente com agentes mais especializados;
