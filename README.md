@@ -75,8 +75,8 @@ O objetivo principal é demonstrar como uma solução multiagente pode apoiar a 
 
 ## Fluxo de Funcionamento
 
-1. O dataset PaySim é carregado a partir de data/PS_20174392719_1491204439457_log.csv.
-2. O módulo de pré-processamento converte, limpa e genera features como amount_log, step_norm e indicadores de saldo.
+1. O dataset PaySim é carregado a partir de data/PS_20174392719_1491204439457_log.csv, em blocos (streaming), para lidar com o volume real (~6,36 milhões de transações) sem estourar memória.
+2. O módulo de pré-processamento converte, limpa e gera features como amount_log, step_norm (normalizado por uma constante fixa de 744 steps, a duração canônica da simulação PaySim) e indicadores de saldo.
 3. Os modelos de ML são treinados ou carregados a partir de src/modelos/modelos_salvos.
 4. A inferência calcula scores de risco comportamental, temporal e de identidade.
 5. A orquestração multiagente agrega esses scores e produz uma decisão final.
@@ -98,7 +98,8 @@ funciona normalmente usando a regra de decisão determinística como fallback.
 
 ### 2. Preparar os dados
 
-O arquivo bruto do PaySim deve estar em:
+O arquivo bruto do PaySim (dataset real, ~6,36 milhões de transações / ~470MB)
+deve estar em:
 
 ```text
 data/PS_20174392719_1491204439457_log.csv
@@ -109,6 +110,10 @@ Em seguida, execute:
 ```bash
 python src/preprocessamento/carregar_paysim.py
 ```
+
+O processamento é feito em blocos (streaming para Parquet via `pyarrow`), então
+funciona mesmo em máquinas com pouca RAM disponível — não é necessário
+carregar o CSV inteiro em memória de uma vez.
 
 ### 3. Executar a simulação
 
@@ -171,6 +176,14 @@ decisão determinística equivalente, sem quebrar a aplicação. Veja
 `docs/CORRECOES_APLICADAS.md` para o detalhamento de como essa integração foi
 implementada e testada.
 
+O `isolation_forest.pkl` incluído no repositório já foi retreinado com uma
+amostra balanceada do dataset real do PaySim (5.000 fraudes e 5.000
+não-fraudes, extraídas das 8.213 fraudes existentes entre as 6,36 milhões de
+transações). LSTM e GNN continuam como placeholder porque PyTorch/PyTorch
+Geometric não foram instalados no ambiente onde este treinamento rodou —
+instale-os e rode `python -m src.modelos.treinamento.treinar_modelos`
+novamente para treiná-los de fato.
+
 ## Casos de Uso
 
 - demonstração de TCC em IA aplicada à fraude;
@@ -190,12 +203,15 @@ implementada e testada.
 
 - o dataset é simulado (PaySim), não representando necessariamente dados reais de instituições financeiras;
 - alguns componentes avançados dependem de bibliotecas pesadas, como PyTorch e PyTorch Geometric;
-- a orquestração multiagente pode precisar de ajustes finos conforme a disponibilidade da API Gemini e das dependências instaladas.
+- a orquestração multiagente pode precisar de ajustes finos conforme a disponibilidade da API Gemini e das dependências instaladas;
+- o Isolation Forest retreinado usa features simples (valores brutos de saldo/valor e step_norm) e `contamination` fixo em 0,5, resultando em acurácia modesta (~59% na própria amostra de treino) — enriquecer as features é uma melhoria de modelagem, não um bug de código;
+- LSTM e GNN ainda não foram treinados com dados reais (dependem de PyTorch/PyTorch Geometric, não instalados no ambiente usado para o treinamento mais recente).
 
 ## Melhorias Futura
 
 - adicionar métricas avançadas de avaliação (precision, recall, F1-score);
-- integrar dados reais anonimizados;
+- treinar LSTM e GNN com o dataset real (requer instalar PyTorch/PyTorch Geometric);
+- enriquecer as features do Isolation Forest para melhorar a acurácia;
 - melhorar a robustez da API e do dashboard;
 - ampliar a orquestração multiagente com agentes mais especializados;
 - implementar monitoramento e histórico de análises.
