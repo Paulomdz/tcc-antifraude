@@ -185,6 +185,33 @@ está limpo (exceto um padrão intencional pré-existente em
   mexi na estrutura em si, só confirmei que os dois caminhos (com e sem
   PyTorch) funcionam corretamente.
 
+## 10. `run_simulation.py` também estourava memória (OOM) — corrigido
+
+Ao rodar o sistema de ponta a ponta numa máquina real (~4GB de RAM) para
+validar o pipeline completo, `python run_simulation.py` foi morto pelo
+kernel (OOM, exit code 137) logo na primeira execução. Causa: assim como em
+`treinar_modelos.py` e `teste_sistema_completo.py` antes da correção
+(ver seção 8), `load_sample_transactions()` usava `pd.read_parquet(PROCESSED_DATA_PATH)`
+para carregar o Parquet inteiro (~6,36 milhões de linhas) só para amostrar
+5-10 transações de exemplo.
+
+Corrigido para ler apenas um row-group do Parquet via
+`pyarrow.parquet.ParquetFile.read_row_group(0)` e amostrar a partir dele —
+mesmo padrão já usado em `_load_sample_df()` (teste_sistema_completo.py) e
+`load_balanced_sample_from_parquet()` (treinar_modelos.py). Após a correção,
+`python run_simulation.py` e `python teste_sistema_completo.py` rodaram do
+início ao fim com sucesso na máquina real, com os modelos Isolation
+Forest/LSTM/GNN já treinados (ver seção 9) sendo usados de fato na
+inferência.
+
+Observação da execução real: ao retreinar o LSTM do zero em
+`teste_sistema_completo.py` (5 épocas, amostra de ~2000 linhas), o modelo
+atingiu "Loss: 0.0000, Acurácia: 100.00%" — um sinal claro de overfitting
+numa amostra pequena e não representativo do desempenho real do modelo;
+reforça o item já registrado na seção 9 sobre a necessidade de uma avaliação
+formal (precisão/recall/F1) e de mais dados/épocas antes de reportar
+métricas de desempenho na monografia.
+
 ## Para testar de verdade com o Gemini
 
 1. Copie `.env.example` para `.env`.

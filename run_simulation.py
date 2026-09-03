@@ -13,17 +13,29 @@ load_dotenv()
 
 
 def load_sample_transactions(n_samples: int = 10) -> List[Dict[str, Any]]:
-    """Carrega transações de exemplo do dataset processado."""
+    """Carrega transações de exemplo do dataset processado.
+
+    O dataset real do PaySim processado pode ter milhões de linhas (~470MB de
+    CSV bruto / ~400MB de Parquet), o que pode não caber confortavelmente em
+    memória em todos os ambientes (``pd.read_parquet`` carregando o arquivo
+    inteiro chegou a causar OOM em uma máquina com ~4GB de RAM). Como este
+    script só precisa de algumas transações de exemplo, lemos apenas um
+    row-group do Parquet (via ``pyarrow``) e amostramos a partir dele, em vez
+    de carregar o arquivo inteiro.
+    """
     if not PROCESSED_DATA_PATH.exists():
         raise FileNotFoundError(
             f"Dataset processado não encontrado: {PROCESSED_DATA_PATH}. "
             "Execute primeiro: python src/preprocessamento/carregar_paysim.py"
         )
 
-    df = pd.read_parquet(PROCESSED_DATA_PATH)
+    import pyarrow.parquet as pq
+
+    pf = pq.ParquetFile(str(PROCESSED_DATA_PATH))
+    chunk = pf.read_row_group(0).to_pandas()
 
     # Removido random_state para variar as amostras a cada execução
-    sample_df = df.sample(n=n_samples)
+    sample_df = chunk.sample(n=min(n_samples, len(chunk)))
     return sample_df.to_dict('records')
 
 
