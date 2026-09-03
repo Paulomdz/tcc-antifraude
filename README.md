@@ -87,8 +87,8 @@ O objetivo principal é demonstrar como uma solução multiagente pode apoiar a 
 ### 1. Preparar o ambiente
 
 ```bash
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+python3 -m venv .venv
+source .venv/bin/activate   # Windows (PowerShell): .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
