@@ -519,9 +519,18 @@ def main() -> None:
                 # saldo anterior, valor e tipo); não precisamos do retorno.
                 st.number_input(
                     "Novo saldo — Origem (R$)",
-                    min_value=-_MAX_FINANCIAL_VALUE,
-                    max_value=_MAX_FINANCIAL_VALUE,
-                    value=auto_new_balance,
+                    # Este campo e somente leitura (preview calculado a partir do
+                    # saldo anterior + valor); quando ambos estao proximos do
+                    # teto de _MAX_FINANCIAL_VALUE, a soma (CASH_IN) pode superar
+                    # esse teto e o Streamlit levanta StreamlitValueAboveMaxError.
+                    # Como e so uma pre-visualizacao (o valor real usado na
+                    # analise e recalculado de forma independente no submit,
+                    # ver calculated_new_balance abaixo), os limites aqui sao
+                    # o dobro do teto normal em vez de reaproveitar
+                    # _MAX_FINANCIAL_VALUE, para nao truncar a exibicao.
+                    min_value=-2 * _MAX_FINANCIAL_VALUE,
+                    max_value=2 * _MAX_FINANCIAL_VALUE,
+                    value=min(max(auto_new_balance, -2 * _MAX_FINANCIAL_VALUE), 2 * _MAX_FINANCIAL_VALUE),
                     step=0.01,
                     format="%.2f",
                     disabled=True,
