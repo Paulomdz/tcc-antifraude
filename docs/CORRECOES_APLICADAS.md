@@ -212,6 +212,23 @@ reforça o item já registrado na seção 9 sobre a necessidade de uma avaliaç�
 formal (precisão/recall/F1) e de mais dados/épocas antes de reportar
 métricas de desempenho na monografia.
 
+## 11. Dashboard: StreamlitValueAboveMaxError no preview de saldo
+
+Rodando o dashboard ao vivo numa maquina real e clicando repetidamente em
+"Simular nova transacao", o campo somente-leitura "Novo saldo - Origem"
+(preview calculado como saldo anterior + valor, para CASH_IN) podia superar
+o teto do proprio widget (_MAX_FINANCIAL_VALUE = R$ 9.999.999,00) quando os
+dois valores sorteados estavam proximos desse teto - a soma passava de
+R$ 17 milhoes num caso observado, e o Streamlit lancava
+StreamlitValueAboveMaxError, travando a tela.
+
+Corrigido em `src/dashboard/app.py`: como esse campo e so uma
+pre-visualizacao (o valor de fato usado na analise, `calculated_new_balance`,
+e recalculado de forma independente no submit do formulario), os limites do
+widget foram ampliados para o dobro do teto normal, cobrindo qualquer soma
+possivel de dois valores no teto, sem alterar o calculo real usado na
+analise.
+
 ## Para testar de verdade com o Gemini
 
 1. Copie `.env.example` para `.env`.
