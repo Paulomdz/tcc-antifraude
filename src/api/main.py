@@ -1,4 +1,4 @@
-"""API REST — ClearSafe Antifraude.
+"""API REST — Sistema Multiagente de IA para detecção de fraudes em transaçoẽs financeiras.
 
 Executa com:
     uvicorn src.api.main:app --reload
