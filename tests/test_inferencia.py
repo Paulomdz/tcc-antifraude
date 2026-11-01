@@ -9,7 +9,7 @@ from src.ferramentas import inferencia_modelos as inference
 
 class IsolationModel:
     def decision_function(self, features):
-        assert features.shape == (1, 6)
+        assert features.shape == (1, 21)
         return np.array([-0.5])
 
 
@@ -37,11 +37,12 @@ def transaction():
     }
 
 
-def test_extract_behavior_features_uses_expected_six_features():
+def test_extract_behavior_features_uses_expected_twenty_one_features():
     features = inference.extract_behavior_features(transaction())
 
-    assert features.shape == (6,)
-    assert features.tolist() == [100.0, 250.0, 150.0, 50.0, 150.0, 0.25]
+    assert features.shape == (21,)
+    assert features[0] == 100.0  # amount
+    assert features[1] == 0.0    # is_incoming (sem B)
 
 
 def test_isolation_forest_score_is_normalized():

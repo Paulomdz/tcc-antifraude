@@ -13,7 +13,7 @@ from src.preprocessamento.carregar_dataset import (
 def test_loads_final_dataset_schema_and_categories():
     dataset = load_dataset(RAW_DATA_PATH)
 
-    assert len(dataset) == 444_366
+    assert len(dataset) == 454_117
     assert set(dataset["type"].unique()) == set(TRANSACTION_TYPES)
     assert "isFlaggedFraud" not in dataset.columns
 
@@ -25,7 +25,7 @@ def test_preprocesses_all_categories_and_derives_features():
 
     assert "isFlaggedFraud" not in processed
     assert all(f"type_{tx_type}" in processed for tx_type in TRANSACTION_TYPES)
-    assert processed["step_norm"].between(0, 1).all()
+    assert processed["hora_norm"].between(0, 1).all()
     assert processed["amount_log"].notna().all()
 
 
@@ -63,3 +63,42 @@ def test_chunk_processor_reports_invalid_input(tmp_path):
     pd.read_csv(RAW_DATA_PATH, nrows=1).to_csv(source, index=False)
     with pytest.raises(ValueError, match="chunksize"):
         process_dataset_in_chunks(source, chunksize=0)
+
+
+def test_temporal_split_no_intersection():
+    from src.preprocessamento.carregar_dataset import temporal_split
+    sample = pd.DataFrame({
+        "step": [100, 549, 550, 599, 600, 743],
+        "isFraud": [0, 1, 0, 1, 0, 1]
+    })
+    splits = temporal_split(sample)
+    assert len(splits["train"]) == 2
+    assert len(splits["val"]) == 2
+    assert len(splits["train_completo"]) == 4
+    assert len(splits["test"]) == 2
+    assert set(splits["train"].index).isdisjoint(set(splits["val"].index))
+    assert set(splits["train"].index).isdisjoint(set(splits["test"].index))
+    assert set(splits["val"].index).isdisjoint(set(splits["test"].index))
+
+
+def test_anti_leakage_ids_not_in_if_features():
+    from src.preprocessamento.carregar_dataset import IF_FEATURE_NAMES
+    for feat in IF_FEATURE_NAMES:
+        assert "nameOrig" not in feat
+        assert "nameDest" not in feat
+    assert len(IF_FEATURE_NAMES) == 21
+
+
+def test_if_features_equivalence_df_and_dict():
+    import numpy as np
+    from src.preprocessamento.carregar_dataset import (
+        extract_if_features_df,
+        extract_if_features_row,
+    )
+    raw = pd.read_csv(RAW_DATA_PATH, nrows=3)
+    df_feats = extract_if_features_df(raw)
+    for idx in range(len(raw)):
+        row_dict = raw.iloc[idx].to_dict()
+        row_feats = extract_if_features_row(row_dict)
+        assert np.allclose(df_feats.iloc[idx].values, row_feats, atol=1e-9)
+
