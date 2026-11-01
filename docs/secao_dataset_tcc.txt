@@ -1,0 +1,199 @@
+3 METODOLOGIA
+
+3.X CONSTRUÇÃO E TRATAMENTO DA BASE DE DADOS
+
+3.X.1 Visão geral da base
+
+Para o treinamento e a avaliação dos agentes de aprendizado de máquina foi
+construída uma base de dados sintética de transações bancárias, denominada
+dataset_pix_banco.csv, que reúne operações via Pix e operações bancárias
+tradicionais (não Pix). A opção por dados sintéticos decorre da
+indisponibilidade de bases públicas de transações Pix rotuladas quanto a
+fraude e das restrições impostas pela Lei Geral de Proteção de Dados (Lei
+nº 13.709/2018) ao uso de dados financeiros reais de clientes.
+
+A base segue o esquema de colunas do simulador PaySim (LOPEZ-ROJAS; ELMIR;
+AXELSSON, 2016), amplamente utilizado na literatura de detecção de fraudes,
+adaptado para o contexto do Sistema Financeiro Nacional. Cada registro
+representa uma transação e é descrito por dez atributos (Quadro 1).
+
+Quadro 1 – Atributos da base de dados
+-----------------------------------------------------------------------
+Atributo        Descrição
+-----------------------------------------------------------------------
+step            Hora da simulação (0 a 743, equivalente a 31 dias)
+type            Tipo da transação
+amount          Valor da transação (R$)
+nameOrig        Identificador da conta de origem
+oldbalanceOrg   Saldo da conta de origem antes da transação
+newbalanceOrig  Saldo da conta de origem após a transação
+nameDest        Identificador da conta de destino
+oldbalanceDest  Saldo da conta de destino antes da transação
+newbalanceDest  Saldo da conta de destino após a transação
+isFraud         Rótulo: 1 = fraude; 0 = legítima
+-----------------------------------------------------------------------
+Fonte: elaborado pelos autores (2026).
+
+Os identificadores de conta são compostos por uma letra que indica o tipo
+de titular, seguida de sete dígitos aleatórios: C (clientes pessoa
+física), M (estabelecimentos comerciais), A (terminais de autoatendimento,
+destino dos saques) e B (instituições bancárias).
+
+3.X.2 Composição final
+
+A versão final contém 454.117 transações, das quais 25.247 (5,56%) são
+fraudes, distribuídas entre 8.257 contas de origem. Desse total, 3.264
+contas (39,5%) não registram nenhuma fraude. As transações Pix somam
+186.535 registros, com 17.281 fraudes. Todos os doze tipos de transação
+possuem exemplos fraudulentos, o que permite que os agentes aprendam o
+padrão de fraude de cada modalidade (Tabela 1).
+
+Tabela 1 – Distribuição das transações e fraudes por tipo
+-----------------------------------------------------------------------
+Tipo                  Transações   Fraudes   Taxa de fraude (%)
+-----------------------------------------------------------------------
+PIX_P2P                   94.720     9.237         9,75
+PIX_SAQUE                 36.635     5.428        14,82
+PIX_TROCO                 25.133     2.052         8,16
+PIX_AUTOMATICO            15.635       240         1,54
+PIX_QRCODE                14.412       324         2,25
+CARTAO_ECOMMERCE          77.576     6.012         7,75
+CARTAO_PRESENCIAL         71.943       400         0,56
+TEF                       30.808       102         0,33
+TED                       30.388       300         0,99
+BOLETO                    25.825       350         1,36
+SAQUE                     23.423       622         2,66
+EMPRESTIMO                 7.619       180         2,36
+-----------------------------------------------------------------------
+Total                    454.117    25.247         5,56
+-----------------------------------------------------------------------
+Fonte: elaborado pelos autores (2026).
+
+3.X.3 Etapas de tratamento
+
+A base foi obtida pela combinação de dois geradores, um de transações Pix
+e outro de transações não Pix, e submetida a uma sequência de tratamentos
+para corrigir inconsistências e aproximar os dados de cenários reais. Os
+procedimentos foram implementados em Python, com semente aleatória fixa
+(seed 42), garantindo a reprodutibilidade.
+
+a) Separação de identificadores entre bases. Os dois geradores produziam
+os mesmos identificadores de cliente, o que fazia contas distintas serem
+tratadas como uma só e misturava históricos independentes. Os
+identificadores de clientes das transações não Pix foram remapeados para
+uma faixa própria (C0… para C1… e C9… para C8…). Após a correção, nenhum
+cliente aparece nas duas bases; os únicos identificadores compartilhados
+são 414 contas de estabelecimentos, terminais e bancos, comportamento
+esperado, pois uma mesma loja ou caixa eletrônico recebe pagamentos de
+diferentes meios.
+
+b) Inclusão de fraudes nas modalidades sem exemplos. Os tipos PIX_QRCODE
+e PIX_AUTOMATICO não possuíam fraudes. Foram inseridas 324 fraudes de QR
+Code adulterado, em que o pagamento é desviado para uma conta laranja com
+valor de 3 a 10 vezes o habitual da conta, e 240 fraudes de Pix
+Automático, correspondentes a 80 autorizações recorrentes fraudulentas com
+três cobranças a cada 24 horas. As fraudes foram inseridas em contas já
+existentes, preservando o histórico necessário aos modelos sequenciais
+(LSTM).
+
+c) Remoção do vazamento de rótulo. A coluna isFlaggedFraud, presente na
+versão original, marcava exclusivamente transações fraudulentas, de modo
+que funcionava como uma cópia do rótulo e permitiria aos agentes
+"descobrir" a resposta sem aprender o padrão de fraude. A coluna foi
+removida da base de treinamento. A regra de alerta simples de um banco
+(transação que consome ao menos 90% do saldo e tem valor igual ou superior
+a R$ 5.000,00) é calculada à parte, apenas como linha de base para
+comparação com os agentes.
+
+d) Padrão de esvaziamento de conta. Em sequências de fraudes de uma mesma
+conta (intervalo de até 24 horas entre elas), a última transação passou a
+transferir todo o saldo disponível, zerando a conta, comportamento típico
+de golpes de tomada de conta nas modalidades PIX_P2P e PIX_SAQUE.
+
+e) Inclusão de contas sem fraude. Foram criadas 3.000 contas cujo
+histórico replica o comportamento legítimo de contas existentes, com
+valores multiplicados por um fator aleatório entre 0,85 e 1,15 e horários
+deslocados em até três horas, aumentando a proporção de clientes que nunca
+sofreram fraude.
+
+f) Correção de transações com origem igual ao destino. Oito fraudes
+registravam a mesma conta como origem e destino, situação que não
+corresponde a nenhum golpe real. O destino dessas transações foi
+substituído por contas laranja já existentes na base, mantendo o rótulo
+de fraude e o padrão real de desvio de recursos para terceiros.
+
+g) Encadeamento dos saldos. Na base combinada, o saldo inicial de uma
+transação coincidia com o saldo final da transação anterior da mesma conta
+em apenas 58% dos casos, e 66.788 transações apresentavam valor superior
+ao saldo disponível, situação que um banco recusaria. Esse defeito tinha
+origem nos geradores, que não encadeavam os saldos, e não estava associado
+à fraude (cerca de 98% dessas transações eram legítimas). Por isso, essas
+transações não foram rotuladas como fraude, o que criaria um rótulo falso.
+Os saldos de todas as contas foram recalculados em ordem cronológica, como
+em um extrato bancário: o saldo de cada transação passou a ser o saldo
+anterior, descontados os débitos e somados os créditos, considerando a
+conta tanto como origem quanto como destino. Nesse processo:
+  - os valores das transações e os rótulos foram mantidos, exceto nas
+    fraudes de esvaziamento, cujo valor passou a ser o saldo da conta no
+    momento da fraude;
+  - o saldo inicial de cada conta foi elevado o mínimo necessário para que
+    nenhuma transação ocorresse sem saldo suficiente;
+  - para contas esvaziadas por fraude que realizaram pagamentos
+    posteriores, foram inseridos 9.751 créditos legítimos do tipo TED,
+    originados de instituições bancárias (representando o recebimento de
+    salário), anteriores aos pagamentos.
+
+h) Anonimização dos identificadores. Após as etapas anteriores, a faixa
+numérica dos identificadores passou a revelar o rótulo: contas criadas
+como legítimas (faixa C7) nunca tinham fraude, e contas laranja (faixas
+C8 e C9) só participavam de fraudes. Um modelo que tivesse acesso ao
+identificador poderia acertar a classe sem aprender o comportamento
+fraudulento. Todos os identificadores foram, então, substituídos por
+códigos aleatórios (semente 42), mantendo apenas a letra do tipo de
+titular. O mapeamento é um para um e foi aplicado igualmente à origem e
+ao destino, de modo que o histórico de cada conta e a estrutura do grafo
+de transações permanecem idênticos. Ainda assim, os identificadores não
+são usados como atributo de entrada dos modelos, servindo apenas para
+agrupar o histórico de cada conta (LSTM) e para construir o grafo (GNN).
+
+Ao final, 100% das transações têm saldo encadeado, não há transação com
+valor superior ao saldo, saldo negativo, valor nulo ou registro duplicado,
+e a quantidade de fraudes por tipo permaneceu inalterada.
+
+3.X.4 Características da base final
+
+Duas características comportamentais das fraudes estão presentes na base
+e constituem padrões que os agentes devem aprender:
+
+a) Concentração noturna: 67,3% das fraudes ocorrem entre 0h e 5h, contra
+25,5% das transações legítimas, proporção próxima da esperada ao acaso
+(25%).
+
+b) Esvaziamento de conta: 75,0% das fraudes PIX_P2P e 79,8% das fraudes
+PIX_SAQUE zeram o saldo da conta de origem. A mediana da razão entre o
+valor e o saldo disponível é de 1,0 nas fraudes e de 0,006 nas transações
+legítimas.
+
+3.X.5 Limitações
+
+Por se tratar de uma base sintética, os padrões de fraude refletem as
+regras definidas na geração e podem não abranger toda a variabilidade de
+golpes observada no sistema financeiro. A razão entre valor e saldo
+apresenta alto poder de separação entre as classes, o que pode elevar as
+métricas dos modelos; por esse motivo, recomenda-se reportar também o
+desempenho dos agentes sem esse atributo. Além disso, o encadeamento dos
+saldos elevou o saldo inicial de parte das contas e reduziu ligeiramente a
+proporção de fraudes que zeram a conta (de 79,8% para 75,0% em PIX_P2P e
+de 84,7% para 79,8% em PIX_SAQUE), uma vez que fraudes intermediárias de
+uma sequência passaram a deixar saldo remanescente.
+
+
+REFERÊNCIAS
+
+BRASIL. Lei nº 13.709, de 14 de agosto de 2018. Lei Geral de Proteção de
+Dados Pessoais (LGPD). Diário Oficial da União, Brasília, DF, 15 ago. 2018.
+
+LOPEZ-ROJAS, E.; ELMIR, A.; AXELSSON, S. PaySim: a financial mobile money
+simulator for fraud detection. In: EUROPEAN MODELING AND SIMULATION
+SYMPOSIUM (EMSS), 28., 2016, Larnaca. Proceedings [...]. Larnaca: Dime
+University of Genoa, 2016. p. 249-255.

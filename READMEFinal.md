@@ -1,0 +1,210 @@
+# Sistema Multiagente de IA para Detecção de Fraudes em Transações Financeiras
+
+Projeto acadêmico concluído que aplica técnicas de Machine Learning e
+orquestração multiagente à análise de risco de transações financeiras. O sistema
+combina modelos especializados e disponibiliza os resultados por meio de uma
+API REST e de um dashboard interativo.
+
+## Visão geral
+
+A solução analisa características financeiras e comportamentais das transações
+para apoiar a identificação de operações suspeitas. Os resultados podem ser
+classificados como **APROVADO**, **REVISÃO** ou **BLOQUEADO**, acompanhados de
+scores e justificativas.
+
+O projeto reúne:
+
+- **Isolation Forest** para análise comportamental e detecção de anomalias;
+- **LSTM** para análise de padrões sequenciais;
+- **GNN** para análise de relações entre contas;
+- **CrewAI** para coordenar agentes especialistas e consolidar a decisão;
+- **FastAPI** para disponibilizar a análise por API REST;
+- **Streamlit** para oferecer uma interface visual interativa.
+
+## Conjunto de dados
+
+O conjunto de dados de referência do projeto é
+[`dataset/dataset_pix_banco.csv`](dataset/dataset_pix_banco_final.csv).
+Ele contém transações financeiras sintéticas com categorias Pix e outros meios
+de pagamento brasileiros. A base não contém registros operacionais de uma
+instituição financeira nem dados oficiais do Banco Central.
+
+Estatísticas do arquivo:
+
+| Característica | Valor |
+|---|---:|
+| Registros | 444.366 |
+| Colunas | 10 |
+| Categorias de transação | 12 |
+| Transações marcadas como fraude | 25.247 (aprox. 5,68%) |
+| Valores ausentes | Nenhum |
+
+As categorias de `type` incluem `PIX_P2P`, `PIX_QRCODE`, `PIX_SAQUE`,
+`PIX_TROCO`, `PIX_AUTOMATICO`, `CARTAO_ECOMMERCE`, `CARTAO_PRESENCIAL`,
+`TEF`, `BOLETO`, `SAQUE`, `TED` e `EMPRESTIMO`. A coluna `isFraud` identifica
+os registros sintéticos marcados como fraude. A explicação técnica e a
+distribuição detalhada por categoria estão em
+[`docs/explicacao_dataset_pix_banco_final.txt`](docs/explicacao_dataset_pix_banco_final.txt).
+
+## Arquitetura
+
+```text
+.
+├── dataset/
+│   └── dataset_pix_banco_final.csv
+├── docs/
+│   └── explicacao_dataset_pix_banco_final.txt
+├── src/
+│   ├── api/                 # API REST com FastAPI
+│   ├── dashboard/           # Interface interativa com Streamlit
+│   ├── ferramentas/         # Inferência e ferramentas dos agentes
+│   ├── modelos/             # Modelos, treinamento e modelos salvos
+│   ├── orquestracao/        # Definição e fluxo dos agentes
+│   └── preprocessamento/    # Preparação dos dados
+│       └── carregar_dataset.py
+├── tests/                   # Verificações do projeto
+├── pytest.ini               # Configuração de coleta e cobertura
+├── run_simulation.py        # Execução de simulações
+├── run_sistema_completo.py  # Execução do fluxo integrado
+└── requirements.txt         # Dependências Python
+```
+
+## Tecnologias
+
+- Python 3.12 ou superior
+- pandas e NumPy
+- scikit-learn
+- PyTorch e PyTorch Geometric
+- FastAPI e Uvicorn
+- Streamlit
+- CrewAI
+- PyArrow
+- pytest
+
+## Agente Juiz com Google Gemini
+
+O Agente Juiz usa o Google Gemini para consolidar os pareceres dos três
+especialistas. Para isso, são necessárias **duas configurações diferentes**:
+
+1. A chave `GOOGLE_API_KEY` no arquivo `.env`, na raiz do projeto.
+2. O provedor Google GenAI instalado junto com o CrewAI.
+
+Ter a chave no `.env`, por si só, não instala o provedor. Neste projeto, a
+mensagem `Google Gen AI native provider not available` indica que o CrewAI
+estava instalado sem o extra `google-genai`. O carregamento da variável
+também precisa acontecer antes de o sistema verificar se pode iniciar o
+agente; o fluxo agora carrega o `.env` da raiz antes dessa verificação.
+
+### Configurar ou corrigir a instalação
+
+Confira se o `.env` contém estas linhas, substituindo o valor pelo segredo
+válido da sua conta Google AI Studio:
+
+```dotenv
+GOOGLE_API_KEY=sua_chave_real
+GEMINI_MODEL=gemini-3.1-flash
+```
+
+Não publique, envie em mensagens ou versione o arquivo `.env`. Se a chave já
+está configurada, não é necessário compartilhá-la para resolver o problema.
+
+Na raiz do projeto, com o ambiente virtual ativado, instale o provedor:
+
+```bash
+pip install -r requirements.txt
+```
+
+O `requirements.txt` declara `crewai[google-genai]`, que instala o suporte
+Google exigido pelo modelo Gemini. Se preferir atualizar manualmente apenas
+essa dependência:
+
+```bash
+pip install "crewai[google-genai]>=1.15.0"
+```
+
+Depois, **encerre e reinicie a API e o Streamlit** para que os processos
+carreguem o pacote e as variáveis de ambiente atualizados. A análise individual
+da API e do dashboard tenta usar o Juiz Gemini. A análise em lote usa a regra
+determinística por padrão para não fazer uma chamada de LLM para cada linha.
+
+Se o provedor estiver instalado e o agente ainda cair no fallback, verifique:
+
+- se a chave é válida, está ativa e pertence ao Google AI Studio;
+- se o modelo definido em `GEMINI_MODEL` está disponível para essa chave;
+- se a máquina tem acesso à internet e consegue alcançar a API do Google;
+- o aviso completo no terminal da API ou do Streamlit. Uma chave ausente ou
+  inválida, limites de uso, rede ou modelo indisponível são problemas
+  diferentes da ausência do pacote do provedor.
+
+O fallback determinístico continua funcionando quando o Gemini não pode ser
+usado; portanto, receber uma decisão significa que a análise ocorreu, mas não
+confirma que o Agente Juiz LLM foi executado.
+
+## Execução das interfaces
+
+### Versão necessária do Python
+
+Use **Python 3.12 ou superior**. A versão 3.12 foi usada para validar este
+projeto. Python é o interpretador que deve estar instalado no computador; não
+é uma dependência que se instala com `pip` e, por isso, não aparece como uma
+linha instalável no `requirements.txt`. Se tiver uma versão anterior a 3.12,
+instale uma versão compatível antes de criar o ambiente virtual.
+
+Instale as dependências a partir da raiz do projeto:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Prepare os dados e treine os modelos:
+
+```bash
+python -m src.preprocessamento.carregar_dataset
+python -m src.modelos.treinamento.treinar_modelos
+```
+
+O primeiro comando gera `dataset/dataset_pix_banco_final_processado.parquet`,
+usado pelo treinamento e pela simulação. Para executar os testes e a validação
+integrada:
+
+```bash
+pytest
+python run_sistema_completo.py
+```
+
+### O que significa a cobertura dos testes
+
+Na última execução, o pytest informou **88,87% de cobertura**. Isso significa
+que os testes executaram aproximadamente 89 de cada 100 instruções de código
+incluídas no cálculo de cobertura. Esse percentual mede quais partes do código
+foram percorridas pelos testes; **não** significa que o modelo tem 88,87% de
+acurácia, nem garante que todas as situações possíveis estejam corretas.
+
+A configuração exige pelo menos 80% para a suite passar. Alguns módulos de
+treinamento e definições de agentes estão explicitamente fora do cálculo em
+`.coveragerc`, por isso o percentual não representa cada linha de todo o
+projeto. Os resultados podem ser repetidos com `pytest`.
+
+Para iniciar a API:
+
+```bash
+python -m uvicorn src.api.main:app --reload --port 8000
+```
+
+A documentação interativa da API fica disponível em
+<http://localhost:8000/docs>.
+
+Para iniciar o dashboard, em outro terminal:
+
+```bash
+python -m streamlit run src/dashboard/app.py --server.headless true --server.port 8502
+```
+
+## Considerações finais
+
+O sistema finaliza a proposta do projeto: reunir análise de transações,
+modelos de Machine Learning e coordenação multiagente em uma solução acadêmica
+com interfaces de API e dashboard. Os resultados devem ser interpretados no
+contexto experimental dos dados sintéticos utilizados.

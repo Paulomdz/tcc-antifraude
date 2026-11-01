@@ -1,0 +1,1 @@
+"""Pacote para ferramentas personalizadas que conectam CrewAI à inferência Python."""
