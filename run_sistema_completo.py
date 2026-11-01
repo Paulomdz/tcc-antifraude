@@ -181,7 +181,7 @@ def teste_simulacao() -> bool:
     print("TESTE 6: SIMULAÇÃO COMPLETA")
     print("=" * 70)
     try:
-        from src.orquestacao.fluxo_crewai import orchestrate_transaction
+        from src.orquestacao.fluxo_multiagente import orchestrate_transaction
 
         transaction = _load_sample_df(n=1).iloc[0].to_dict()
         result = orchestrate_transaction(transaction, use_llm_judge=False)

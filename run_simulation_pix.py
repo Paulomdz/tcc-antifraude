@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 import pandas as pd
 from dotenv import load_dotenv
 
-from src.orquestacao.fluxo_crewai import orchestrate_transaction
+from src.orquestacao.fluxo_multiagente import orchestrate_transaction
 from src.preprocessamento.carregar_dataset import PROCESSED_DATA_PATH
 
 # Carrega variáveis de ambiente

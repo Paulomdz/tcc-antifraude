@@ -7,7 +7,7 @@ from typing import Dict
 
 from dotenv import load_dotenv
 
-from src.ferramentas.ferramentas_crewai import (
+from src.ferramentas.ferramentas_agentes import (
     behavior_specialist_tool,
     identity_specialist_tool,
     judge_tool,

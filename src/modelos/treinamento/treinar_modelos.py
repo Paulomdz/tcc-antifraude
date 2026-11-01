@@ -222,7 +222,7 @@ def main():
         print(" Modelo GNN não foi treinado.")
 
     print("\n Todos os modelos treinados e salvos!")
-    print(" Pronto para executar a simulação: python run_simulation.py")
+    print(" Pronto para executar a simulação: python run_simulation_pix.py")
 
 
 if __name__ == "__main__":

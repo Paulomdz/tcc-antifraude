@@ -121,7 +121,7 @@ class ResultadoLote(BaseModel):
 def _get_orchestrator():
     """Importa o módulo de orquestração em tempo de execução."""
     try:
-        return importlib.import_module("src.orquestacao.fluxo_crewai")
+        return importlib.import_module("src.orquestacao.fluxo_multiagente")
     except ImportError as exc:
         raise HTTPException(
             status_code=500,

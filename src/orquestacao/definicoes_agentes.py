@@ -30,7 +30,7 @@ def build_judge_llm() -> LLM:
     """Constrói o LLM (Gemini) usado pelo Agente Juiz.
 
     Lança ``ValueError`` se ``GOOGLE_API_KEY`` não estiver configurada — o
-    chamador (``ferramentas_crewai.llm_judge_tool``) deve tratar essa exceção e
+    chamador (``ferramentas_agentes.llm_judge_tool``) deve tratar essa exceção e
     cair no fallback determinístico (``judge_tool``).
     """
     api_key = os.getenv("GOOGLE_API_KEY")

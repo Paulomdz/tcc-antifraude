@@ -33,38 +33,41 @@ Estatísticas do arquivo:
 
 | Característica | Valor |
 |---|---:|
-| Registros | 444.366 |
+| Registros | 454.117 |
 | Colunas | 10 |
 | Categorias de transação | 12 |
-| Transações marcadas como fraude | 25.247 (aprox. 5,68%) |
+| Transações marcadas como fraude | 25.247 (5,56%) |
+| Contas de origem | 8.257 |
 | Valores ausentes | Nenhum |
 
 As categorias de `type` incluem `PIX_P2P`, `PIX_QRCODE`, `PIX_SAQUE`,
 `PIX_TROCO`, `PIX_AUTOMATICO`, `CARTAO_ECOMMERCE`, `CARTAO_PRESENCIAL`,
 `TEF`, `BOLETO`, `SAQUE`, `TED` e `EMPRESTIMO`. A coluna `isFraud` identifica
 os registros sintéticos marcados como fraude. A explicação técnica e a
-distribuição detalhada por categoria estão em
-[`docs/explicacao_dataset_pix_banco_final.txt`](docs/explicacao_dataset_pix_banco_final.txt).
+distribuição detalhada por categoria estão documentadas em
+[`docs/secao_dataset_tcc.txt`](docs/secao_dataset_tcc.txt).
 
 ## Arquitetura
 
 ```text
 .
 ├── dataset/
-│   └── dataset_pix_banco_final.csv
+│   ├── dataset_pix_banco.csv
+│   └── dataset_pix_banco_processado.parquet
 ├── docs/
-│   └── explicacao_dataset_pix_banco_final.txt
+│   └── secao_dataset_tcc.txt
 ├── src/
 │   ├── api/                 # API REST com FastAPI
 │   ├── dashboard/           # Interface interativa com Streamlit
 │   ├── ferramentas/         # Inferência e ferramentas dos agentes
 │   ├── modelos/             # Modelos, treinamento e modelos salvos
 │   ├── orquestracao/        # Definição e fluxo dos agentes
-│   └── preprocessamento/    # Preparação dos dados
-│       └── carregar_dataset.py
+│   └── preprocessamento/    # Preparação dos dados e feature_stats
+│       ├── carregar_dataset.py
+│       └── feature_stats.json
 ├── tests/                   # Verificações do projeto
 ├── pytest.ini               # Configuração de coleta e cobertura
-├── run_simulation.py        # Execução de simulações
+├── run_simulation_pix.py    # Execução de simulações Pix
 ├── run_sistema_completo.py  # Execução do fluxo integrado
 └── requirements.txt         # Dependências Python
 ```
@@ -165,7 +168,7 @@ python -m src.preprocessamento.carregar_dataset
 python -m src.modelos.treinamento.treinar_modelos
 ```
 
-O primeiro comando gera `dataset/dataset_pix_banco_final_processado.parquet`,
+O primeiro comando gera `dataset/dataset_pix_banco_processado.parquet`,
 usado pelo treinamento e pela simulação. Para executar os testes e a validação
 integrada:
 

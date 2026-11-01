@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.ferramentas import ferramentas_crewai as tools
-from src.orquestacao import fluxo_crewai as flow
+from src.ferramentas import ferramentas_agentes as tools
+from src.orquestacao import fluxo_multiagente as flow
 
 
 SPECIALIST_OUTPUTS = {

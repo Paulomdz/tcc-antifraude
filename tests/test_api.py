@@ -104,4 +104,4 @@ def test_batch_requires_at_least_one_transaction():
 
 
 def test_get_orchestrator_imports_the_actual_ascii_package():
-    assert api._get_orchestrator().__name__ == "src.orquestacao.fluxo_crewai"
+    assert api._get_orchestrator().__name__ == "src.orquestacao.fluxo_multiagente"

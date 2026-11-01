@@ -255,7 +255,7 @@ def llm_judge_tool(
     conforme descrito na monografia (§2.5 e §3.7).
 
     Lança exceção se o CrewAI/LLM não estiver disponível ou a chamada falhar;
-    o chamador (``fluxo_crewai.orchestrate_transaction``) deve tratar isso e
+    o chamador (``fluxo_multiagente.orchestrate_transaction``) deve tratar isso e
     cair no fallback determinístico (``judge_tool``).
     """
     from crewai import Crew, Task
