@@ -31,17 +31,12 @@ def load_pickle_model(filename: str) -> Any:
         return pickle.load(file)
 
 
+from src.preprocessamento.carregar_dataset import extract_if_features_row, IF_FEATURE_NAMES
+
+
 def extract_behavior_features(transaction: Dict[str, Any]) -> np.ndarray:
-    """Extrai features reais e compatíveis com os modelos treinados."""
-    features = [
-        float(transaction.get("amount", 0.0)),
-        float(transaction.get("oldbalanceOrg", 0.0)),
-        float(transaction.get("newbalanceOrig", 0.0)),
-        float(transaction.get("oldbalanceDest", 0.0)),
-        float(transaction.get("newbalanceDest", 0.0)),
-        float(transaction.get("step_norm", 0.0)),
-    ]
-    return np.array(features)
+    """Extrai features reais e compatíveis com o Isolation Forest (21 features fixas)."""
+    return extract_if_features_row(transaction)
 
 
 # Fator de escala do sigmoid usado para normalizar o decision_function do

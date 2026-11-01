@@ -1,20 +1,33 @@
-"""Carregamento e pré-processamento do dataset Pix/Banco final."""
+"""Carregamento e pré-processamento do dataset Pix/Banco final para o TCC Antifraude.
 
+Decisões de Engenharia / TCC:
+- D1: isFlaggedFraud removido do escopo (não existe no CSV canônico).
+- D2: hora = step % 24 e hora_norm = hora / 23.0 tanto no treino quanto na inferência.
+- D3: Split temporal estrito: treino core (<550), validação (550..599), treino completo (<600), teste (>=600).
+- D4: PIX_TROCO tratado como outgoing.
+- D5: is_incoming = 1 se nameOrig começa com 'B' (banco/TED salário/empréstimo), senão 0.
+- Regra Anti-Vazamento: IDs nameOrig/nameDest nunca usados como features de entrada.
+- Tratamento de float: -0.0 tratado como 0.0 em newbalanceOrig.
+"""
+
+import json
+import math
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Dict, Iterator, Tuple
 
 import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DATA_PATH = PROJECT_ROOT / "dataset" / "dataset_pix_banco.csv"
-PROCESSED_DATA_PATH = (
-    PROJECT_ROOT / "dataset" / "dataset_pix_banco_final_processado.parquet"
-)
-DEFAULT_PROCESSED_DATA_PATH = PROCESSED_DATA_PATH
+PROCESSED_DATA_PATH = PROJECT_ROOT / "dataset" / "dataset_pix_banco_processado.parquet"
+FEATURE_STATS_PATH = Path(__file__).resolve().parent / "feature_stats.json"
+
 STEP_MAX = 743
+DEFAULT_PROCESSED_DATA_PATH = PROCESSED_DATA_PATH
 DEFAULT_CHUNKSIZE = 50_000
 
+# Lista oficial dos 12 tipos de transação do dataset
 TRANSACTION_TYPES = [
     "PIX_P2P",
     "PIX_QRCODE",
@@ -28,6 +41,31 @@ TRANSACTION_TYPES = [
     "SAQUE",
     "TED",
     "EMPRESTIMO",
+]
+
+# Lista exata das 21 features do Isolation Forest na ordem fixa (TCC §3 / D6)
+IF_FEATURE_NAMES = [
+    "amount",
+    "is_incoming",
+    "type_PIX_P2P",
+    "type_PIX_QRCODE",
+    "type_PIX_SAQUE",
+    "type_PIX_TROCO",
+    "type_PIX_AUTOMATICO",
+    "type_CARTAO_ECOMMERCE",
+    "type_CARTAO_PRESENCIAL",
+    "type_TEF",
+    "type_BOLETO",
+    "type_SAQUE",
+    "type_TED",
+    "type_EMPRESTIMO",
+    "hora_norm",
+    "amount_to_balance_ratio",
+    "emptied_origin",
+    "log_amount",
+    "is_madrugada",
+    "balance_mismatch_orig",
+    "balance_mismatch_dest",
 ]
 
 REQUIRED_COLUMNS = {
@@ -45,7 +83,7 @@ REQUIRED_COLUMNS = {
 
 
 def load_dataset(csv_path: str | Path = RAW_DATA_PATH) -> pd.DataFrame:
-    """Lê o CSV do dataset final e valida seu esquema básico."""
+    """Lê o CSV do dataset canônico e valida seu esquema básico."""
     csv_path = Path(csv_path)
     if not csv_path.exists():
         raise FileNotFoundError(f"Dataset não encontrado: {csv_path}")
@@ -58,8 +96,110 @@ def load_dataset(csv_path: str | Path = RAW_DATA_PATH) -> pd.DataFrame:
     return df
 
 
+def extract_if_features_row(tx: Dict[str, Any]) -> np.ndarray:
+    """Extrai o vetor de 21 features para uma única transação (modo interativo / inferência).
+
+    Garante idêntica ordenação e fórmulas às usadas no pré-processamento tabular do treino.
+    """
+    amount = float(tx.get("amount", 0.0))
+    old_orig = float(tx.get("oldbalanceOrg", 0.0))
+    new_orig = float(tx.get("newbalanceOrig", 0.0))
+    if abs(new_orig) < 1e-12:
+        new_orig = 0.0
+
+    old_dest = float(tx.get("oldbalanceDest", 0.0))
+    new_dest = float(tx.get("newbalanceDest", 0.0))
+
+    # Regra D5: is_incoming baseado na origem B
+    name_orig = str(tx.get("nameOrig", ""))
+    is_incoming = 1.0 if name_orig.startswith("B") else 0.0
+
+    # One-hot dos 12 tipos
+    tx_type = str(tx.get("type", ""))
+    one_hot = [1.0 if tx_type == t else 0.0 for t in TRANSACTION_TYPES]
+
+    # Regra D2: hora = step % 24 e hora_norm = hora / 23.0
+    step_val = tx.get("step")
+    if step_val is None:
+        hora_val = int(tx.get("hora", 12))
+    else:
+        hora_val = int(step_val) % 24
+    hora_norm = hora_val / 23.0
+
+    # Derivadas
+    ratio = amount / (abs(old_orig) + 1.0)
+    emptied = 1.0 if (new_orig < 1.0 and amount > 0.0) else 0.0
+    log_amt = math.log1p(max(0.0, amount))
+    is_madrug = 1.0 if hora_val in {0, 1, 2, 3, 4, 5} else 0.0
+
+    # Contábeis
+    mismatch_orig = old_orig - new_orig - amount
+    mismatch_dest = new_dest - old_dest - amount
+
+    vec = [
+        amount,
+        is_incoming,
+        *one_hot,
+        hora_norm,
+        ratio,
+        emptied,
+        log_amt,
+        is_madrug,
+        mismatch_orig,
+        mismatch_dest,
+    ]
+    return np.array(vec, dtype=np.float64)
+
+
+def extract_if_features_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Extrai DataFrame com as 21 colunas na ordem fixa do Isolation Forest."""
+    res = pd.DataFrame(index=df.index)
+
+    amount = df["amount"].astype(float)
+    old_orig = df["oldbalanceOrg"].astype(float)
+    new_orig = df["newbalanceOrig"].astype(float).replace(-0.0, 0.0)
+    old_dest = df["oldbalanceDest"].astype(float)
+    new_dest = df["newbalanceDest"].astype(float)
+
+    # Base
+    res["amount"] = amount
+    res["is_incoming"] = df["nameOrig"].astype(str).str.startswith("B").astype(float)
+
+    for t in TRANSACTION_TYPES:
+        col_name = f"type_{t}"
+        if col_name in df.columns:
+            res[col_name] = df[col_name].astype(float)
+        else:
+            res[col_name] = (df["type"] == t).astype(float)
+
+    hora = (df["step"].astype(int) % 24)
+    res["hora_norm"] = (hora / 23.0).astype(float)
+
+    # Derivadas
+    res["amount_to_balance_ratio"] = (amount / (old_orig.abs() + 1.0)).astype(float)
+    res["emptied_origin"] = ((new_orig < 1.0) & (amount > 0.0)).astype(float)
+    res["log_amount"] = np.log1p(np.maximum(0.0, amount)).astype(float)
+    res["is_madrugada"] = hora.isin([0, 1, 2, 3, 4, 5]).astype(float)
+
+    # Contábeis
+    res["balance_mismatch_orig"] = (old_orig - new_orig - amount).astype(float)
+    res["balance_mismatch_dest"] = (new_dest - old_dest - amount).astype(float)
+
+    return res[IF_FEATURE_NAMES]
+
+
+def compute_if_features(data: Any) -> np.ndarray | pd.DataFrame:
+    """Função polimórfica que aceita Dict ou DataFrame e retorna features padronizadas."""
+    if isinstance(data, pd.DataFrame):
+        return extract_if_features_df(data)
+    elif isinstance(data, dict):
+        return extract_if_features_row(data)
+    else:
+        raise TypeError(f"Tipo não suportado para compute_if_features: {type(data)}")
+
+
 def preprocess_dataset(df: pd.DataFrame) -> pd.DataFrame:
-    """Limpa os dados e cria atributos usados pelo pipeline antifraude."""
+    """Limpa os dados brutos e anexa as features derivadas do pipeline antifraude."""
     missing_columns = REQUIRED_COLUMNS - set(df.columns)
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
@@ -89,39 +229,100 @@ def preprocess_dataset(df: pd.DataFrame) -> pd.DataFrame:
     for column in numeric_columns[1:]:
         df[column] = df[column].astype(float)
 
-    df["amount_log"] = np.log1p(df["amount"])
+    # Tratamento de artefato float -0.0
+    df["newbalanceOrig"] = df["newbalanceOrig"].replace(-0.0, 0.0)
+
+    # Criação de features derivadas
+    df["amount_log"] = np.log1p(np.maximum(0.0, df["amount"]))
     df["balance_org_delta"] = df["oldbalanceOrg"] - df["newbalanceOrig"]
     df["balance_dest_delta"] = df["newbalanceDest"] - df["oldbalanceDest"]
-    # same_account removed – anti‑vazamento (D2)
 
-    # is_incoming based on origin account type B – regra D5
-    df["is_incoming"] = df["nameOrig"].str.startswith("B").astype(int)
-    # hora (0‑23) derivada de step, hora_norm e flag madrugada – regra D2
+    # Regra D5: is_incoming
+    df["is_incoming"] = df["nameOrig"].astype(str).str.startswith("B").astype(int)
+
+    # Regra D2: hora e hora_norm
     df["hora"] = df["step"] % 24
     df["hora_norm"] = df["hora"] / 23.0
-    df["is_madrugada"] = (df["hora"] <= 5).astype(int)
+    df["is_madrugada"] = df["hora"].isin([0, 1, 2, 3, 4, 5]).astype(int)
 
+    # Derivadas adicionais do IF
+    df["amount_to_balance_ratio"] = df["amount"] / (df["oldbalanceOrg"].abs() + 1.0)
+    df["emptied_origin"] = ((df["newbalanceOrig"] < 1.0) & (df["amount"] > 0.0)).astype(int)
+    df["balance_mismatch_orig"] = df["oldbalanceOrg"] - df["newbalanceOrig"] - df["amount"]
+    df["balance_mismatch_dest"] = df["newbalanceDest"] - df["oldbalanceDest"] - df["amount"]
 
-
+    # One-hot encoding fixo para os 12 tipos
     type_dummies = pd.get_dummies(df["type"], prefix="type", dtype=int)
+    # Garante que todas as 12 colunas type_ estejam presentes
+    for t in TRANSACTION_TYPES:
+        col = f"type_{t}"
+        if col not in type_dummies.columns:
+            type_dummies[col] = 0
+
     return pd.concat([df, type_dummies], axis=1)
 
 
-def save_processed(
-    df: pd.DataFrame, output_path: str | Path = DEFAULT_PROCESSED_DATA_PATH
-) -> None:
-    """Salva os dados processados em formato Parquet."""
-    output_path = Path(output_path)
+def temporal_split(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+    """Divide o dataset conforme a regra D3 de split temporal estrito.
+
+    Retorna:
+      - train: step < 550 (335.973 linhas)
+      - val: step 550..599 (30.677 linhas)
+      - train_completo: step < 600 (366.650 linhas)
+      - test: step >= 600 (87.467 linhas)
+    """
+    train_completo = df[df["step"] < 600].copy()
+    train = df[df["step"] < 550].copy()
+    val = df[(df["step"] >= 550) & (df["step"] < 600)].copy()
+    test = df[df["step"] >= 600].copy()
+
+    # Verificação de não-interseção
+    assert len(set(train.index).intersection(set(val.index))) == 0, "Interseção entre train e val!"
+    assert len(set(train.index).intersection(set(test.index))) == 0, "Interseção entre train e test!"
+    assert len(set(val.index).intersection(set(test.index))) == 0, "Interseção entre val e test!"
+    assert len(train_completo) == len(train) + len(val), "train_completo deve ser união exata de train e val!"
+
+    return {
+        "train": train,
+        "val": val,
+        "train_completo": train_completo,
+        "test": test,
+    }
+
+
+def generate_feature_stats(train_completo_df: pd.DataFrame, output_path: Path = FEATURE_STATS_PATH) -> Dict[str, Any]:
+    """Calcula estatísticas (mean, std, min, max, p05, p95) SOMENTE sobre o treino (step < 600).
+
+    Gera o artefato feature_stats.json na ordem fixa das 21 features.
+    """
+    if_df = extract_if_features_df(train_completo_df)
+    stats: Dict[str, Any] = {}
+
+    for col in IF_FEATURE_NAMES:
+        series = if_df[col].astype(float)
+        mean_val = float(series.mean())
+        std_val = float(series.std(ddof=0))
+        min_val = float(series.min())
+        max_val = float(series.max())
+        p05_val = float(series.quantile(0.05))
+        p95_val = float(series.quantile(0.95))
+
+        stats[col] = {
+            "mean": mean_val,
+            "std": std_val,
+            "min": min_val,
+            "max": max_val,
+            "p05": p05_val,
+            "p95": p95_val,
+            "low_variance": bool(std_val < 1e-6),
+        }
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(output_path, index=False)
-    print(f"Dados processados salvos em: {output_path}")
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(stats, f, indent=2, ensure_ascii=False)
 
-
-def _iter_processed_chunks(
-    csv_path: Path, chunksize: int
-) -> Iterator[pd.DataFrame]:
-    for chunk in pd.read_csv(csv_path, chunksize=chunksize):
-        yield preprocess_dataset(chunk)
+    print(f"feature_stats.json salvo em: {output_path} ({len(stats)} features)")
+    return stats
 
 
 def process_dataset_in_chunks(
@@ -129,15 +330,13 @@ def process_dataset_in_chunks(
     output_path: str | Path = DEFAULT_PROCESSED_DATA_PATH,
     chunksize: int = DEFAULT_CHUNKSIZE,
 ) -> None:
-    """Pré-processa o CSV em blocos e grava Parquet sem carregar tudo em RAM."""
+    """Pré-processa o CSV canônico e grava o Parquet processado."""
     import pyarrow as pa
     import pyarrow.parquet as pq
 
     csv_path = Path(csv_path)
     if not csv_path.exists():
         raise FileNotFoundError(f"Dataset não encontrado: {csv_path}")
-    if chunksize < 1:
-        raise ValueError("chunksize deve ser maior que zero.")
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -145,35 +344,36 @@ def process_dataset_in_chunks(
     writer = None
     total_rows = 0
     total_fraud = 0
-    try:
-        for processed_chunk in _iter_processed_chunks(csv_path, chunksize):
-            table = pa.Table.from_pandas(processed_chunk, preserve_index=False)
-            if writer is None:
-                writer = pq.ParquetWriter(str(output_path), table.schema)
-            else:
-                table = table.cast(writer.schema)
-            writer.write_table(table)
-            total_rows += len(processed_chunk)
-            total_fraud += int(processed_chunk["isFraud"].sum())
-            print(f"Processadas {total_rows:,} linhas...".replace(",", "."))
-    finally:
-        if writer is not None:
-            writer.close()
 
-    if total_rows == 0:
-        raise ValueError(f"Dataset vazio: {csv_path}")
+    for chunk in pd.read_csv(csv_path, chunksize=chunksize):
+        processed_chunk = preprocess_dataset(chunk)
+        table = pa.Table.from_pandas(processed_chunk, preserve_index=False)
+        if writer is None:
+            writer = pq.ParquetWriter(str(output_path), table.schema)
+        else:
+            table = table.cast(writer.schema)
+        writer.write_table(table)
+        total_rows += len(processed_chunk)
+        total_fraud += int(processed_chunk["isFraud"].sum())
+        print(f"Processadas {total_rows:,} linhas...".replace(",", "."))
 
-    print(f"Dados processados salvos em: {output_path}")
-    print(f"Total de linhas: {total_rows:,}".replace(",", "."))
-    print(f"Total de fraudes: {total_fraud:,}".replace(",", "."))
+    if writer is not None:
+        writer.close()
+
+    print(f"Parquet processado salvo em: {output_path}")
+    print(f"Total de linhas: {total_rows:,} | Fraudes: {total_fraud:,}".replace(",", "."))
 
 
 def main(raw_path: str | None = None, output_path: str | None = None) -> None:
-    """Gera o Parquet usado pelo treinamento e pela simulação."""
-    process_dataset_in_chunks(
-        raw_path or RAW_DATA_PATH,
-        output_path or DEFAULT_PROCESSED_DATA_PATH,
-    )
+    """Executa a rotina de pré-processamento e geração de feature_stats."""
+    raw = raw_path or RAW_DATA_PATH
+    out = output_path or DEFAULT_PROCESSED_DATA_PATH
+    process_dataset_in_chunks(raw, out)
+
+    print("Calculando feature_stats.json a partir do treino (step < 600)...")
+    df = pd.read_parquet(out)
+    splits = temporal_split(df)
+    generate_feature_stats(splits["train_completo"])
 
 
 if __name__ == "__main__":
