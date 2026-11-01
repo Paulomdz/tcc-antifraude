@@ -17,7 +17,7 @@ def test_lstm_trains_and_round_trips_state_dict(tmp_path):
                 "newbalanceOrig": 90.0,
                 "oldbalanceDest": 20.0,
                 "newbalanceDest": 30.0,
-                "step_norm": step / 743,
+                "hora_norm": step / 23,
                 "isFraud": step % 2,
             }
             for step in range(12)

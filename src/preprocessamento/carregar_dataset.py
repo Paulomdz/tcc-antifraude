@@ -1,7 +1,6 @@
 """Carregamento e pré-processamento do dataset Pix/Banco final para o TCC Antifraude.
 
 Decisões de Engenharia / TCC:
-- D1: isFlaggedFraud removido do escopo (não existe no CSV canônico).
 - D2: hora = step % 24 e hora_norm = hora / 23.0 tanto no treino quanto na inferência.
 - D3: Split temporal estrito: treino core (<550), validação (550..599), treino completo (<600), teste (>=600).
 - D4: PIX_TROCO tratado como outgoing.
@@ -13,7 +12,7 @@ Decisões de Engenharia / TCC:
 import json
 import math
 from pathlib import Path
-from typing import Any, Dict, Iterator, Tuple
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
@@ -96,6 +95,11 @@ def load_dataset(csv_path: str | Path = RAW_DATA_PATH) -> pd.DataFrame:
     return df
 
 
+def hora_norm_from_step(step: Any) -> float:
+    """Aplica a mesma conversão horária do dataset à inferência interativa."""
+    return (int(step) % 24) / 23.0
+
+
 def extract_if_features_row(tx: Dict[str, Any]) -> np.ndarray:
     """Extrai o vetor de 21 features para uma única transação (modo interativo / inferência).
 
@@ -124,7 +128,7 @@ def extract_if_features_row(tx: Dict[str, Any]) -> np.ndarray:
         hora_val = int(tx.get("hora", 12))
     else:
         hora_val = int(step_val) % 24
-    hora_norm = hora_val / 23.0
+    hora_norm = hora_norm_from_step(hora_val)
 
     # Derivadas
     ratio = amount / (abs(old_orig) + 1.0)
@@ -189,7 +193,7 @@ def extract_if_features_df(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_if_features(data: Any) -> np.ndarray | pd.DataFrame:
-    """Função polimórfica que aceita Dict ou DataFrame e retorna features padronizadas."""
+    """Gera as features oficiais para treino (DataFrame) ou inferência (transação)."""
     if isinstance(data, pd.DataFrame):
         return extract_if_features_df(data)
     elif isinstance(data, dict):
@@ -290,12 +294,22 @@ def temporal_split(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     }
 
 
-def generate_feature_stats(train_completo_df: pd.DataFrame, output_path: Path = FEATURE_STATS_PATH) -> Dict[str, Any]:
+def generate_feature_stats(
+    train_completo_df: pd.DataFrame, output_path: Path = FEATURE_STATS_PATH
+) -> Dict[str, Any]:
     """Calcula estatísticas (mean, std, min, max, p05, p95) SOMENTE sobre o treino (step < 600).
 
     Gera o artefato feature_stats.json na ordem fixa das 21 features.
     """
-    if_df = extract_if_features_df(train_completo_df)
+    if "step" not in train_completo_df.columns:
+        raise ValueError("Não é possível gerar feature_stats sem a coluna step.")
+    if train_completo_df.empty:
+        raise ValueError("Não é possível gerar feature_stats com treino vazio.")
+    steps = pd.to_numeric(train_completo_df["step"], errors="raise")
+    if not steps.lt(600).all():
+        raise ValueError("feature_stats só pode usar transações com step < 600.")
+
+    if_df = compute_if_features(train_completo_df)
     stats: Dict[str, Any] = {}
 
     for col in IF_FEATURE_NAMES:

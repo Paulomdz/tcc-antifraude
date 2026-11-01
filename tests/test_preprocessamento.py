@@ -1,9 +1,13 @@
+import numpy as np
 import pandas as pd
 import pytest
 
 from src.preprocessamento.carregar_dataset import (
+    IF_FEATURE_NAMES,
     RAW_DATA_PATH,
     TRANSACTION_TYPES,
+    compute_if_features,
+    generate_feature_stats,
     load_dataset,
     preprocess_dataset,
     process_dataset_in_chunks,
@@ -14,8 +18,8 @@ def test_loads_final_dataset_schema_and_categories():
     dataset = load_dataset(RAW_DATA_PATH)
 
     assert len(dataset) == 454_117
+    assert len(dataset.columns) == 10
     assert set(dataset["type"].unique()) == set(TRANSACTION_TYPES)
-    assert "isFlaggedFraud" not in dataset.columns
 
 
 def test_preprocesses_all_categories_and_derives_features():
@@ -23,7 +27,6 @@ def test_preprocesses_all_categories_and_derives_features():
 
     processed = preprocess_dataset(raw)
 
-    assert "isFlaggedFraud" not in processed
     assert all(f"type_{tx_type}" in processed for tx_type in TRANSACTION_TYPES)
     assert processed["hora_norm"].between(0, 1).all()
     assert processed["amount_log"].notna().all()
@@ -102,3 +105,58 @@ def test_if_features_equivalence_df_and_dict():
         row_feats = extract_if_features_row(row_dict)
         assert np.allclose(df_feats.iloc[idx].values, row_feats, atol=1e-9)
 
+
+def test_if_feature_order_and_hour_formula_are_fixed():
+    raw = pd.read_csv(RAW_DATA_PATH, nrows=1)
+    raw.loc[raw.index[0], "step"] = 100
+
+    features = compute_if_features(raw)
+
+    assert list(features.columns) == IF_FEATURE_NAMES
+    assert features.iloc[0]["hora_norm"] == pytest.approx(4 / 23)
+    assert features.iloc[0]["is_madrugada"] == 1
+
+
+def test_account_digits_are_not_if_features_and_incoming_is_the_only_exception():
+    transaction = {
+        "step": 4,
+        "type": "PIX_TROCO",
+        "amount": 100.0,
+        "nameOrig": "C1000001",
+        "oldbalanceOrg": 200.0,
+        "newbalanceOrig": 100.0,
+        "nameDest": "M1000002",
+        "oldbalanceDest": 0.0,
+        "newbalanceDest": 100.0,
+    }
+
+    first = compute_if_features(transaction)
+    transaction["nameOrig"] = "C9999999"
+    transaction["nameDest"] = "A8888888"
+    second = compute_if_features(transaction)
+
+    assert np.array_equal(first, second)
+    transaction["nameOrig"] = "B9999999"
+    incoming = compute_if_features(transaction)
+    assert incoming[1] == 1
+    assert incoming[5] == 1
+
+
+def test_feature_stats_reject_any_test_period_rows(tmp_path):
+    with pytest.raises(ValueError, match="step < 600"):
+        generate_feature_stats(
+            pd.DataFrame({"step": [599, 600]}),
+            output_path=tmp_path / "feature_stats.json",
+        )
+
+
+def test_feature_stats_are_generated_in_fixed_order_from_training_only(tmp_path):
+    raw = pd.read_csv(RAW_DATA_PATH, nrows=4)
+    output_path = tmp_path / "feature_stats.json"
+
+    stats = generate_feature_stats(raw, output_path=output_path)
+
+    assert list(stats) == IF_FEATURE_NAMES
+    assert len(stats) == 21
+    assert output_path.exists()
+    assert stats["balance_mismatch_orig"]["std"] < 1e-6

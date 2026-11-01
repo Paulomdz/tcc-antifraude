@@ -64,7 +64,6 @@ class TransacaoInput(BaseModel):
     nameDest: str = Field(default="", description="Identificador da conta de destino")
     oldbalanceDest: float = Field(default=0.0, ge=0.0, description="Saldo anterior da conta destino")
     newbalanceDest: float = Field(default=0.0, ge=0.0, description="Novo saldo da conta destino")
-    step_norm: float = Field(default=0.5, ge=0.0, le=1.0, description="Step normalizado [0, 1]")
 
 
 class ScoreAgente(BaseModel):

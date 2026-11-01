@@ -73,7 +73,7 @@ if TORCH_AVAILABLE:
             if feature_cols is None:
                 feature_cols = [
                     'amount', 'oldbalanceOrg', 'newbalanceOrig',
-                    'oldbalanceDest', 'newbalanceDest', 'step_norm'
+                    'oldbalanceDest', 'newbalanceDest', 'hora_norm'
                 ]
             self.feature_cols = feature_cols
             

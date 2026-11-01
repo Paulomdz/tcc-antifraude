@@ -10,8 +10,9 @@ from src.preprocessamento.carregar_dataset import TRANSACTION_TYPES
 
 def test_dashboard_helper_functions_use_pix_dataset():
     assert dashboard._TX_TYPES == TRANSACTION_TYPES
-    assert dashboard._normalize_step(0) == 0.0
-    assert dashboard._normalize_step(743) == 1.0
+    assert dashboard.hora_norm_from_step(0) == 0.0
+    assert dashboard.hora_norm_from_step(23) == 1.0
+    assert dashboard.hora_norm_from_step(100) == 4 / 23
     assert dashboard._time_to_minutes("03:45") == 225
     assert dashboard._time_to_minutes("25:10") == 70
     assert dashboard._is_valid_24h_time("23:59")
@@ -31,7 +32,8 @@ def test_dashboard_formatting_and_random_transaction(monkeypatch):
 
     assert transaction["type"] in TRANSACTION_TYPES
     assert transaction["step"] == 0
-    assert transaction["step_norm"] == 0
+    assert transaction["hora_norm"] == 0
+    assert "step_norm" not in transaction
     assert dashboard._calculate_new_balance(100, 25, "PIX_P2P") == 75
     assert dashboard._calculate_new_balance(100, 25, "CASH_IN") == 125
     assert dashboard._format_currency_br(1234.5) == "R$ 1.234,50"

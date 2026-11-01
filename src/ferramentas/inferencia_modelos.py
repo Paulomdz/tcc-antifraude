@@ -31,12 +31,18 @@ def load_pickle_model(filename: str) -> Any:
         return pickle.load(file)
 
 
-from src.preprocessamento.carregar_dataset import extract_if_features_row, IF_FEATURE_NAMES
+from src.preprocessamento.carregar_dataset import (
+    compute_if_features,
+    hora_norm_from_step,
+)
 
 
 def extract_behavior_features(transaction: Dict[str, Any]) -> np.ndarray:
     """Extrai features reais e compatíveis com o Isolation Forest (21 features fixas)."""
-    return extract_if_features_row(transaction)
+    features = compute_if_features(transaction)
+    if not isinstance(features, np.ndarray):
+        raise TypeError("A inferência do Isolation Forest exige uma transação individual.")
+    return features
 
 
 # Fator de escala do sigmoid usado para normalizar o decision_function do
@@ -90,7 +96,7 @@ def lstm_sequence_score(sequence: list[Dict[str, Any]], model: Any = None) -> fl
                     float(tx.get("newbalanceOrig", 0.0)),
                     float(tx.get("oldbalanceDest", 0.0)),
                     float(tx.get("newbalanceDest", 0.0)),
-                    float(tx.get("step_norm", 0.0)),
+                    hora_norm_from_step(tx.get("step", tx.get("hora", 12))),
                 ])
             x = torch.FloatTensor([features])
             with torch.no_grad():
@@ -106,49 +112,44 @@ def lstm_sequence_score(sequence: list[Dict[str, Any]], model: Any = None) -> fl
 
 def gnn_identity_score(graph_data: Dict[str, Any], model: Any = None) -> float:
     """Retorna um score de risco de identidade com base em um modelo GNN."""
-    origin = graph_data.get("origin", "")
-    destination = graph_data.get("destination", "")
+    if not TORCH_AVAILABLE:
+        raise RuntimeError("PyTorch é necessário para inferir o score da GNN.")
+
+    origin = str(graph_data.get("origin") or "")
+    destination = str(graph_data.get("destination") or "")
     amount = float(graph_data.get("amount", 0.0))
 
-    if TORCH_AVAILABLE:
+    if not origin or not destination:
+        raise ValueError("A inferência da GNN exige as contas de origem e destino.")
+
+    if model is None:
         model_path = MODEL_DIR / "gnn_model.pt"
-        if model is None and model_path.exists():
-            model = GNNFraudDetector(in_channels=4)
-            model.load_state_dict(torch.load(model_path, map_location='cpu'))
-            model.eval()
+        if not model_path.exists():
+            raise FileNotFoundError(f"Modelo GNN não encontrado: {model_path}")
+        model = GNNFraudDetector(in_channels=4)
+        model.load_state_dict(torch.load(model_path, map_location="cpu"))
+        model.eval()
 
-        if model is not None and origin and destination:
-            node_map = {origin: 0, destination: 1} if origin != destination else {origin: 0}
-            features = []
-            for account in sorted(node_map.keys()):
-                if account == origin:
-                    features.append([1.0, 0.0, amount, 0.0])
-                else:
-                    features.append([0.0, 1.0, 0.0, amount])
+    node_ids = sorted({origin, destination})
+    node_map = {account: index for index, account in enumerate(node_ids)}
+    features = [
+        [
+            1.0 if account == origin else 0.0,
+            1.0 if account == destination else 0.0,
+            amount if account == origin else 0.0,
+            amount if account == destination else 0.0,
+        ]
+        for account in node_ids
+    ]
 
-            edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long) if origin != destination else torch.tensor([[0], [0]], dtype=torch.long)
-            x = torch.FloatTensor(features)
-            with torch.no_grad():
-                out = model(x, edge_index)
-            score = float(out.mean().clamp(0.0, 1.0).item())
-            return score
-
-    if origin and destination:
-        if origin.startswith("C") and destination.startswith("C"):
-            try:
-                orig_num = int(origin[1:])
-                dest_num = int(destination[1:])
-                score = 0.8 if abs(orig_num - dest_num) < 10 else 0.2
-            except ValueError:
-                score = 0.3
-        else:
-            score = 0.1
+    origin_idx = node_map[origin]
+    destination_idx = node_map[destination]
+    if origin_idx == destination_idx:
+        edges = [[origin_idx], [destination_idx]]
     else:
-        score = 0.0
-
-    if amount > 50000:
-        score += 0.2
-
-    import random
-    score += random.uniform(-0.1, 0.1)
-    return float(max(0.0, min(1.0, score)))
+        edges = [[origin_idx, destination_idx], [destination_idx, origin_idx]]
+    edge_index = torch.tensor(edges, dtype=torch.long)
+    x = torch.FloatTensor(features)
+    with torch.no_grad():
+        out = model(x, edge_index)
+    return float(out.mean().clamp(0.0, 1.0).item())

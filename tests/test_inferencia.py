@@ -16,6 +16,7 @@ class IsolationModel:
 class SequenceModel:
     def __call__(self, features):
         assert tuple(features.shape) == (1, 1, 6)
+        assert float(features[0, 0, 5]) == pytest.approx(5 / 23)
         return torch.tensor([[0.65]])
 
 
@@ -33,7 +34,7 @@ def transaction():
         "newbalanceOrig": 150.0,
         "oldbalanceDest": 50.0,
         "newbalanceDest": 150.0,
-        "step_norm": 0.25,
+        "step": 5,
     }
 
 
@@ -86,24 +87,27 @@ def test_gnn_uses_injected_model(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("data", "expected"),
+    "data",
     [
-        ({"origin": "C100", "destination": "C101", "amount": 0}, 0.8),
-        ({"origin": "A", "destination": "B", "amount": 60_000}, 0.3),
-        ({"origin": "", "destination": "", "amount": 0}, 0.0),
+        {"origin": "C100", "destination": "C101", "amount": 0},
+        {"origin": "C999", "destination": "C001", "amount": 60_000},
+        {"origin": "", "destination": "", "amount": 0},
     ],
 )
-def test_gnn_fallback_uses_identity_features(monkeypatch, data, expected):
+def test_gnn_does_not_fall_back_to_identifier_scoring(monkeypatch, data):
     monkeypatch.setattr(inference, "TORCH_AVAILABLE", False)
-    monkeypatch.setattr(random, "uniform", lambda *_: 0.0)
 
-    assert inference.gnn_identity_score(data) == pytest.approx(expected)
+    with pytest.raises(RuntimeError, match="PyTorch é necessário"):
+        inference.gnn_identity_score(data)
 
 
-def test_gnn_fallback_clamps_large_amount(monkeypatch):
-    monkeypatch.setattr(inference, "TORCH_AVAILABLE", False)
-    monkeypatch.setattr(random, "uniform", lambda *_: 0.1)
+def test_gnn_reports_missing_model_instead_of_using_identifier_heuristic(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(inference, "TORCH_AVAILABLE", True)
+    monkeypatch.setattr(inference, "MODEL_DIR", tmp_path)
 
-    assert inference.gnn_identity_score(
-        {"origin": "C1", "destination": "C2", "amount": 80_000}
-    ) == 1.0
+    with pytest.raises(FileNotFoundError, match="Modelo GNN não encontrado"):
+        inference.gnn_identity_score(
+            {"origin": "C100", "destination": "C101", "amount": 80_000}
+        )

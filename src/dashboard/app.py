@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-from src.preprocessamento.carregar_dataset import STEP_MAX, TRANSACTION_TYPES
+from src.preprocessamento.carregar_dataset import (
+    TRANSACTION_TYPES,
+    hora_norm_from_step,
+)
 
 _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
@@ -160,11 +163,6 @@ def build_result_row(tx: dict, resultado: dict) -> dict:
     }
 
 
-def _normalize_step(step: float | int) -> float:
-    """Normaliza o índice horário da simulação para a escala do dataset."""
-    return (float(step) % (STEP_MAX + 1)) / STEP_MAX
-
-
 def _time_to_minutes(value: str) -> int:
     """Converte string HH:MM em minutos do dia."""
     try:
@@ -257,8 +255,7 @@ def _safe_session_value(key: str, fallback: float) -> float:
 def random_transaction() -> dict:
     """Gera uma transação aleatória com valores bancários realistas.
 
-    ``step`` representa a hora do dia (0-23), e ``step_norm`` usa a mesma
-    escala horária de 0-743 empregada no pré-processamento do dataset.
+    ``step`` representa a hora do dia (0-23), normalizada pela regra D2.
     """
     tx_type = random.choice(_TX_TYPES)
     amount = _format_banking_amount(random.uniform(10.0, _MAX_FINANCIAL_VALUE))
@@ -273,7 +270,7 @@ def random_transaction() -> dict:
         "oldbalanceOrg": bal_org,
         "newbalanceOrig": _calculate_new_balance(bal_org, amount, tx_type),
         "nameDest": f"C{random.randint(1_000_000, 9_999_999)}",
-        "step_norm": _normalize_step(step_minutes / 60),
+        "hora_norm": hora_norm_from_step(hour),
     }
 
 
@@ -521,10 +518,13 @@ def main() -> None:
                 )
 
             with col_b:
-                step_text = st.text_input(
-                    "Hora da simulação (HH:MM)",
-                    value=f"{int(_ss('step', 12)) % 24:02d}:00",
-                    placeholder="00:00 até 23:59",
+                hora_interativa = st.number_input(
+                    "Hora do dia (0 a 23h)",
+                    min_value=0,
+                    max_value=23,
+                    value=int(_ss("step", 12)) % 24,
+                    step=1,
+                    help="A hora normalizada é hora / 23, conforme a regra D2 do TCC.",
                 )
                 name_dest = st.text_input("Conta Destino", value=_ss("nameDest", "C7654321"))
 
@@ -533,22 +533,18 @@ def main() -> None:
             )
 
         if submitted:
-            if not _is_valid_24h_time(step_text):
-                st.error("Informe a hora no formato 24h válido: HH:MM (ex.: 03:30).")
-                submitted = False
-
-        if submitted:
             calculated_new_balance = _calculate_new_balance(float(old_bal_org), float(amount), tipo)
-            step_minutes_form = _time_to_minutes(step_text)
+            hora_interativa = int(hora_interativa)
             tx = {
-                "step": step_minutes_form // 60,
+                "step": hora_interativa,
+                "hora": hora_interativa,
+                "hora_norm": hora_norm_from_step(hora_interativa),
                 "type": tipo,
                 "amount": float(amount),
                 "nameOrig": name_orig,
                 "oldbalanceOrg": float(old_bal_org),
                 "newbalanceOrig": calculated_new_balance,
                 "nameDest": name_dest,
-                "step_norm": _normalize_step(step_minutes_form / 60),
             }
             st.caption(
                 "Cálculo aplicado: "
@@ -615,9 +611,7 @@ def main() -> None:
                         for i, (_, row) in enumerate(sample.iterrows()):
                             tx = row.to_dict()
                             tx["step"] = _coerce_step_to_hour(tx.get("step"))
-                            tx.setdefault(
-                                "step_norm", _normalize_step(tx["step"])
-                            )
+                            tx["hora_norm"] = hora_norm_from_step(tx["step"])
                             bar.progress(
                                 (i + 1) / max_rows,
                                 text=f"Analisando transação {i + 1} de {max_rows}…",
