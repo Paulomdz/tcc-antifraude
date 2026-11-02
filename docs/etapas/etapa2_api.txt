@@ -74,9 +74,9 @@ Critérios de aceite e evidências
   encontrou somente o fallback de estado do dashboard e o comentário que
   afirma que production não tem fallback determinístico. Nenhum fallback
   determinístico do juiz foi adicionado.
-- ✅ Busca pelo nome antigo do pacote (excluindo venv e .git) não encontrou
-  referências no código, docs ou caminhos. A pasta de código e imports usam
-  src/orquestacao/.
+- ✅ Busca pelo nome canônico do pacote:
+  grep -rn --exclude='*.pyc' 'orquestacao' src/ encontrou apenas imports
+  válidos para src.orquestacao.
 - ✅ Sintaxe Pylance: sem erros em src/api/main.py e tests/test_api.py.
 - ✅ git diff --check: terminou com código 0, sem erros.
 - ✅ Suíte completa: .venv/bin/python -m pytest -q
@@ -86,6 +86,8 @@ Limitações
 - A execução isolada dos testes da API com as opções padrão executa os testes,
   mas falha no limite global de cobertura: 15 passaram e a cobertura parcial é
   33.56%. A execução completa acima satisfaz o limite configurado.
+- O D13 do prompt usa uma grafia divergente; o diretório real e o import
+  validado pelo teste são src/orquestacao/.
 - A busca textual por "fallback" mantém referências benignas no dashboard e
   comentário explicativo; nenhuma delas é fallback determinístico do juiz.
 - Os testes validam a API usando um orquestrador controlado; a implementação de
