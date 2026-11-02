@@ -61,7 +61,7 @@ distribuição detalhada por categoria estão documentadas em
 │   ├── dashboard/           # Interface interativa com Streamlit
 │   ├── ferramentas/         # Inferência e ferramentas dos agentes
 │   ├── modelos/             # Modelos, treinamento e modelos salvos
-│   ├── orquestracao/        # Definição e fluxo dos agentes
+│   ├── orquestacao/         # Definição e fluxo dos agentes
 │   └── preprocessamento/    # Preparação dos dados e feature_stats
 │       ├── carregar_dataset.py
 │       └── feature_stats.json

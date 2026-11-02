@@ -39,9 +39,8 @@ Decisões
   lote e histórico continuam disponíveis sem chave.
 - D8: lote chama orchestrate_ml_only (fast). Production continua na análise
   individual; deep permanece somente função de orquestração.
-- D13: o pacote real neste repositório é src/orquestacao/ (sem o "r" após
-  "t"). O import da API já corresponde a src/orquestacao/fluxo_multiagente.py.
-  A grafia src/orquestracao/ mostrada no texto de D13 não existe no filesystem.
+- D13: o pacote neste repositório é src/orquestacao/. O import da API aponta
+  para src/orquestacao/fluxo_multiagente.py.
 - Serviço: usado o nome oficial escolhido pelo usuário, sem inventar uma nova
   marca.
 
@@ -75,9 +74,9 @@ Critérios de aceite e evidências
   encontrou somente o fallback de estado do dashboard e o comentário que
   afirma que production não tem fallback determinístico. Nenhum fallback
   determinístico do juiz foi adicionado.
-- ✅ Busca por orquestacao: grep -rn --exclude='*.pyc' 'orquestacao' src/
-  encontrou apenas imports para o pacote real src.orquestacao. A busca por
-  'src.orquestracao' não encontrou resultados.
+- ✅ Busca pelo nome antigo do pacote (excluindo venv e .git) não encontrou
+  referências no código, docs ou caminhos. A pasta de código e imports usam
+  src/orquestacao/.
 - ✅ Sintaxe Pylance: sem erros em src/api/main.py e tests/test_api.py.
 - ✅ git diff --check: terminou com código 0, sem erros.
 - ✅ Suíte completa: .venv/bin/python -m pytest -q
@@ -87,9 +86,6 @@ Limitações
 - A execução isolada dos testes da API com as opções padrão executa os testes,
   mas falha no limite global de cobertura: 15 passaram e a cobertura parcial é
   33.56%. A execução completa acima satisfaz o limite configurado.
-- O D13 no prompt descreve src/orquestracao/, mas o pacote presente no
-  repositório é src/orquestacao/. O import foi validado contra o filesystem e
-  o teste de import passou.
 - A busca textual por "fallback" mantém referências benignas no dashboard e
   comentário explicativo; nenhuma delas é fallback determinístico do juiz.
 - Os testes validam a API usando um orquestrador controlado; a implementação de
