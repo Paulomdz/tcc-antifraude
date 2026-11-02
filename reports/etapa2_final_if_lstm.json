@@ -1,0 +1,145 @@
+{
+  "seed": 42,
+  "feature_policy_version": "pre_execution_causal_v2",
+  "split_rows": {
+    "train_core": 335973,
+    "validation": 30677,
+    "train_complete": 366650,
+    "test": 87467
+  },
+  "test_read_after_final_refit": true,
+  "test_read_count": 1,
+  "test_step_min": 600,
+  "test_step_max": 743,
+  "test_evaluation_seconds": 1.5885976100107655,
+  "elapsed_seconds": 133.95508129199152,
+  "models": {
+    "isolation_forest": {
+      "config": {
+        "n_estimators": 100,
+        "max_samples": "auto",
+        "contamination": 0.056
+      },
+      "feature_names": [
+        "amount",
+        "is_incoming",
+        "type_PIX_P2P",
+        "type_PIX_QRCODE",
+        "type_PIX_SAQUE",
+        "type_PIX_TROCO",
+        "type_PIX_AUTOMATICO",
+        "type_CARTAO_ECOMMERCE",
+        "type_CARTAO_PRESENCIAL",
+        "type_TEF",
+        "type_BOLETO",
+        "type_SAQUE",
+        "type_TED",
+        "type_EMPRESTIMO",
+        "hora_norm",
+        "amount_to_balance_ratio",
+        "log_amount",
+        "is_madrugada"
+      ],
+      "metrics": {
+        "train": {
+          "pr_auc": 0.6760662660243354,
+          "precision": 0.7421013111534684,
+          "recall": 0.6880522679805066,
+          "f1": 0.7140554660145613,
+          "threshold": 0.5152371004215558
+        },
+        "validation": {
+          "pr_auc": 0.6626497731034462,
+          "precision": 0.7181588902900379,
+          "recall": 0.6890502117362372,
+          "f1": 0.7033034887310898,
+          "threshold": 0.5152371004215558
+        },
+        "test": {
+          "pr_auc": 0.688085966061084,
+          "precision": 0.7290880852007987,
+          "recall": 0.6677504572241414,
+          "f1": 0.6970725498515061,
+          "threshold": 0.5152371004215558
+        }
+      },
+      "decision_threshold": 0.5152371004215558,
+      "threshold_selection": "validation_f1",
+      "selection_fit_seconds": 2.1374809450062457,
+      "final_fit_seconds": 1.1480546109960414,
+      "training_seconds": 3.7965053219959373,
+      "ram_free_before_gib": 0.319854736328125,
+      "ram_available_before_gib": 2.974254608154297,
+      "peak_ram_gib": 1.2901535034179688,
+      "vram_free_before_gib": 7.28485107421875,
+      "peak_vram_gib": 0.0,
+      "test_evaluation_seconds": 0.3588983100053156,
+      "model_path": "/home/Paulomdz/UniLinux/TCClinux/tcc-antifraude-main/src/modelos/modelos_salvos/isolation_forest.pkl"
+    },
+    "lstm": {
+      "config": {
+        "hidden_size": 32,
+        "dropout": 0.1,
+        "lr": 0.001,
+        "num_layers": 2
+      },
+      "feature_names": [
+        "log_amount",
+        "is_incoming",
+        "type_PIX_P2P",
+        "type_PIX_QRCODE",
+        "type_PIX_SAQUE",
+        "type_PIX_TROCO",
+        "type_PIX_AUTOMATICO",
+        "type_CARTAO_ECOMMERCE",
+        "type_CARTAO_PRESENCIAL",
+        "type_TEF",
+        "type_BOLETO",
+        "type_SAQUE",
+        "type_TED",
+        "type_EMPRESTIMO",
+        "hora_norm",
+        "amount_to_balance_ratio",
+        "is_madrugada"
+      ],
+      "metrics": {
+        "train": {
+          "pr_auc": 0.3345490640405765,
+          "precision": 0.364140350877193,
+          "recall": 0.2778878594762491,
+          "f1": 0.31522036266439873,
+          "threshold": 0.7408122420310974
+        },
+        "validation": {
+          "pr_auc": 0.4064691443433129,
+          "precision": 0.7384105960264901,
+          "recall": 0.26981246218995764,
+          "f1": 0.3952148870181657,
+          "threshold": 0.7408122420310974
+        },
+        "test": {
+          "pr_auc": 0.3576620313491832,
+          "precision": 0.9489112227805695,
+          "recall": 0.23023775655354603,
+          "f1": 0.3705641864268193,
+          "threshold": 0.7408122420310974
+        }
+      },
+      "decision_threshold": 0.7408122420310974,
+      "threshold_selection": "validation_f1",
+      "best_epoch": 9,
+      "selection_fit_seconds": 66.14999649899255,
+      "final_fit_seconds": 56.27982681400317,
+      "training_seconds": 128.09050405900052,
+      "ram_free_before_gib": 0.18242263793945312,
+      "ram_available_before_gib": 2.817577362060547,
+      "peak_ram_gib": 1.9429054260253906,
+      "vram_free_before_gib": 7.28485107421875,
+      "peak_vram_gib": 0.07066774368286133,
+      "positive_class_weight_from_train_core": 16.992448990521073,
+      "final_fit_device": "cuda",
+      "test_evaluation_seconds": 1.2173791179957334,
+      "model_path": "/home/Paulomdz/UniLinux/TCClinux/tcc-antifraude-main/src/modelos/modelos_salvos/lstm_model.pt"
+    }
+  }
+}

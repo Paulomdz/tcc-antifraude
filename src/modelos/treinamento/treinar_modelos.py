@@ -75,6 +75,8 @@ LSTM_BATCH_SIZE = 512
 GNN_EPOCHS = 10
 GNN_BATCH_SIZE = 1024
 GNN_FANOUTS = (10, 5)
+FINAL_GNN_BATCH_SIZE = 4096
+FINAL_GNN_FANOUTS = (10, 5)
 DATASET_SIGNATURE = ""
 FEATURE_POLICY_VERSION = "pre_execution_causal_v2"
 FINAL_IF_CONFIG = {
@@ -91,6 +93,13 @@ FINAL_LSTM_CONFIG = {
 FINAL_IF_LSTM_REPORT_PATH = (
     REPORT_PATH.parent / "etapa2_final_if_lstm.json"
 )
+FINAL_GNN_CONFIG = {
+    "hidden_dim": 32,
+    "dropout": 0.1,
+    "lr": 1e-3,
+    "num_layers": 2,
+}
+FINAL_GNN_REPORT_PATH = REPORT_PATH.parent / "etapa2_final_gnn.json"
 
 
 def _set_seed() -> None:
@@ -827,6 +836,8 @@ def _graph_scores(
     graph_data: TransactionMiniBatchDataset,
     device,
     positive_weight: float,
+    batch_size: int = GNN_BATCH_SIZE,
+    fanouts: tuple[int, ...] = GNN_FANOUTS,
 ) -> tuple[float, np.ndarray, np.ndarray]:
     model.eval()
     total_loss = 0.0
@@ -836,7 +847,7 @@ def _graph_scores(
     criterion = nn.BCELoss(reduction="none")
     with torch.no_grad():
         for x, edge_index, labels, seed_count in graph_data.iter_batches(
-            GNN_BATCH_SIZE, shuffle=False, fanouts=GNN_FANOUTS
+            batch_size, shuffle=False, fanouts=fanouts
         ):
             x = x.to(device)
             edge_index = edge_index.to(device)
@@ -931,12 +942,109 @@ def _train_gnn_candidate(
     }
 
 
+def _train_final_gnn_candidate(
+    graphs,
+    feature_names: list[str],
+    config: dict[str, Any],
+    positive_weight: float,
+    max_epochs: int = GNN_EPOCHS,
+) -> dict[str, Any]:
+    device = torch.device("cuda")
+    _set_seed()
+    model = GNNFraudDetector(
+        in_channels=len(feature_names),
+        hidden_channels=config["hidden_dim"],
+        dropout=config["dropout"],
+        num_layers=config["num_layers"],
+    ).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=1
+    )
+    criterion = nn.BCELoss(reduction="none")
+    best_pr_auc = float("-inf")
+    best_loss = float("inf")
+    best_state = None
+    best_epoch = 0
+    best_validation = None
+    stale_epochs = 0
+    started = time.perf_counter()
+
+    for epoch in range(1, max_epochs + 1):
+        model.train()
+        for x, edge_index, labels, seed_count in graphs["train"].iter_batches(
+            FINAL_GNN_BATCH_SIZE,
+            shuffle=True,
+            fanouts=FINAL_GNN_FANOUTS,
+        ):
+            x = x.to(device)
+            edge_index = edge_index.to(device)
+            labels = labels.to(device)
+            optimizer.zero_grad()
+            probabilities = model(x, edge_index)[:seed_count]
+            loss = _weighted_bce(
+                criterion, probabilities, labels, positive_weight
+            )
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+            optimizer.step()
+
+        validation_loss, val_y, val_scores = _graph_scores(
+            model,
+            graphs["val"],
+            device,
+            positive_weight,
+            batch_size=FINAL_GNN_BATCH_SIZE,
+            fanouts=FINAL_GNN_FANOUTS,
+        )
+        validation_metrics = _metrics(val_y, val_scores)
+        scheduler.step(validation_loss)
+        best_loss = min(best_loss, validation_loss)
+        if validation_metrics["pr_auc"] > best_pr_auc:
+            best_pr_auc = validation_metrics["pr_auc"]
+            best_epoch = epoch
+            best_state = {
+                name: tensor.detach().cpu().clone()
+                for name, tensor in model.state_dict().items()
+            }
+            best_validation = validation_metrics
+            stale_epochs = 0
+        else:
+            stale_epochs += 1
+        print(
+            f"GNN época {epoch}/{max_epochs}: "
+            f"val_PR_AUC={validation_metrics['pr_auc']:.6f}; "
+            f"melhor={best_pr_auc:.6f}; "
+            f"sem_melhoria={stale_epochs}/{PATIENCE}",
+            flush=True,
+        )
+        if stale_epochs >= PATIENCE:
+            break
+
+    if best_state is None:
+        raise RuntimeError("Treino final da GNN não produziu estado de validação.")
+    elapsed = time.perf_counter() - started
+    del model, optimizer, scheduler
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    return {
+        "state_dict": best_state,
+        "best_epoch": best_epoch,
+        "val_loss": best_loss,
+        "validation_metrics": best_validation,
+        "epochs_completed": epoch,
+        "selection_training_seconds": elapsed,
+    }
+
+
 def _refit_gnn(
     graphs,
     feature_names: list[str],
     config: dict[str, Any],
     positive_weight: float,
     epochs: int,
+    batch_size: int = GNN_BATCH_SIZE,
+    fanouts: tuple[int, ...] = GNN_FANOUTS,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     _set_seed()
@@ -952,7 +1060,7 @@ def _refit_gnn(
         model.train()
         for x, edge_index, labels, seed_count in graphs[
             "train_completo"
-        ].iter_batches(GNN_BATCH_SIZE, shuffle=True, fanouts=GNN_FANOUTS):
+        ].iter_batches(batch_size, shuffle=True, fanouts=fanouts):
             x = x.to(device)
             edge_index = edge_index.to(device)
             labels = labels.to(device)
@@ -1452,6 +1560,280 @@ def run_final_if_lstm() -> dict[str, Any]:
     del test_context, test_frame, splits, if_model, lstm_model
     gc.collect()
     print(f"Relatório final IF/LSTM salvo em {FINAL_IF_LSTM_REPORT_PATH}")
+    return report
+
+
+def run_final_gnn() -> dict[str, Any]:
+    """Train the fixed GNN, select epochs on validation, then read test once."""
+    global DATASET_SIGNATURE
+    if not PROCESSED_DATA_PATH.exists():
+        raise FileNotFoundError(
+            f"Dados processados não encontrados: {PROCESSED_DATA_PATH}."
+        )
+    if not TORCH_AVAILABLE or not TORCH_GEO_AVAILABLE or not torch.cuda.is_available():
+        raise RuntimeError("O retreino final GNN exige PyTorch Geometric e CUDA.")
+
+    _set_seed()
+    dataset_stat = PROCESSED_DATA_PATH.stat()
+    feature_signature = ",".join(GNN_FEATURE_NAMES)
+    DATASET_SIGNATURE = (
+        f"{dataset_stat.st_size}:{dataset_stat.st_mtime_ns}:seed-{SEED}:"
+        f"{FEATURE_POLICY_VERSION}:"
+        f"{hashlib.sha256(feature_signature.encode()).hexdigest()}"
+    )
+    required_columns = [
+        "step",
+        "type",
+        "amount",
+        "nameOrig",
+        "nameDest",
+        "oldbalanceOrg",
+        "isFraud",
+    ]
+    started = time.perf_counter()
+    initial_ram = _ram_snapshot()
+    if initial_ram["available_gib"] < 2:
+        raise MemoryError("RAM disponível abaixo de 2 GiB antes do treino GNN.")
+    train_frame = pd.read_parquet(
+        PROCESSED_DATA_PATH,
+        columns=required_columns,
+        filters=[("step", "<", 600)],
+    )
+    if train_frame.empty or not train_frame["step"].lt(600).all():
+        raise ValueError("O ajuste final GNN exige somente dados com step < 600.")
+    train_frame = train_frame.reset_index(drop=True)
+    splits = temporal_split(train_frame)
+    if not splits["test"].empty:
+        raise RuntimeError("O split pré-teste não pode conter transações de teste.")
+    if not splits["train"]["step"].lt(550).all():
+        raise ValueError("A seleção da GNN deve usar treino com step < 550.")
+    splits["context"] = train_frame.sort_values(
+        "step", kind="stable"
+    ).drop(columns=["isFraud"])
+    split_rows = {
+        "train_core": len(splits["train"]),
+        "validation": len(splits["val"]),
+        "train_complete": len(splits["train_completo"]),
+    }
+    del train_frame
+    gc.collect()
+
+    device = torch.device("cuda")
+    print(
+        f"Final GNN: device={device}; gpu={torch.cuda.get_device_name(device)}; "
+        f"config={FINAL_GNN_CONFIG}; batch={FINAL_GNN_BATCH_SIZE}; "
+        f"fanouts={FINAL_GNN_FANOUTS}; max_epochs={GNN_EPOCHS}; "
+        f"RAM_disponível_inicial={initial_ram['available_gib']:.2f} GiB",
+        flush=True,
+    )
+    positive_weight = _class_positive_weight(
+        splits["train"]["isFraud"].to_numpy(dtype=np.int64)
+    )
+    with _PeakRSSMonitor() as preparation_memory:
+        graphs = _prepare_gnn_graphs(splits, GNN_FEATURE_NAMES)
+    preparation_peak_ram = preparation_memory.peak_gib
+
+    selection_ram = _ram_snapshot()
+    if selection_ram["available_gib"] < 2:
+        raise MemoryError("RAM disponível abaixo de 2 GiB antes da seleção GNN.")
+    _reset_vram_peak()
+    with _PeakRSSMonitor() as selection_memory:
+        selected = _train_final_gnn_candidate(
+            graphs,
+            GNN_FEATURE_NAMES,
+            dict(FINAL_GNN_CONFIG),
+            positive_weight,
+            max_epochs=GNN_EPOCHS,
+        )
+    selection_peak_ram = selection_memory.peak_gib
+    selection_peak_vram = _peak_vram_gib()
+    selection_model = GNNFraudDetector(
+        in_channels=len(GNN_FEATURE_NAMES),
+        hidden_channels=FINAL_GNN_CONFIG["hidden_dim"],
+        dropout=FINAL_GNN_CONFIG["dropout"],
+        num_layers=FINAL_GNN_CONFIG["num_layers"],
+    ).to(device)
+    selection_model.load_state_dict(selected["state_dict"])
+    metric_started = time.perf_counter()
+    _, train_labels, train_scores = _graph_scores(
+        selection_model,
+        graphs["train"],
+        device,
+        positive_weight,
+        batch_size=FINAL_GNN_BATCH_SIZE,
+        fanouts=FINAL_GNN_FANOUTS,
+    )
+    _, val_labels, val_scores = _graph_scores(
+        selection_model,
+        graphs["val"],
+        device,
+        positive_weight,
+        batch_size=FINAL_GNN_BATCH_SIZE,
+        fanouts=FINAL_GNN_FANOUTS,
+    )
+    decision_threshold = _best_f1_threshold(val_labels, val_scores)
+    metrics = {
+        "train": _metrics(train_labels, train_scores, decision_threshold),
+        "validation": _metrics(val_labels, val_scores, decision_threshold),
+    }
+    selection_metrics_seconds = time.perf_counter() - metric_started
+    selection_peak_vram = max(selection_peak_vram, _peak_vram_gib())
+    del selection_model, train_labels, train_scores, val_labels, val_scores
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = CHECKPOINT_DIR / "gnn_final_selection.pt"
+    checkpoint_tmp_path = checkpoint_path.with_suffix(".tmp")
+    torch.save(
+        {
+            "state_dict": selected["state_dict"],
+            "config": dict(FINAL_GNN_CONFIG),
+            "best_epoch": selected["best_epoch"],
+            "validation_metrics": selected["validation_metrics"],
+            "seed": SEED,
+            "feature_policy_version": FEATURE_POLICY_VERSION,
+        },
+        checkpoint_tmp_path,
+    )
+    checkpoint_tmp_path.replace(checkpoint_path)
+
+    final_fit_ram = _ram_snapshot()
+    if final_fit_ram["available_gib"] < 2:
+        raise MemoryError("RAM disponível abaixo de 2 GiB antes do retreino GNN.")
+    _reset_vram_peak()
+    final_fit_started = time.perf_counter()
+    with _PeakRSSMonitor() as final_fit_memory:
+        final_model, final_device, final_graph = _refit_gnn(
+            graphs,
+            GNN_FEATURE_NAMES,
+            dict(FINAL_GNN_CONFIG),
+            positive_weight,
+            selected["best_epoch"],
+            batch_size=FINAL_GNN_BATCH_SIZE,
+            fanouts=FINAL_GNN_FANOUTS,
+        )
+    final_fit_seconds = time.perf_counter() - final_fit_started
+    final_fit_peak_vram = _peak_vram_gib()
+    model_path = MODEL_DIR / "gnn_model.pt"
+    salvar_gnn(
+        final_model,
+        None,
+        str(model_path),
+        metadata={
+            "seed": SEED,
+            "training_step_max": 599,
+            "selected_config": dict(FINAL_GNN_CONFIG),
+            "best_epoch": selected["best_epoch"],
+            "decision_threshold": decision_threshold,
+            "threshold_selection": "validation_f1",
+            "validation_selection_metric": "pr_auc",
+            "feature_policy_version": FEATURE_POLICY_VERSION,
+            "batch_size": FINAL_GNN_BATCH_SIZE,
+            "fanouts": list(FINAL_GNN_FANOUTS),
+        },
+    )
+    final_fit_completed_at = time.perf_counter()
+
+    test_ram = _ram_snapshot()
+    with _PeakRSSMonitor() as test_memory:
+        test_read_started = time.perf_counter()
+        test_frame = pd.read_parquet(
+            PROCESSED_DATA_PATH,
+            columns=required_columns,
+            filters=[("step", ">=", 600)],
+        )
+        if test_frame.empty or not test_frame["step"].ge(600).all():
+            raise ValueError("A leitura do teste exige somente dados com step >= 600.")
+        test_frame.index = pd.RangeIndex(
+            start=len(splits["context"]),
+            stop=len(splits["context"]) + len(test_frame),
+        )
+        test_context = pd.concat(
+            (splits["context"], test_frame.drop(columns=["isFraud"]))
+        )
+        test_dataset = TransactionMiniBatchDataset(
+            test_frame,
+            GNN_FEATURE_NAMES,
+            context_df=test_context,
+        )
+        _reset_vram_peak()
+        test_started = time.perf_counter()
+        _, test_labels, test_scores = _graph_scores(
+            final_model,
+            test_dataset,
+            final_device,
+            positive_weight,
+            batch_size=FINAL_GNN_BATCH_SIZE,
+            fanouts=FINAL_GNN_FANOUTS,
+        )
+        test_evaluation_seconds = time.perf_counter() - test_started
+        test_peak_vram = _peak_vram_gib()
+    metrics["test"] = _metrics(test_labels, test_scores, decision_threshold)
+    test_peak_ram = test_memory.peak_gib
+
+    report = {
+        "seed": SEED,
+        "feature_policy_version": FEATURE_POLICY_VERSION,
+        "config": dict(FINAL_GNN_CONFIG),
+        "batch_size": FINAL_GNN_BATCH_SIZE,
+        "fanouts": list(FINAL_GNN_FANOUTS),
+        "device": str(final_device),
+        "gpu_name": torch.cuda.get_device_name(final_device),
+        "best_epoch": selected["best_epoch"],
+        "epochs_completed": selected["epochs_completed"],
+        "selection_metric": "validation_pr_auc",
+        "decision_threshold": decision_threshold,
+        "threshold_selection": "validation_f1",
+        "metrics": metrics,
+        "split_rows": {
+            **split_rows,
+            "test": len(test_frame),
+        },
+        "test_read_after_final_refit": final_fit_completed_at < test_read_started,
+        "test_read_count": 1,
+        "test_step_min": int(test_frame["step"].min()),
+        "test_step_max": int(test_frame["step"].max()),
+        "checkpoint_path": str(checkpoint_path),
+        "model_path": str(model_path),
+        "timings_seconds": {
+            "selection_training": selected["selection_training_seconds"],
+            "selection_metrics": selection_metrics_seconds,
+            "final_refit": final_fit_seconds,
+            "test_evaluation": test_evaluation_seconds,
+            "total": time.perf_counter() - started,
+        },
+        "memory_gib": {
+            "ram_free_before": initial_ram["free_gib"],
+            "ram_available_before": initial_ram["available_gib"],
+            "ram_available_before_selection": selection_ram["available_gib"],
+            "ram_available_before_final_refit": final_fit_ram["available_gib"],
+            "ram_available_before_test": test_ram["available_gib"],
+            "peak_ram": max(
+                preparation_peak_ram,
+                selection_peak_ram,
+                final_fit_memory.peak_gib,
+                test_peak_ram,
+            ),
+            "peak_vram": max(
+                selection_peak_vram,
+                final_fit_peak_vram,
+                test_peak_vram,
+            ),
+        },
+    }
+    FINAL_GNN_REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary_report_path = FINAL_GNN_REPORT_PATH.with_suffix(".tmp")
+    temporary_report_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    temporary_report_path.replace(FINAL_GNN_REPORT_PATH)
+    del test_dataset, test_context, test_frame, final_graph, final_model, graphs
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    print(f"Relatório final GNN salvo em {FINAL_GNN_REPORT_PATH}", flush=True)
     return report
 
 
@@ -2920,6 +3302,11 @@ if __name__ == "__main__":
         help="Retreina somente os vencedores fixos de IF/LSTM e avalia o teste ao final.",
     )
     parser.add_argument(
+        "--final-gnn",
+        action="store_true",
+        help="Retreina a configuração fixa da GNN, seleciona épocas na validação e avalia o teste ao final.",
+    )
+    parser.add_argument(
         "--grid-path",
         type=Path,
         default=None,
@@ -2931,9 +3318,20 @@ if __name__ == "__main__":
         or arguments.grade_if_lstm
         or arguments.primeiro_passe
         or arguments.grid_path is not None
+        or arguments.final_gnn
     ):
         parser.error(
             "--final-if-lstm não pode ser combinado com flags de smoke ou grade."
+        )
+    if arguments.final_gnn and (
+        arguments.smoke_only
+        or arguments.grade_if_lstm
+        or arguments.primeiro_passe
+        or arguments.grid_path is not None
+        or arguments.final_if_lstm
+    ):
+        parser.error(
+            "--final-gnn não pode ser combinado com flags de smoke, grade ou IF/LSTM."
         )
     if arguments.primeiro_passe and not arguments.grade_if_lstm:
         parser.error("--primeiro-passe exige --grade-if-lstm.")
@@ -2941,6 +3339,8 @@ if __name__ == "__main__":
         parser.error("--smoke-only e --grade-if-lstm são mutuamente exclusivos.")
     if arguments.final_if_lstm:
         run_final_if_lstm()
+    elif arguments.final_gnn:
+        run_final_gnn()
     elif arguments.grade_if_lstm:
         grade_if_lstm_only(
             arguments.grid_path or Path("reports/etapa2_grid_v2.csv"),

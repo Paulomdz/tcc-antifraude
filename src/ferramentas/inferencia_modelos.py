@@ -6,13 +6,12 @@ import pickle
 from typing import Any, Dict
 
 import numpy as np
+import pandas as pd
 
 MODEL_DIR = Path(__file__).resolve().parents[1] / "modelos" / "modelos_salvos"
 
 try:
     import torch
-    from src.modelos.arquitetura_lstm import LSTMFraudDetector
-    from src.modelos.arquitetura_gnn import GNNFraudDetector
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -32,13 +31,15 @@ def load_pickle_model(filename: str) -> Any:
 
 
 from src.preprocessamento.carregar_dataset import (
+    GNN_FEATURE_NAMES,
+    IF_FEATURE_NAMES,
+    LSTM_FEATURE_NAMES,
     compute_if_features,
-    hora_norm_from_step,
 )
 
 
 def extract_behavior_features(transaction: Dict[str, Any]) -> np.ndarray:
-    """Extrai features reais e compatíveis com o Isolation Forest (21 features fixas)."""
+    """Extrai features reais compatíveis com o Isolation Forest."""
     features = compute_if_features(transaction)
     if not isinstance(features, np.ndarray):
         raise TypeError("A inferência do Isolation Forest exige uma transação individual.")
@@ -54,7 +55,7 @@ def extract_behavior_features(transaction: Dict[str, Any]) -> np.ndarray:
 # declarada em §3.6. Este valor de escala é um ajuste razoável para a faixa
 # típica do decision_function; uma calibração formal exigiria validação com
 # dados reais rotulados (fora do escopo deste ajuste).
-_IF_SCORE_SCALE = 10.0
+IF_SCORE_SCALE = 10.0
 
 
 def isolation_forest_score(transaction: Dict[str, Any], model: Any = None) -> float:
@@ -71,85 +72,100 @@ def isolation_forest_score(transaction: Dict[str, Any], model: Any = None) -> fl
     prediction = float(model.decision_function(features)[0])
     # decision_function negativo = anômalo -> sigmoid(-prediction * escala)
     # se aproxima de 1 quanto mais negativo (mais anômalo) for `prediction`.
-    score = 1.0 / (1.0 + math.exp(prediction * _IF_SCORE_SCALE))
+    score = 1.0 / (1.0 + math.exp(prediction * IF_SCORE_SCALE))
     return float(score)
 
 
-def lstm_sequence_score(sequence: list[Dict[str, Any]], model: Any = None) -> float:
-    """Retorna um score temporal para uma sequência de transações usando LSTM."""
+def lstm_sequence_score(
+    sequence: list[Dict[str, Any]],
+    model: Any = None,
+    current_transaction: Dict[str, Any] | None = None,
+) -> float:
+    """Pontua a transação atual usando apenas o histórico anterior da mesma conta."""
     if not sequence:
         return 0.0
 
-    if TORCH_AVAILABLE:
-        model_path = MODEL_DIR / "lstm_model.pt"
-        if model is None and model_path.exists():
-            model = LSTMFraudDetector()
-            model.load_state_dict(torch.load(model_path, map_location='cpu'))
-            model.eval()
+    if not TORCH_AVAILABLE:
+        raise RuntimeError("PyTorch é necessário para inferir o score da LSTM.")
+    if model is None:
+        from src.modelos.arquitetura_lstm import carregar_lstm
 
-        if model is not None:
-            features = []
-            for tx in sequence:
-                features.append([
-                    float(tx.get("amount", 0.0)),
-                    float(tx.get("oldbalanceOrg", 0.0)),
-                    float(tx.get("newbalanceOrig", 0.0)),
-                    float(tx.get("oldbalanceDest", 0.0)),
-                    float(tx.get("newbalanceDest", 0.0)),
-                    hora_norm_from_step(tx.get("step", tx.get("hora", 12))),
-                ])
-            x = torch.FloatTensor([features])
-            with torch.no_grad():
-                output = model(x)
-            return float(output.clamp(0.0, 1.0).item())
+        model, metadata = carregar_lstm(str(MODEL_DIR / "lstm_model.pt"))
+    else:
+        metadata = {}
 
-    large_transactions = sum(1 for tx in sequence if tx.get("amount", 0) > 10000)
-    score = min(large_transactions / len(sequence), 1.0)
-    import random
-    score += random.uniform(-0.1, 0.1)
-    return float(max(0.0, min(1.0, score)))
+    feature_names = metadata.get("feature_names", LSTM_FEATURE_NAMES)
+    seq_length = int(metadata.get("seq_length", 5))
+    current = current_transaction or sequence[-1]
+    current_step = int(current["step"])
+    account_id = str(current.get("nameOrig", ""))
+    history = [
+        tx
+        for tx in sequence
+        if account_id
+        and str(tx.get("nameOrig", "")) == account_id
+        and int(tx["step"]) < current_step
+    ]
+    history.sort(key=lambda tx: int(tx["step"]))
+    selected = history[-seq_length:]
+    features = []
+    feature_indices = [IF_FEATURE_NAMES.index(name) for name in feature_names]
+    for tx in selected:
+        row_features = compute_if_features(tx)
+        if not isinstance(row_features, np.ndarray):
+            raise TypeError("A inferência da LSTM exige transações individuais.")
+        features.append(row_features[feature_indices].astype(np.float32))
+    padded = np.zeros((seq_length, len(feature_indices)), dtype=np.float32)
+    if features:
+        padded[-len(features) :] = np.asarray(features, dtype=np.float32)
+    x = torch.from_numpy(padded).unsqueeze(0)
+    model.eval()
+    with torch.no_grad():
+        output = model(x)
+    return float(output.clamp(0.0, 1.0).item())
 
 
 def gnn_identity_score(graph_data: Dict[str, Any], model: Any = None) -> float:
     """Retorna um score de risco de identidade com base em um modelo GNN."""
     if not TORCH_AVAILABLE:
         raise RuntimeError("PyTorch é necessário para inferir o score da GNN.")
+    from src.modelos.arquitetura_gnn import (
+        TransactionMiniBatchDataset,
+        carregar_gnn,
+    )
 
-    origin = str(graph_data.get("origin") or "")
-    destination = str(graph_data.get("destination") or "")
-    amount = float(graph_data.get("amount", 0.0))
-
-    if not origin or not destination:
-        raise ValueError("A inferência da GNN exige as contas de origem e destino.")
-
-    if model is None:
-        model_path = MODEL_DIR / "gnn_model.pt"
-        if not model_path.exists():
-            raise FileNotFoundError(f"Modelo GNN não encontrado: {model_path}")
-        model = GNNFraudDetector(in_channels=4)
-        model.load_state_dict(torch.load(model_path, map_location="cpu"))
-        model.eval()
-
-    node_ids = sorted({origin, destination})
-    node_map = {account: index for index, account in enumerate(node_ids)}
-    features = [
-        [
-            1.0 if account == origin else 0.0,
-            1.0 if account == destination else 0.0,
-            amount if account == origin else 0.0,
-            amount if account == destination else 0.0,
-        ]
-        for account in node_ids
+    sequence = graph_data.get("sequence", [])
+    if not isinstance(sequence, list):
+        raise TypeError("O histórico da GNN deve ser uma lista de transações.")
+    current = {
+        key: value for key, value in graph_data.items() if key != "sequence"
+    }
+    current_step = int(current["step"])
+    history = [
+        transaction
+        for transaction in sequence
+        if int(transaction["step"]) < current_step
     ]
-
-    origin_idx = node_map[origin]
-    destination_idx = node_map[destination]
-    if origin_idx == destination_idx:
-        edges = [[origin_idx], [destination_idx]]
+    frame = pd.DataFrame([*history, current])
+    if model is None:
+        model, metadata = carregar_gnn(str(MODEL_DIR / "gnn_model.pt"))
     else:
-        edges = [[origin_idx, destination_idx], [destination_idx, origin_idx]]
-    edge_index = torch.tensor(edges, dtype=torch.long)
-    x = torch.FloatTensor(features)
+        metadata = {"feature_names": GNN_FEATURE_NAMES}
+    feature_names = metadata.get("feature_names", GNN_FEATURE_NAMES)
+    target = frame.tail(1)
+    dataset = TransactionMiniBatchDataset(
+        target,
+        feature_names=feature_names,
+        context_df=frame,
+    )
+    features, edge_index, _labels, seed_count = next(
+        dataset.iter_batches(batch_size=1, fanouts=(10, 5))
+    )
+    device = next(model.parameters(), torch.empty(0)).device
+    model.eval()
     with torch.no_grad():
-        out = model(x, edge_index)
-    return float(out.mean().clamp(0.0, 1.0).item())
+        output = model(
+            features.to(device),
+            edge_index.to(device),
+        )[:seed_count]
+    return float(output[0].clamp(0.0, 1.0).item())

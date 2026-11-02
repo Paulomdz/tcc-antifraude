@@ -415,6 +415,174 @@ def test_final_if_lstm_uses_fixed_configs_and_reads_test_after_both_refits(
     assert report_path.exists()
 
 
+def test_final_gnn_uses_fixed_config_and_reads_test_after_refit(
+    tmp_path, monkeypatch
+):
+    import pandas as pd
+    import numpy as np
+
+    processed_path = tmp_path / "processed.parquet"
+    processed_path.touch()
+    report_path = tmp_path / "reports" / "etapa2_final_gnn.json"
+    checkpoint_dir = tmp_path / "reports" / "etapa2_checkpoints"
+    events = []
+    train_frame = pd.DataFrame(
+        {
+            "step": [1, 2, 551, 552],
+            "type": ["PIX_P2P"] * 4,
+            "amount": [10.0, 20.0, 30.0, 40.0],
+            "nameOrig": [f"C{i}" for i in range(4)],
+            "nameDest": [f"M{i}" for i in range(4)],
+            "oldbalanceOrg": [100.0] * 4,
+            "isFraud": [0, 1, 0, 1],
+        }
+    )
+    test_frame = train_frame.iloc[2:].copy()
+    test_frame["step"] = [600, 601]
+    selection_graphs = {
+        "train": object(),
+        "val": object(),
+        "train_completo": object(),
+    }
+
+    def fake_read_parquet(_path, columns, filters):
+        events.append(("read", filters[0][1]))
+        assert "isFraud" in columns
+        if filters == [("step", "<", 600)]:
+            return train_frame.copy()
+        assert filters == [("step", ">=", 600)]
+        return test_frame.copy()
+
+    def fake_temporal_split(frame):
+        return {
+            "train": frame[frame["step"] < 550].copy(),
+            "val": frame[(frame["step"] >= 550) & (frame["step"] < 600)].copy(),
+            "train_completo": frame.copy(),
+            "test": frame.iloc[:0].copy(),
+        }
+
+    def fake_train_candidate(graphs, feature_names, config, weight, max_epochs):
+        events.append(("selection", config.copy(), max_epochs))
+        assert graphs is selection_graphs
+        assert feature_names == training.GNN_FEATURE_NAMES
+        assert weight == 2.0
+        return {
+            "state_dict": {},
+            "best_epoch": 2,
+            "epochs_completed": 3,
+            "validation_metrics": {"pr_auc": 0.75},
+            "selection_training_seconds": 4.0,
+        }
+
+    class DummyModel:
+        def to(self, _device):
+            return self
+
+        def load_state_dict(self, _state_dict):
+            return None
+
+    class DummyDataset:
+        def __init__(self, _frame, _features, context_df):
+            self.context_df = context_df
+
+    class DummyMemoryMonitor:
+        peak_gib = 1.25
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    def fake_refit(graphs, _features, config, weight, epochs, batch_size, fanouts):
+        events.append(("refit", config.copy(), epochs, batch_size, fanouts))
+        assert graphs is selection_graphs
+        assert weight == 2.0
+        return DummyModel(), training.torch.device("cuda"), graphs["train_completo"]
+
+    def fake_graph_scores(_model, graph, _device, _weight, **kwargs):
+        assert kwargs["batch_size"] == 4096
+        assert kwargs["fanouts"] == (10, 5)
+        if graph is selection_graphs["train"]:
+            return 0.5, np.array([0, 1]), np.array([0.2, 0.8])
+        if graph is selection_graphs["val"]:
+            return 0.4, np.array([0, 1]), np.array([0.3, 0.9])
+        events.append(("test_scores",))
+        return 0.4, np.array([0, 1]), np.array([0.1, 0.7])
+
+    def fake_save_model(_model, _dataset, path, metadata):
+        events.append(("save_model", path, metadata["selected_config"]))
+
+    monkeypatch.setattr(training, "PROCESSED_DATA_PATH", processed_path)
+    monkeypatch.setattr(training, "FINAL_GNN_REPORT_PATH", report_path)
+    monkeypatch.setattr(training, "CHECKPOINT_DIR", checkpoint_dir)
+    monkeypatch.setattr(training, "MODEL_DIR", tmp_path / "models")
+    monkeypatch.setattr(training, "TORCH_AVAILABLE", True)
+    monkeypatch.setattr(training, "TORCH_GEO_AVAILABLE", True)
+    monkeypatch.setattr(training.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(training.torch.cuda, "get_device_name", lambda _device: "test GPU")
+    monkeypatch.setattr(training, "_set_seed", lambda: None)
+    monkeypatch.setattr(training, "_ram_snapshot", lambda: {
+        "free_gib": 3.0,
+        "available_gib": 4.0,
+    })
+    monkeypatch.setattr(training, "_PeakRSSMonitor", DummyMemoryMonitor)
+    monkeypatch.setattr(training, "_reset_vram_peak", lambda: None)
+    monkeypatch.setattr(training, "_peak_vram_gib", lambda: 1.5)
+    monkeypatch.setattr(training.pd, "read_parquet", fake_read_parquet)
+    monkeypatch.setattr(training, "temporal_split", fake_temporal_split)
+    monkeypatch.setattr(training, "_class_positive_weight", lambda _labels: 2.0)
+    monkeypatch.setattr(training, "_prepare_gnn_graphs", lambda *_args: selection_graphs)
+    monkeypatch.setattr(
+        training, "_train_final_gnn_candidate", fake_train_candidate
+    )
+    monkeypatch.setattr(training, "GNNFraudDetector", lambda **_kwargs: DummyModel())
+    monkeypatch.setattr(training, "TransactionMiniBatchDataset", DummyDataset)
+    monkeypatch.setattr(training, "_graph_scores", fake_graph_scores)
+    monkeypatch.setattr(training, "_best_f1_threshold", lambda *_args: 0.4)
+    monkeypatch.setattr(training, "_refit_gnn", fake_refit)
+    monkeypatch.setattr(training, "salvar_gnn", fake_save_model)
+
+    report = training.run_final_gnn()
+
+    assert events[0] == ("read", "<")
+    assert events[1] == (
+        "selection",
+        {
+            "hidden_dim": 32,
+            "dropout": 0.1,
+            "lr": 1e-3,
+            "num_layers": 2,
+        },
+        10,
+    )
+    refit_index = next(i for i, event in enumerate(events) if event[0] == "refit")
+    test_read_index = next(
+        i for i, event in enumerate(events) if event == ("read", ">=")
+    )
+    assert refit_index < test_read_index
+    assert events[refit_index] == (
+        "refit",
+        {
+            "hidden_dim": 32,
+            "dropout": 0.1,
+            "lr": 1e-3,
+            "num_layers": 2,
+        },
+        2,
+        4096,
+        (10, 5),
+    )
+    assert report["test_read_after_final_refit"] is True
+    assert report["test_read_count"] == 1
+    assert report["best_epoch"] == 2
+    assert report["batch_size"] == 4096
+    assert report["fanouts"] == [10, 5]
+    assert report["config"] == training.FINAL_GNN_CONFIG
+    assert report_path.exists()
+    assert (checkpoint_dir / "gnn_final_selection.pt").exists()
+
+
 def test_archives_incompatible_candidate_checkpoints_and_preserves_current_ones(
     tmp_path, monkeypatch
 ):

@@ -23,10 +23,12 @@ build/
 .env
 .env.local
 .env.*.local
-
+dataset/*.CSV
+dataset/*.parquet
 data/*.csv
 data/*.csv.zip
 data/*.parquet
+data/historico.db
 
 src/modelos/modelos_salvos/*.pkl
 src/modelos/modelos_salvos/*.pt

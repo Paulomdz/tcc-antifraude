@@ -1,0 +1,73 @@
+{
+  "seed": 42,
+  "feature_policy_version": "pre_execution_causal_v2",
+  "config": {
+    "hidden_dim": 32,
+    "dropout": 0.1,
+    "lr": 0.001,
+    "num_layers": 2
+  },
+  "batch_size": 4096,
+  "fanouts": [
+    10,
+    5
+  ],
+  "device": "cuda",
+  "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "best_epoch": 10,
+  "epochs_completed": 10,
+  "selection_metric": "validation_pr_auc",
+  "decision_threshold": 0.8247520327568054,
+  "threshold_selection": "validation_f1",
+  "metrics": {
+    "train": {
+      "pr_auc": 0.3583135416188829,
+      "precision": 0.3466248931928226,
+      "recall": 0.3910458951427194,
+      "f1": 0.36749792395379854,
+      "threshold": 0.8247520327568054
+    },
+    "validation": {
+      "pr_auc": 0.33674363935972723,
+      "precision": 0.33366093366093363,
+      "recall": 0.4107683000604961,
+      "f1": 0.36822125813449025,
+      "threshold": 0.8247520327568054
+    },
+    "test": {
+      "pr_auc": 0.40805620593344927,
+      "precision": 0.4206524405199902,
+      "recall": 0.3485064011379801,
+      "f1": 0.3811958212936208,
+      "threshold": 0.8247520327568054
+    }
+  },
+  "split_rows": {
+    "train_core": 335973,
+    "validation": 30677,
+    "train_complete": 366650,
+    "test": 87467
+  },
+  "test_read_after_final_refit": true,
+  "test_read_count": 1,
+  "test_step_min": 600,
+  "test_step_max": 743,
+  "checkpoint_path": "/home/Paulomdz/UniLinux/TCClinux/tcc-antifraude-main/reports/etapa2_checkpoints/gnn_final_selection.pt",
+  "model_path": "/home/Paulomdz/UniLinux/TCClinux/tcc-antifraude-main/src/modelos/modelos_salvos/gnn_model.pt",
+  "timings_seconds": {
+    "selection_training": 1455.257893778995,
+    "selection_metrics": 84.55800274798821,
+    "final_refit": 1641.930329581999,
+    "test_evaluation": 45.95971603000362,
+    "total": 3229.6134388000064
+  },
+  "memory_gib": {
+    "ram_free_before": 0.955780029296875,
+    "ram_available_before": 4.553424835205078,
+    "ram_available_before_selection": 4.368473052978516,
+    "ram_available_before_final_refit": 4.691425323486328,
+    "ram_available_before_test": 4.346771240234375,
+    "peak_ram": 2.377361297607422,
+    "peak_vram": 2.1863045692443848
+  }
+}
