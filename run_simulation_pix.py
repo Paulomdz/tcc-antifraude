@@ -27,17 +27,11 @@ def load_sample_transactions(n_samples: int = 10) -> List[Dict[str, Any]]:
     return sample_df.to_dict('records')
 
 
-def run_crewai_simulation(transaction: Dict[str, Any], use_llm_judge: bool = True) -> Dict[str, Any]:
-    """Executa a simulação completa com o Agente Juiz (CrewAI + Gemini) para uma transação.
-
-    A decisão final e a justificativa retornadas são exatamente as produzidas
-    por ``orchestrate_transaction`` — ou pelo Juiz-LLM real, ou (em fallback)
-    pela regra determinística. Anteriormente esta função recalculava a
-    decisão a partir do score com limiares diferentes (0.75/0.45) dos usados
-    pelo Juiz (0.80/0.50) e descartava a justificativa original; isso foi
-    corrigido para não haver mais duas fontes de verdade divergentes.
-    """
-    return orchestrate_transaction(transaction, use_llm_judge=use_llm_judge)
+def run_crewai_simulation(
+    transaction: Dict[str, Any], modo: str = "production"
+) -> Dict[str, Any]:
+    """Executa explicitamente um dos modos production/deep da orquestração."""
+    return orchestrate_transaction(transaction, modo=modo)
 
 
 def main():
@@ -68,7 +62,7 @@ def main():
         print("Verifique se:")
         print("- O dataset foi processado (execute python -m src.preprocessamento.carregar_dataset)")
         print("- As dependências estão instaladas")
-        print("- A chave API do Gemini está configurada no .env (opcional — sem ela, o sistema usa a regra determinística)")
+        print("- A chave GOOGLE_API_KEY está configurada no .env para production/deep")
 
 
 if __name__ == "__main__":

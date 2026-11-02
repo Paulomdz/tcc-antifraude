@@ -69,6 +69,29 @@ def test_dashboard_renders_without_running_on_import():
     assert any("Analisar Transação" in element.value for element in app_test.header)
 
 
+def test_run_analysis_routes_explicit_modes(monkeypatch):
+    from src.orquestacao import fluxo_multiagente as flow
+
+    calls = []
+    monkeypatch.setattr(
+        flow,
+        "orchestrate_ml_only",
+        lambda transaction: calls.append(("fast", transaction)) or {"modo": "fast"},
+    )
+    monkeypatch.setattr(
+        flow,
+        "orchestrate_transaction",
+        lambda transaction, modo: calls.append((modo, transaction)) or {"modo": modo},
+    )
+    transaction = {"amount": 1}
+
+    assert dashboard.run_analysis(transaction, modo="fast") == {"modo": "fast"}
+    assert dashboard.run_analysis(transaction, modo="production") == {
+        "modo": "production"
+    }
+    assert calls == [("fast", transaction), ("production", transaction)]
+
+
 class FakeProgress:
     def progress(self, *_args, **_kwargs):
         return self
@@ -158,7 +181,7 @@ class UploadedCsv(BytesIO):
     name = "transactions.csv"
 
 
-def fake_analysis(transaction, use_llm_judge=True):
+def fake_analysis(transaction, modo="production"):
     specialist = {"score": 0.2, "details": {"explanation": "ok"}}
     return {
         "transaction": transaction,
@@ -170,6 +193,7 @@ def fake_analysis(transaction, use_llm_judge=True):
         "behavior": specialist,
         "temporal": specialist,
         "identity": specialist,
+        "modo": modo,
     }
 
 
@@ -179,13 +203,21 @@ def test_main_handles_manual_analysis_and_uploaded_batch(monkeypatch):
     )
     fake_st = FakeStreamlit(upload)
     monkeypatch.setattr(dashboard, "st", fake_st)
-    monkeypatch.setattr(dashboard, "run_analysis", fake_analysis)
+    modes = []
+
+    def checked_analysis(transaction, modo="production"):
+        modes.append(modo)
+        return fake_analysis(transaction, modo)
+
+    monkeypatch.setattr(dashboard, "run_analysis", checked_analysis)
+    monkeypatch.setattr(dashboard, "_has_gemini_key", lambda: True)
     monkeypatch.setattr(dashboard.random, "randint", lambda low, _high: low)
 
     dashboard.main()
 
     assert fake_st.session_state["step"] == 0
     assert fake_st.session_state["batch_results"][0]["Tipo"] == "PIX_P2P"
+    assert modes == ["production", "fast"]
 
 
 def test_main_reports_upload_missing_required_columns(monkeypatch):

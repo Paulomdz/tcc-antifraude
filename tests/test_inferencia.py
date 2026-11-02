@@ -1,27 +1,29 @@
-import random
-
 import numpy as np
 import pytest
 import torch
 
 from src.ferramentas import inferencia_modelos as inference
+from src.preprocessamento.carregar_dataset import LSTM_FEATURE_NAMES
 
 
 class IsolationModel:
     def decision_function(self, features):
-        assert features.shape == (1, 21)
+        assert features.shape == (1, 18)
         return np.array([-0.5])
 
 
 class SequenceModel:
+    def eval(self):
+        return self
+
     def __call__(self, features):
-        assert tuple(features.shape) == (1, 1, 6)
-        assert float(features[0, 0, 5]) == pytest.approx(5 / 23)
+        assert tuple(features.shape) == (1, 5, len(LSTM_FEATURE_NAMES))
+        assert float(features[0, -1, 2]) == 1.0
         return torch.tensor([[0.65]])
 
 
-class GraphModel:
-    def __call__(self, features, edge_index):
+class GraphModel(torch.nn.Module):
+    def forward(self, features, edge_index):
         assert features.shape[1] == 4
         assert edge_index.shape[0] == 2
         return torch.full((len(features), 1), 0.4)
@@ -35,13 +37,17 @@ def transaction():
         "oldbalanceDest": 50.0,
         "newbalanceDest": 150.0,
         "step": 5,
+        "type": "PIX_P2P",
+        "nameOrig": "C1234567",
+        "nameDest": "C7654321",
     }
 
 
-def test_extract_behavior_features_uses_expected_twenty_one_features():
+def test_extract_behavior_features_uses_pre_execution_features():
     features = inference.extract_behavior_features(transaction())
 
-    assert features.shape == (21,)
+    assert features.shape == (18,)
+    assert features.dtype == np.float32
     assert features[0] == 100.0  # amount
     assert features[1] == 0.0    # is_incoming (sem B)
 
@@ -66,22 +72,53 @@ def test_lstm_empty_sequence_returns_zero():
 
 def test_lstm_uses_injected_model(monkeypatch):
     monkeypatch.setattr(inference, "TORCH_AVAILABLE", True)
+    history = [
+        {**transaction(), "step": 4, "amount": 40.0},
+        {**transaction(), "step": 5, "amount": 50.0},
+        {**transaction(), "step": 3, "nameOrig": "OTHER"},
+    ]
 
     assert inference.lstm_sequence_score(
-        [transaction()], model=SequenceModel()
+        history,
+        model=SequenceModel(),
+        current_transaction=transaction(),
     ) == pytest.approx(0.65)
 
 
-def test_lstm_fallback_is_bounded_and_stable_with_zero_noise(monkeypatch):
-    monkeypatch.setattr(inference, "TORCH_AVAILABLE", False)
-    monkeypatch.setattr(random, "uniform", lambda *_: 0.0)
+def test_gnn_inference_filters_same_and_future_steps():
+    class CausalGraphModel(torch.nn.Module):
+        def forward(self, features, edge_index):
+            assert features.shape[0] == 3
+            assert edge_index.shape == (2, 2)
+            assert torch.equal(edge_index, torch.tensor([[1, 2], [0, 1]]))
+            return torch.full((len(features), 1), 0.4)
 
-    assert inference.lstm_sequence_score([{"amount": 15_000.0}]) == 1.0
+    graph_data = {
+        **transaction(),
+        "sequence": [
+            {**transaction(), "step": 3},
+            {**transaction(), "step": 4},
+            {**transaction(), "step": 5},
+            {**transaction(), "step": 6},
+        ],
+    }
+
+    assert inference.gnn_identity_score(
+        graph_data, model=CausalGraphModel()
+    ) == pytest.approx(0.4)
+
+
+def test_lstm_does_not_use_a_heuristic_when_model_is_unavailable(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(inference, "TORCH_AVAILABLE", False)
+    with pytest.raises(RuntimeError, match="PyTorch é necessário"):
+        inference.lstm_sequence_score([{"amount": 15_000.0}])
 
 
 def test_gnn_uses_injected_model(monkeypatch):
     monkeypatch.setattr(inference, "TORCH_AVAILABLE", True)
-    data = {"origin": "C01", "destination": "C02", "amount": 100.0}
+    data = transaction()
 
     assert inference.gnn_identity_score(data, model=GraphModel()) == pytest.approx(0.4)
 
@@ -108,6 +145,4 @@ def test_gnn_reports_missing_model_instead_of_using_identifier_heuristic(
     monkeypatch.setattr(inference, "MODEL_DIR", tmp_path)
 
     with pytest.raises(FileNotFoundError, match="Modelo GNN não encontrado"):
-        inference.gnn_identity_score(
-            {"origin": "C100", "destination": "C101", "amount": 80_000}
-        )
+        inference.gnn_identity_score(transaction())

@@ -21,10 +21,11 @@ _TEST_MODEL_DIR: Path | None = None
 
 
 def _model_path(filename: str) -> Path:
-    directory = _TEST_MODEL_DIR or (
-        Path(__file__).resolve().parent / "src" / "modelos" / "modelos_salvos"
-    )
-    return directory / filename
+    if _TEST_MODEL_DIR is None:
+        raise RuntimeError(
+            "Os smoke tests de modelos precisam ser executados pela suite isolada."
+        )
+    return _TEST_MODEL_DIR / filename
 
 
 def _load_sample_df(n: int = 2000, random_state: int = 42) -> pd.DataFrame:
@@ -80,26 +81,31 @@ def teste_preprocessamento() -> bool:
 
 
 def teste_isolation_forest() -> bool:
-    """Treina e persiste o Isolation Forest sobre uma amostra balanceada."""
+    """Smoke test do Isolation Forest, isolado dos artefatos oficiais."""
     print("\n" + "=" * 70)
     print("TESTE 2: ISOLATION FOREST")
     print("=" * 70)
     try:
-        from src.modelos.treinamento.treinar_modelos import (
-            load_balanced_sample_from_parquet,
-            save_model,
-            train_isolation_forest,
-        )
-        from src.modelos.treinamento import treinar_modelos
+        import pickle
+        from sklearn.ensemble import IsolationForest
 
-        treinar_modelos.MODEL_DIR = _model_path("isolation_forest.pkl").parent
-        sample = load_balanced_sample_from_parquet(
-            PROCESSED_DATA_PATH, n_samples=2000
-        )
+        from src.preprocessamento.carregar_dataset import compute_if_features
+
+        sample = _load_sample_df(n=2000)
+        sample = sample[sample["step"] < 550]
         if sample.empty:
-            raise ValueError("Não foi possível montar uma amostra de treinamento.")
-        model = train_isolation_forest(sample)
-        save_model(model, "isolation_forest.pkl")
+            raise ValueError("A amostra smoke não contém linhas do treino core.")
+        features = compute_if_features(sample)
+        model = IsolationForest(
+            n_estimators=10,
+            contamination="auto",
+            random_state=42,
+            n_jobs=1,
+        ).fit(features)
+        model_path = _model_path("isolation_forest.pkl")
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+        with model_path.open("wb") as file:
+            pickle.dump(model, file)
         return True
     except Exception as exc:
         print(f"Erro no Isolation Forest: {exc}")
@@ -158,13 +164,7 @@ def teste_inferencia() -> bool:
         scores = (
             isolation_forest_score(transaction),
             lstm_sequence_score([transaction]),
-            gnn_identity_score(
-                {
-                    "origin": transaction["nameOrig"],
-                    "destination": transaction["nameDest"],
-                    "amount": transaction["amount"],
-                }
-            ),
+            gnn_identity_score(transaction),
         )
         if any(not 0.0 <= score <= 1.0 for score in scores):
             raise AssertionError(f"Scores fora do intervalo [0, 1]: {scores}")
@@ -181,10 +181,10 @@ def teste_simulacao() -> bool:
     print("TESTE 6: SIMULAÇÃO COMPLETA")
     print("=" * 70)
     try:
-        from src.orquestacao.fluxo_multiagente import orchestrate_transaction
+        from src.orquestacao.fluxo_multiagente import orchestrate_ml_only
 
         transaction = _load_sample_df(n=1).iloc[0].to_dict()
-        result = orchestrate_transaction(transaction, use_llm_judge=False)
+        result = orchestrate_ml_only(transaction)
         decision = result["decision"]
         if decision["decision"] not in {
             "Aprovada",
@@ -220,17 +220,13 @@ def main() -> None:
     with TemporaryDirectory(prefix="antifraude-test-models-") as model_directory:
         _TEST_MODEL_DIR = Path(model_directory)
         from src.ferramentas import inferencia_modelos
-        from src.modelos.treinamento import treinar_modelos
 
         original_model_dir = inferencia_modelos.MODEL_DIR
-        original_training_dir = treinar_modelos.MODEL_DIR
         inferencia_modelos.MODEL_DIR = _TEST_MODEL_DIR
-        treinar_modelos.MODEL_DIR = _TEST_MODEL_DIR
         try:
             results = [(name, test()) for name, test in tests]
         finally:
             inferencia_modelos.MODEL_DIR = original_model_dir
-            treinar_modelos.MODEL_DIR = original_training_dir
             _TEST_MODEL_DIR = None
     passed = sum(result for _, result in results)
 

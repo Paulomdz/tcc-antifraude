@@ -1,11 +1,13 @@
 """Dashboard Streamlit — Sistema Multiagente de IA para detecção de fraudes."""
 
 import random
+import os
 import sys
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from dotenv import load_dotenv
 from src.preprocessamento.carregar_dataset import (
     TRANSACTION_TYPES,
     hora_norm_from_step,
@@ -14,6 +16,7 @@ from src.preprocessamento.carregar_dataset import (
 _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
+load_dotenv(_ROOT / ".env")
 
 
 # Constantes
@@ -133,18 +136,22 @@ def decision_icon(decision: str) -> str:
     return _DECISION_ICON.get(decision, "⚪")
 
 
-def run_analysis(transaction: dict, use_llm_judge: bool = True) -> dict:
-    """Executa a análise com a mesma lógica validada em run_simulation.
+def run_analysis(transaction: dict, modo: str = "production") -> dict:
+    """Usa production na análise individual ou fast para o processamento em lote."""
+    from src.orquestacao.fluxo_multiagente import (
+        orchestrate_ml_only,
+        orchestrate_transaction,
+    )
 
-    ``use_llm_judge=True`` (padrão, usado na análise individual) tenta o
-    Agente Juiz real via CrewAI/Gemini, com fallback automático para a regra
-    determinística. ``use_llm_judge=False`` (usado na análise em lote) pula
-    direto para a regra determinística, evitando uma chamada de API por
-    transação em lotes de até 500 itens.
-    """
-    import run_simulation_pix as run_simulation
+    if modo == "fast":
+        return orchestrate_ml_only(transaction)
+    if modo == "production":
+        return orchestrate_transaction(transaction, modo="production")
+    raise ValueError("O dashboard suporta apenas os modos fast e production.")
 
-    return run_simulation.run_crewai_simulation(transaction, use_llm_judge=use_llm_judge)
+
+def _has_gemini_key() -> bool:
+    return bool(os.getenv("GOOGLE_API_KEY", "").strip())
 
 
 def build_result_row(tx: dict, resultado: dict) -> dict:
@@ -445,6 +452,12 @@ def main() -> None:
 
     st.info(_RISK_RULES_TEXT, icon="✅")
     st.caption("Moeda exibida em R$ · Horário em 24h · Limite de análise até R$ 9.999.999,00")
+    has_gemini_key = _has_gemini_key()
+    if not has_gemini_key:
+        st.warning(
+            "Gemini não configurado. Defina GOOGLE_API_KEY no .env para habilitar "
+            "a análise individual com CrewAI. A análise em lote continua disponível."
+        )
 
     tab_individual, tab_lote, tab_stats = st.tabs(
         ["🔍 Análise Individual", "📦 Análise em Lote", "📊 Estatísticas"]
@@ -529,10 +542,13 @@ def main() -> None:
                 name_dest = st.text_input("Conta Destino", value=_ss("nameDest", "C7654321"))
 
             submitted = st.form_submit_button(
-                "🔍 Analisar Transação", use_container_width=True, type="primary"
+                "Analisar (CrewAI)",
+                use_container_width=True,
+                type="primary",
+                disabled=not has_gemini_key,
             )
 
-        if submitted:
+        if submitted and has_gemini_key:
             calculated_new_balance = _calculate_new_balance(float(old_bal_org), float(amount), tipo)
             hora_interativa = int(hora_interativa)
             tx = {
@@ -555,7 +571,7 @@ def main() -> None:
             )
             with st.spinner("Analisando com agentes de IA..."):
                 try:
-                    resultado = run_analysis(tx, use_llm_judge=True)
+                    resultado = run_analysis(tx, modo="production")
                     st.success("Análise concluída.")
                     _render_single_result(resultado)
                 except FileNotFoundError as exc:
@@ -617,7 +633,7 @@ def main() -> None:
                                 text=f"Analisando transação {i + 1} de {max_rows}…",
                             )
                             try:
-                                res = run_analysis(tx, use_llm_judge=False)
+                                res = run_analysis(tx, modo="fast")
                                 rows.append(build_result_row(tx, res))
                             except Exception as exc:
                                 rows.append({"Tipo": tx.get("type", ""), "Erro": str(exc)})

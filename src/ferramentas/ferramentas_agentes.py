@@ -42,7 +42,7 @@ def behavior_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
         "details": {
             "explanation": (
                 f"O modelo de comportamento avalia a transação por irregularidade de valores "
-                f"e mudanças de saldo. Horário: {time_24h} (formato 24h). "
+                f"e saldo anterior à execução. Horário: {time_24h} (formato 24h). "
                 f"Se a transação ocorre entre 00:00-05:59 com valor alto, é muito suspeita."
             ),
         },
@@ -52,7 +52,7 @@ def behavior_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
 def temporal_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
     """Tool do agente temporal que retorna um score de sequenciamento."""
     sequence = transaction.get("sequence", [transaction])
-    score = lstm_sequence_score(sequence)
+    score = lstm_sequence_score(sequence, current_transaction=transaction)
 
     hours = _hora_do_dia(transaction)
     time_24h = f"{hours:02d}:00"
@@ -85,12 +85,7 @@ def temporal_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
 
 def identity_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
     """Tool do agente de identidade que analisa relações suspeitas de grafo."""
-    graph_data = {
-        "origin": transaction.get("nameOrig"),
-        "destination": transaction.get("nameDest"),
-        "amount": transaction.get("amount"),
-    }
-    score = gnn_identity_score(graph_data)
+    score = gnn_identity_score(transaction)
 
     hours = _hora_do_dia(transaction)
     time_24h = f"{hours:02d}:00"
@@ -100,8 +95,8 @@ def identity_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
         "label": "identity",
         "details": {
             "explanation": (
-                f"O modelo de identidade avalia conexões entre contas ({transaction.get('nameOrig')} → "
-                f"{transaction.get('nameDest')}) e potenciais relações com redes de fraude. "
+                "O modelo de identidade avalia relações entre as contas da transação "
+                "e potenciais conexões suspeitas sem usar identificadores como features. "
                 f"Horário: {time_24h}. Valor: R$ {float(transaction.get('amount', 0.0)):,.2f}."
             ),
         },
@@ -115,14 +110,7 @@ def judge_tool(
     identity_score: float,
     specialist_outputs: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Tool do agente juiz (determinística) que decide a ação final e gera justificativa em NL.
-
-    Este é o caminho de decisão usado como fallback sempre que o Juiz-LLM
-    (``llm_judge_tool``) não está disponível (sem GOOGLE_API_KEY, dependências
-    ausentes ou erro na chamada ao Gemini) e também o caminho usado por
-    padrão na análise em lote, por ser determinístico, rápido e sem custo de
-    API.
-    """
+    """Agregador determinístico usado somente pelo modo fast, sem chamada LLM."""
     hours = _hora_do_dia(transaction)
     time_24h = f"{hours:02d}:00"
 
@@ -254,9 +242,8 @@ def llm_judge_tool(
     acompanhada de justificativa em linguagem natural gerada pelo LLM —
     conforme descrito na monografia (§2.5 e §3.7).
 
-    Lança exceção se o CrewAI/LLM não estiver disponível ou a chamada falhar;
-    o chamador (``fluxo_multiagente.orchestrate_transaction``) deve tratar isso e
-    cair no fallback determinístico (``judge_tool``).
+    Lança exceção se o CrewAI/LLM não estiver disponível ou a chamada falhar.
+    No modo production, não existe fallback determinístico.
     """
     from crewai import Crew, Task
 
@@ -273,7 +260,7 @@ def llm_judge_tool(
         "bancário brasileiro descritas no seu backstory (bloqueio imediato para alto valor "
         "na madrugada).\n\n"
         f"Transação: tipo={tx_type}, valor=R$ {amount:,.2f}, horário={time_24h} (24h), "
-        f"origem={transaction.get('nameOrig', 'N/A')}, destino={transaction.get('nameDest', 'N/A')}.\n\n"
+        "identificadores de conta omitidos.\n\n"
         f"Parecer do especialista Comportamental (Isolation Forest) — score {behavior_score:.3f}: "
         f"{specialist_outputs['behavior']['details']['explanation']}\n\n"
         f"Parecer do especialista Temporal (LSTM) — score {temporal_score:.3f}: "
@@ -300,6 +287,83 @@ def llm_judge_tool(
 
     decision, score, justification = _parse_judge_output(raw_output)
 
+    return {
+        "decision": decision,
+        "score": score,
+        "justification": justification,
+        "specialist_outputs": specialist_outputs,
+        "raw_llm_output": raw_output,
+    }
+
+
+def deep_multiagent_tool(
+    transaction: Dict[str, Any],
+    specialist_outputs: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Executa os três especialistas LLM e o juiz final no modo deep."""
+    from crewai import Crew, Process, Task
+    from src.orquestacao.definicoes_agentes import FraudSimulatorAgents
+
+    agents = FraudSimulatorAgents()
+    behavior_agent = agents.especialista_comportamental()
+    temporal_agent = agents.especialista_temporal()
+    identity_agent = agents.especialista_identidade()
+    judge_agent = agents.juiz_final()
+    agent_tasks = [
+        Task(
+            description=(
+                "Interprete o parecer do modelo comportamental para a transação. "
+                f"Score: {specialist_outputs['behavior']['score']:.4f}. "
+                f"Dados técnicos: {specialist_outputs['behavior']['details']['explanation']}"
+            ),
+            agent=behavior_agent,
+            expected_output="Síntese técnica do risco comportamental em português.",
+        ),
+        Task(
+            description=(
+                "Interprete o parecer do modelo temporal para a transação. "
+                f"Score: {specialist_outputs['temporal']['score']:.4f}. "
+                f"Dados técnicos: {specialist_outputs['temporal']['details']['explanation']}"
+            ),
+            agent=temporal_agent,
+            expected_output="Síntese técnica do risco temporal em português.",
+        ),
+        Task(
+            description=(
+                "Interprete o parecer do modelo GNN de relações entre transações. "
+                f"Score: {specialist_outputs['identity']['score']:.4f}. "
+                f"Dados técnicos: {specialist_outputs['identity']['details']['explanation']}"
+            ),
+            agent=identity_agent,
+            expected_output="Síntese técnica do risco de identidade em português.",
+        ),
+    ]
+    hours = _hora_do_dia(transaction)
+    judge_task = Task(
+        description=(
+            "Consolide os três pareceres anteriores e emita a decisão final. "
+            f"Tipo={transaction.get('type', 'N/A')}; "
+            f"valor=R$ {float(transaction.get('amount', 0.0)):,.2f}; "
+            f"horário={hours:02d}:00. "
+            "Responda estritamente com DECISAO, SCORE e JUSTIFICATIVA em linhas "
+            "separadas. Decisões permitidas: Aprovada, Revisão Humana necessária "
+            "ou Recusada; score entre 0 e 1."
+        ),
+        agent=judge_agent,
+        context=agent_tasks,
+        expected_output=(
+            "DECISAO: <Aprovada|Revisão Humana necessária|Recusada>\n"
+            "SCORE: <número entre 0 e 1>\nJUSTIFICATIVA: <texto>"
+        ),
+    )
+    crew = Crew(
+        agents=[behavior_agent, temporal_agent, identity_agent, judge_agent],
+        tasks=[*agent_tasks, judge_task],
+        process=Process.sequential,
+        verbose=False,
+    )
+    raw_output = str(crew.kickoff())
+    decision, score, justification = _parse_judge_output(raw_output)
     return {
         "decision": decision,
         "score": score,
