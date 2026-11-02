@@ -77,6 +77,20 @@ GNN_BATCH_SIZE = 1024
 GNN_FANOUTS = (10, 5)
 DATASET_SIGNATURE = ""
 FEATURE_POLICY_VERSION = "pre_execution_causal_v2"
+FINAL_IF_CONFIG = {
+    "n_estimators": 100,
+    "max_samples": "auto",
+    "contamination": 0.056,
+}
+FINAL_LSTM_CONFIG = {
+    "hidden_size": 32,
+    "dropout": 0.1,
+    "lr": 1e-3,
+    "num_layers": 2,
+}
+FINAL_IF_LSTM_REPORT_PATH = (
+    REPORT_PATH.parent / "etapa2_final_if_lstm.json"
+)
 
 
 def _set_seed() -> None:
@@ -1096,6 +1110,349 @@ def _nn_candidate_search(
     if best_result is None or best_candidate is None:
         raise TimeoutError(f"O orçamento da busca de {model_name} expirou.")
     return best_candidate, best_result, completed, reduced, prepared
+
+
+def _train_final_if(
+    splits: dict[str, pd.DataFrame], config: dict[str, Any]
+) -> tuple[IsolationForest, dict[str, Any]]:
+    ram_before = _ram_snapshot()
+    vram_before = _vram_snapshot()
+    if ram_before["available_gib"] < 2:
+        raise MemoryError("RAM disponível abaixo de 2 GiB antes do retreino final IF.")
+
+    started = time.perf_counter()
+    _reset_vram_peak()
+    with _PeakRSSMonitor() as memory_monitor:
+        matrices = {
+            key: _feature_matrix(splits[key], IF_FEATURE_NAMES)
+            for key in ("train", "val", "train_completo")
+        }
+        labels = {
+            key: splits[key]["isFraud"].to_numpy(dtype=np.int64)
+            for key in ("train", "val")
+        }
+
+        selection_started = time.perf_counter()
+        selection_model = IsolationForest(
+            **config, random_state=SEED, n_jobs=4
+        )
+        selection_model.fit(matrices["train"])
+        train_scores = _if_scores(selection_model, matrices["train"])
+        val_scores = _if_scores(selection_model, matrices["val"])
+        decision_threshold = _best_f1_threshold(labels["val"], val_scores)
+        metrics = {
+            "train": _metrics(
+                labels["train"], train_scores, decision_threshold
+            ),
+            "validation": _metrics(
+                labels["val"], val_scores, decision_threshold
+            ),
+        }
+        selection_seconds = time.perf_counter() - selection_started
+        del selection_model, train_scores, val_scores
+
+        final_fit_started = time.perf_counter()
+        final_model = IsolationForest(
+            **config, random_state=SEED, n_jobs=4
+        )
+        final_model.fit(matrices["train_completo"])
+        final_fit_seconds = time.perf_counter() - final_fit_started
+        del matrices, labels
+        gc.collect()
+
+    final_model.training_step_max_ = 599
+    final_model.training_seed_ = SEED
+    final_model.decision_threshold_ = decision_threshold
+    final_model.threshold_selection_ = "validation_f1"
+    final_model.feature_policy_version_ = FEATURE_POLICY_VERSION
+    return final_model, {
+        "config": config,
+        "feature_names": IF_FEATURE_NAMES,
+        "metrics": metrics,
+        "decision_threshold": decision_threshold,
+        "threshold_selection": "validation_f1",
+        "selection_fit_seconds": selection_seconds,
+        "final_fit_seconds": final_fit_seconds,
+        "training_seconds": time.perf_counter() - started,
+        "ram_free_before_gib": ram_before["free_gib"],
+        "ram_available_before_gib": ram_before["available_gib"],
+        "peak_ram_gib": memory_monitor.peak_gib,
+        "vram_free_before_gib": vram_before["free_gib"],
+        "peak_vram_gib": _peak_vram_gib(),
+    }
+
+
+def _train_final_lstm(
+    splits: dict[str, pd.DataFrame], config: dict[str, Any]
+) -> tuple[Any, dict[str, Any]]:
+    if not TORCH_AVAILABLE or torch is None:
+        raise RuntimeError("O retreino final LSTM exige PyTorch.")
+    ram_before = _ram_snapshot()
+    vram_before = _vram_snapshot()
+    if ram_before["available_gib"] < 2:
+        raise MemoryError("RAM disponível abaixo de 2 GiB antes do retreino final LSTM.")
+
+    started = time.perf_counter()
+    _reset_vram_peak()
+    with _PeakRSSMonitor() as memory_monitor:
+        positive_weight = _class_positive_weight(
+            splits["train"]["isFraud"].to_numpy(dtype=np.int64)
+        )
+        loaders = _lstm_loaders(splits, LSTM_FEATURE_NAMES)
+        selection_started = time.perf_counter()
+        candidate = _train_lstm_candidate(
+            loaders, LSTM_FEATURE_NAMES, config, positive_weight
+        )
+        selection_seconds = time.perf_counter() - selection_started
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        selection_model = LSTMFraudDetector(
+            input_size=len(LSTM_FEATURE_NAMES),
+            hidden_size=config["hidden_size"],
+            dropout=config["dropout"],
+            num_layers=config["num_layers"],
+        ).to(device)
+        selection_model.load_state_dict(candidate["state_dict"])
+        criterion = nn.BCELoss(reduction="none")
+        _, train_labels, train_scores = _evaluate_lstm(
+            selection_model,
+            loaders["train"],
+            device,
+            positive_weight,
+            criterion,
+        )
+        _, val_labels, val_scores = _evaluate_lstm(
+            selection_model,
+            loaders["val"],
+            device,
+            positive_weight,
+            criterion,
+        )
+        decision_threshold = _best_f1_threshold(val_labels, val_scores)
+        metrics = {
+            "train": _metrics(train_labels, train_scores, decision_threshold),
+            "validation": _metrics(val_labels, val_scores, decision_threshold),
+        }
+        best_epoch = candidate["best_epoch"]
+        del selection_model, candidate, train_labels, train_scores
+        del val_labels, val_scores
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        final_fit_started = time.perf_counter()
+        final_model, final_device = _refit_lstm(
+            loaders,
+            LSTM_FEATURE_NAMES,
+            config,
+            positive_weight,
+            best_epoch,
+        )
+        final_fit_seconds = time.perf_counter() - final_fit_started
+        del loaders
+        gc.collect()
+
+    return final_model, {
+        "config": config,
+        "feature_names": LSTM_FEATURE_NAMES,
+        "metrics": metrics,
+        "decision_threshold": decision_threshold,
+        "threshold_selection": "validation_f1",
+        "best_epoch": best_epoch,
+        "selection_fit_seconds": selection_seconds,
+        "final_fit_seconds": final_fit_seconds,
+        "training_seconds": time.perf_counter() - started,
+        "ram_free_before_gib": ram_before["free_gib"],
+        "ram_available_before_gib": ram_before["available_gib"],
+        "peak_ram_gib": memory_monitor.peak_gib,
+        "vram_free_before_gib": vram_before["free_gib"],
+        "peak_vram_gib": _peak_vram_gib(),
+        "positive_class_weight_from_train_core": positive_weight,
+        "final_fit_device": str(final_device),
+    }
+
+
+def _evaluate_final_if_test(
+    model: IsolationForest,
+    test_frame: pd.DataFrame,
+    result: dict[str, Any],
+) -> dict[str, float]:
+    test_features = _feature_matrix(test_frame, IF_FEATURE_NAMES)
+    test_labels = test_frame["isFraud"].to_numpy(dtype=np.int64)
+    test_scores = _if_scores(model, test_features)
+    return _metrics(
+        test_labels, test_scores, result["decision_threshold"]
+    )
+
+
+def _evaluate_final_lstm_test(
+    model: Any,
+    test_frame: pd.DataFrame,
+    context: pd.DataFrame,
+    result: dict[str, Any],
+) -> dict[str, float]:
+    if torch is None:
+        raise RuntimeError("O retreino final LSTM exige PyTorch.")
+    test_dataset = TransactionSequenceDataset(
+        test_frame,
+        seq_length=LSTM_SEQUENCE_LENGTH,
+        feature_cols=LSTM_FEATURE_NAMES,
+        context_df=context,
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=LSTM_BATCH_SIZE,
+        shuffle=False,
+        num_workers=0,
+    )
+    _, test_labels, test_scores = _evaluate_lstm(
+        model,
+        test_loader,
+        torch.device(result["final_fit_device"]),
+        result["positive_class_weight_from_train_core"],
+        nn.BCELoss(reduction="none"),
+    )
+    return _metrics(
+        test_labels, test_scores, result["decision_threshold"]
+    )
+
+
+def run_final_if_lstm() -> dict[str, Any]:
+    """Refit the fixed IF/LSTM winners, then read and evaluate test exactly once."""
+    global DATASET_SIGNATURE
+    if not PROCESSED_DATA_PATH.exists():
+        raise FileNotFoundError(
+            f"Dados processados não encontrados: {PROCESSED_DATA_PATH}."
+        )
+    if not TORCH_AVAILABLE or torch is None:
+        raise RuntimeError("O retreino final IF/LSTM exige PyTorch.")
+
+    dataset_stat = PROCESSED_DATA_PATH.stat()
+    feature_signature = ",".join((*IF_FEATURE_NAMES, *LSTM_FEATURE_NAMES))
+    DATASET_SIGNATURE = (
+        f"{dataset_stat.st_size}:{dataset_stat.st_mtime_ns}:seed-{SEED}:"
+        f"{FEATURE_POLICY_VERSION}:"
+        f"{hashlib.sha256(feature_signature.encode()).hexdigest()}"
+    )
+    required_columns = [
+        "step",
+        "type",
+        "amount",
+        "nameOrig",
+        "nameDest",
+        "oldbalanceOrg",
+        "isFraud",
+    ]
+    train_started = time.perf_counter()
+    train_frame = pd.read_parquet(
+        PROCESSED_DATA_PATH,
+        columns=required_columns,
+        filters=[("step", "<", 600)],
+    )
+    if not train_frame["step"].lt(600).all():
+        raise ValueError("A leitura pré-teste incluiu step >= 600.")
+    train_frame = train_frame.reset_index(drop=True)
+    splits = temporal_split(train_frame)
+    if not splits["test"].empty:
+        raise RuntimeError("O split pré-teste não pode conter transações de teste.")
+    splits["context"] = train_frame.sort_values(
+        "step", kind="stable"
+    ).drop(columns=["isFraud"])
+    del train_frame
+    gc.collect()
+
+    if_model, if_result = _train_final_if(splits, dict(FINAL_IF_CONFIG))
+    lstm_model, lstm_result = _train_final_lstm(
+        splits, dict(FINAL_LSTM_CONFIG)
+    )
+    final_fit_completed_at = time.perf_counter()
+
+    test_started = time.perf_counter()
+    test_frame = pd.read_parquet(
+        PROCESSED_DATA_PATH,
+        columns=required_columns,
+        filters=[("step", ">=", 600)],
+    )
+    if not test_frame["step"].ge(600).all():
+        raise ValueError("A leitura de teste incluiu step < 600.")
+    if test_frame.empty:
+        raise ValueError("O conjunto de teste step >= 600 está vazio.")
+    test_frame.index = pd.RangeIndex(
+        start=len(splits["context"]),
+        stop=len(splits["context"]) + len(test_frame),
+    )
+    test_context = pd.concat(
+        (splits["context"], test_frame.drop(columns=["isFraud"]))
+    )
+    if_test_started = time.perf_counter()
+    if_result["metrics"]["test"] = _evaluate_final_if_test(
+        if_model, test_frame, if_result
+    )
+    if_result["test_evaluation_seconds"] = (
+        time.perf_counter() - if_test_started
+    )
+    lstm_test_started = time.perf_counter()
+    lstm_result["metrics"]["test"] = _evaluate_final_lstm_test(
+        lstm_model, test_frame, test_context, lstm_result
+    )
+    lstm_result["test_evaluation_seconds"] = (
+        time.perf_counter() - lstm_test_started
+    )
+    test_evaluation_seconds = time.perf_counter() - test_started
+
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    if_model_path = MODEL_DIR / "isolation_forest.pkl"
+    with if_model_path.open("wb") as model_file:
+        pickle.dump(if_model, model_file)
+    if_result["model_path"] = str(if_model_path)
+    lstm_model_path = MODEL_DIR / "lstm_model.pt"
+    salvar_lstm(
+        lstm_model,
+        str(lstm_model_path),
+        metadata={
+            "feature_names": LSTM_FEATURE_NAMES,
+            "seq_length": LSTM_SEQUENCE_LENGTH,
+            "seed": SEED,
+            "training_step_max": 599,
+            "selected_config": FINAL_LSTM_CONFIG,
+            "best_epoch": lstm_result["best_epoch"],
+            "decision_threshold": lstm_result["decision_threshold"],
+            "threshold_selection": "validation_f1",
+            "feature_policy_version": FEATURE_POLICY_VERSION,
+        },
+    )
+    lstm_result["model_path"] = str(lstm_model_path)
+
+    report = {
+        "seed": SEED,
+        "feature_policy_version": FEATURE_POLICY_VERSION,
+        "split_rows": {
+            "train_core": len(splits["train"]),
+            "validation": len(splits["val"]),
+            "train_complete": len(splits["train_completo"]),
+            "test": len(test_frame),
+        },
+        "test_read_after_final_refit": final_fit_completed_at < test_started,
+        "test_read_count": 1,
+        "test_step_min": int(test_frame["step"].min()),
+        "test_step_max": int(test_frame["step"].max()),
+        "test_evaluation_seconds": test_evaluation_seconds,
+        "elapsed_seconds": time.perf_counter() - train_started,
+        "models": {
+            "isolation_forest": if_result,
+            "lstm": lstm_result,
+        },
+    }
+    FINAL_IF_LSTM_REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary_report_path = FINAL_IF_LSTM_REPORT_PATH.with_suffix(".tmp")
+    temporary_report_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    temporary_report_path.replace(FINAL_IF_LSTM_REPORT_PATH)
+    del test_context, test_frame, splits, if_model, lstm_model
+    gc.collect()
+    print(f"Relatório final IF/LSTM salvo em {FINAL_IF_LSTM_REPORT_PATH}")
+    return report
 
 
 def _run_neural_model(
@@ -2558,23 +2915,40 @@ if __name__ == "__main__":
         help="Limita as grades IF/LSTM às configurações iniciais com 2 camadas.",
     )
     parser.add_argument(
+        "--final-if-lstm",
+        action="store_true",
+        help="Retreina somente os vencedores fixos de IF/LSTM e avalia o teste ao final.",
+    )
+    parser.add_argument(
         "--grid-path",
         type=Path,
-        default=Path("reports/etapa2_grid_v2.csv"),
+        default=None,
         help="Caminho do grid seletivo (deve ser etapa2_grid_v2.csv).",
     )
     arguments = parser.parse_args()
+    if arguments.final_if_lstm and (
+        arguments.smoke_only
+        or arguments.grade_if_lstm
+        or arguments.primeiro_passe
+        or arguments.grid_path is not None
+    ):
+        parser.error(
+            "--final-if-lstm não pode ser combinado com flags de smoke ou grade."
+        )
     if arguments.primeiro_passe and not arguments.grade_if_lstm:
         parser.error("--primeiro-passe exige --grade-if-lstm.")
     if arguments.smoke_only and arguments.grade_if_lstm:
         parser.error("--smoke-only e --grade-if-lstm são mutuamente exclusivos.")
-    if arguments.grade_if_lstm:
+    if arguments.final_if_lstm:
+        run_final_if_lstm()
+    elif arguments.grade_if_lstm:
         grade_if_lstm_only(
-            arguments.grid_path, primeiro_passe=arguments.primeiro_passe
+            arguments.grid_path or Path("reports/etapa2_grid_v2.csv"),
+            primeiro_passe=arguments.primeiro_passe,
         )
     elif arguments.smoke_only:
         smoke_only()
-    elif arguments.grid_path != Path("reports/etapa2_grid_v2.csv"):
+    elif arguments.grid_path is not None:
         parser.error("--grid-path exige --grade-if-lstm.")
     else:
         main()

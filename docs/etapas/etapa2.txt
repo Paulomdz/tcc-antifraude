@@ -78,3 +78,11 @@ Limitações
 - A suíte completa foi executada antes das mudanças finais da API; os 22 testes
   focados cobrem a API após essas mudanças.
 - Ainda não existem métricas válidas dos modelos sob a política corrigida.
+
+Para o relatório
+Foi adicionado o modo dedicado --final-if-lstm para retreinar os vencedores fixos do
+Isolation Forest e da LSTM, sem grade, GNN ou Gemini. Os ajustes finais usam todos os
+registros anteriores ao teste (step < 600), enquanto as métricas e o threshold da
+LSTM vêm da validação antes do ajuste final. O teste é lido uma vez após os dois
+retreinos; métricas, tempos e memória ficam em reports/etapa2_final_if_lstm.json.
+Os modelos finais são gravados em src/modelos/modelos_salvos/.

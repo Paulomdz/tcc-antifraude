@@ -302,6 +302,119 @@ def test_if_lstm_grade_rejects_non_v2_grid_path(tmp_path):
         training.grade_if_lstm_only(tmp_path / "etapa2_grid.csv")
 
 
+def test_final_if_lstm_uses_fixed_configs_and_reads_test_after_both_refits(
+    tmp_path, monkeypatch
+):
+    import pandas as pd
+
+    processed_path = tmp_path / "processed.parquet"
+    processed_path.touch()
+    report_path = tmp_path / "reports" / "etapa2_final_if_lstm.json"
+    events = []
+    train_frame = pd.DataFrame(
+        {
+            "step": [1, 551],
+            "type": ["PIX_P2P", "PIX_P2P"],
+            "amount": [10.0, 20.0],
+            "nameOrig": ["C0000001", "C0000002"],
+            "nameDest": ["M0000001", "M0000002"],
+            "oldbalanceOrg": [100.0, 200.0],
+            "isFraud": [0, 1],
+        }
+    )
+    test_frame = pd.DataFrame(
+        {
+            "step": [600],
+            "type": ["PIX_P2P"],
+            "amount": [30.0],
+            "nameOrig": ["C0000003"],
+            "nameDest": ["M0000003"],
+            "oldbalanceOrg": [300.0],
+            "isFraud": [0],
+        }
+    )
+    splits = {
+        "train": train_frame.iloc[:1],
+        "val": train_frame.iloc[1:],
+        "train_completo": train_frame,
+        "test": train_frame.iloc[:0],
+    }
+
+    def fake_read_parquet(_path, columns, filters):
+        events.append(("read", filters[0][1]))
+        assert "isFraud" in columns
+        if filters == [("step", "<", 600)]:
+            return train_frame.copy()
+        assert filters == [("step", ">=", 600)]
+        return test_frame.copy()
+
+    def fake_train_if(_splits, config):
+        events.append(("final_if", config.copy()))
+        return object(), {
+            "config": config,
+            "metrics": {"train": {}, "validation": {}},
+            "decision_threshold": 0.5,
+        }
+
+    def fake_train_lstm(_splits, config):
+        events.append(("final_lstm", config.copy()))
+        return object(), {
+            "config": config,
+            "metrics": {"train": {}, "validation": {}},
+            "decision_threshold": 0.5,
+            "best_epoch": 1,
+        }
+
+    def fail_grid_read():
+        raise AssertionError("o modo final não deve ler a grade")
+
+    def fake_test_eval(model_name, *_args):
+        events.append(("evaluate_test", model_name))
+        return {"pr_auc": 0.5}
+
+    monkeypatch.setattr(training, "PROCESSED_DATA_PATH", processed_path)
+    monkeypatch.setattr(training, "FINAL_IF_LSTM_REPORT_PATH", report_path)
+    monkeypatch.setattr(training, "MODEL_DIR", tmp_path / "models")
+    monkeypatch.setattr(training, "temporal_split", lambda _frame: splits)
+    monkeypatch.setattr(training.pd, "read_parquet", fake_read_parquet)
+    monkeypatch.setattr(training, "_grid_rows", fail_grid_read)
+    monkeypatch.setattr(training, "_train_final_if", fake_train_if)
+    monkeypatch.setattr(training, "_train_final_lstm", fake_train_lstm)
+    monkeypatch.setattr(training, "_evaluate_final_if_test", lambda *args: fake_test_eval("if"))
+    monkeypatch.setattr(
+        training,
+        "_evaluate_final_lstm_test",
+        lambda *args: fake_test_eval("lstm"),
+    )
+    monkeypatch.setattr(training.pickle, "dump", lambda *_args: None)
+    monkeypatch.setattr(training, "salvar_lstm", lambda *_args, **_kwargs: None)
+
+    report = training.run_final_if_lstm()
+
+    assert events[0] == ("read", "<")
+    assert events[1] == ("final_if", training.FINAL_IF_CONFIG)
+    assert events[2] == ("final_lstm", training.FINAL_LSTM_CONFIG)
+    assert events[3] == ("read", ">=")
+    assert events[4:] == [
+        ("evaluate_test", "if"),
+        ("evaluate_test", "lstm"),
+    ]
+    assert report["test_read_after_final_refit"] is True
+    assert report["test_read_count"] == 1
+    assert report["models"]["isolation_forest"]["config"] == {
+        "n_estimators": 100,
+        "max_samples": "auto",
+        "contamination": 0.056,
+    }
+    assert report["models"]["lstm"]["config"] == {
+        "hidden_size": 32,
+        "dropout": 0.1,
+        "lr": 1e-3,
+        "num_layers": 2,
+    }
+    assert report_path.exists()
+
+
 def test_archives_incompatible_candidate_checkpoints_and_preserves_current_ones(
     tmp_path, monkeypatch
 ):
