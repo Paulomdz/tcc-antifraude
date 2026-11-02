@@ -24,7 +24,7 @@ O projeto reúne:
 ## Conjunto de dados
 
 O conjunto de dados de referência do projeto é
-[`dataset/dataset_pix_banco.csv`](dataset/dataset_pix_banco_final.csv).
+[`dataset/dataset_pix_banco.csv`](dataset/dataset_pix_banco.csv).
 Ele contém transações financeiras sintéticas com categorias Pix e outros meios
 de pagamento brasileiros. A base não contém registros operacionais de uma
 instituição financeira nem dados oficiais do Banco Central.

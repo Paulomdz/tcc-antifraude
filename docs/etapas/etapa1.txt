@@ -1,0 +1,104 @@
+ETAPA 1 — DATASET, FEATURES E PRÉ-PROCESSAMENTO
+
+Escopo e estado dos commits
+Os commits de implementação da Etapa 1 já existiam no histórico antes desta
+revisão: d1f2e97 (renomeações D13), 620e8d3 (pipeline, Parquet e estatísticas),
+53ee78c (testes) e faed990 (consolidação). A revisão atual confirma seus
+critérios; não incorpora os diffs pendentes de treinamento, modelos,
+orquestração e API, que pertencem à Etapa 2. O commit desta entrega registra
+este relatório e corrige o link do CSV no README.
+
+Arquivos da Etapa 1
+- dataset/dataset_pix_banco.csv: mantido sem alteração; MD5 validado abaixo.
+- dataset/dataset_pix_banco_processado.parquet: gerado a partir do CSV no
+  commit 620e8d3; contém 454.117 linhas.
+- src/preprocessamento/carregar_dataset.py: leitura e validação do esquema,
+  tratamento de -0.0, features, split D3 e geração de feature_stats.
+- src/preprocessamento/feature_stats.json: estatísticas das 21 features,
+  calculadas a partir de step < 600.
+- src/ferramentas/inferencia_modelos.py: inferência usa compute_if_features,
+  compartilhada com o pré-processamento de treino.
+- src/modelos/arquitetura_lstm.py: IDs usados para agrupar histórico por
+  conta, não como features.
+- src/modelos/arquitetura_gnn.py: IDs usados para definir nós/arestas; features
+  de nó são numéricas e derivadas das transações.
+- README.md: documenta dataset, taxa de fraude, decisões e features; aponta
+  para a seção acadêmica. Nesta revisão, o link do CSV foi corrigido para o
+  caminho canônico.
+- docs/secao_dataset_tcc.txt: seção fornecida para a documentação da base final.
+- run_simulation_pix.py e run_sistema_completo.py: nomes finais e caminhos
+  atualizados conforme D13.
+- tests/test_preprocessamento.py, tests/test_modelos.py,
+  tests/test_inferencia.py e tests/test_dashboard.py: validam features,
+  inferência, split e integração.
+
+Decisões D1–D13
+- D1: isFlaggedFraud removido; o CSV não contém essa coluna e recriá-la
+  derivaria o rótulo. O grep em src não encontrou referências.
+- D2: hora = step % 24 e hora_norm = hora / 23, igual em treino e inferência.
+- D3: treino core <550; validação 550–599; treino completo <600; teste >=600.
+- D4: PIX_TROCO é tratado como saída (outgoing).
+- D5: is_incoming deriva apenas se nameOrig começa por B. A letra é a única
+  informação permitida do identificador como feature.
+- D6: a Etapa 1 fixa pré-processamento e contrato de features; não treinou
+  modelos nem alterou arquitetura, loss ou otimizador.
+- D7: API retorna 503 com a mensagem exata sem GOOGLE_API_KEY; fast/histórico
+  continuam sem chave e não há fallback determinístico em production.
+- D8: fast, production e deep são modos explícitos; lote usa fast. Isso foi
+  implementado/testado na Etapa 2, não pelo pré-processamento da Etapa 1.
+- D9: nomes finais usados sem aliases.
+- D10: README aponta para docs/secao_dataset_tcc.txt e taxa de fraude 5,56%.
+  docs/explicacao_dataset_pix_banco_final.txt não existe no repositório atual;
+  não foi criado, alterado ou renomeado nesta revisão.
+- D11: commits locais separados, sem push.
+- D12: comentários TCC em carregar_dataset.py justificam D2–D5, split e
+  anti-vazamento.
+- D13: renomeações via git mv nos commits da Etapa 1; nomes legados ausentes.
+
+Critérios de aceite e evidências
+- ✅ T1.1 — grep -ri 'paysim' src/
+  Saída: nenhuma correspondência após remover apenas bytecode obsoleto do
+  módulo antigo.
+- ✅ T1.2 — nomes de feature IF/LSTM/GNN não contêm nameOrig/nameDest.
+  Evidência: vetores de features confirmados sem IDs. O uso encontrado em
+  arquitetura_lstm.py é agrupamento do histórico; em arquitetura_gnn.py é
+  construção de arestas/nós. Ambos são usos permitidos pela regra.
+- ✅ T1.3–T1.5 — is_incoming, one-hot dos 12 tipos e hora_norm aplicados.
+  Evidência: src/preprocessamento/carregar_dataset.py contém as fórmulas
+  D2/D5; teste integral passou.
+- ✅ T1.6 — treino e inferência compartilham compute_if_features.
+  Evidência no commit de Etapa 1: treinar_modelos.py chama
+  extract_behavior_features; inferencia_modelos.py implementa essa função
+  via compute_if_features(transaction).
+- ✅ T1.7 — split D3 sem interseção.
+  Saída: train=(335973, 18673 fraudes), val=(30677, 1653),
+  train_completo=(366650, 20326), test=(87467, 4921);
+  interseções train/val=0, train/test=0, val/test=0.
+- ✅ T1.8 — feature_stats.json contém as 21 features em ordem fixa e as
+  estatísticas mean/std/min/max/p05/p95 coincidem com o Parquet step < 600.
+  Saída da verificação: “21 features na ordem IF; mean/std/min/max/p05/p95
+  iguais ao parquet step<600”.
+- ✅ T1.9 — caminho canônico e renomeações.
+  Saída: busca por dataset_pix_banco_final*, run_simulation.py,
+  fluxo_crewai.py e ferramentas_crewai.py não encontrou caminhos.
+  O histórico mostra o Parquet no commit 620e8d3.
+- ✅ T1.10 — documentação final e taxa de fraude.
+  Evidência: README.md referencia docs/secao_dataset_tcc.txt; ambos registram
+  5,56%.
+- ✅ Vetor da mesma transação do CSV e do Parquet/inferência.
+  Saída: “vetor CSV/dataset == vetor de inferencia para a primeira transacao:
+  True”.
+- ✅ Comentários TCC presentes nos pontos D2, D3, D5 e anti-vazamento.
+- ✅ MD5 do CSV: cfa6ae1176de2fd46466651fcc0663c7.
+- ✅ Suíte completa: 70 passed, 1 warning; cobertura 91,67% (limite 80%).
+- ✅ Histórico contém os commits d1f2e97, 620e8d3, 53ee78c e faed990.
+
+Limitações
+- O documento histórico docs/explicacao_dataset_pix_banco_final.txt não está
+  versionado nem presente neste checkout, portanto não é possível comparar seu
+  conteúdo histórico. Nenhuma operação foi feita sobre esse caminho.
+- dataset/dataset_pix_banco.csv já está versionado no histórico. Foi mantido
+  sem staging ou modificação; nenhuma nova inclusão do CSV foi feita.
+- Não houve treinamento de modelos nesta revisão da Etapa 1.
+- Há alterações pendentes de Etapa 2 no worktree; elas foram mantidas fora
+  deste relatório e de seu commit.
