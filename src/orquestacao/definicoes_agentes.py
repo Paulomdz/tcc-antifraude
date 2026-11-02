@@ -8,6 +8,7 @@ aqui com ``crewai.LLM`` em vez de ``langchain_google_genai``.
 """
 
 import os
+from pathlib import Path
 
 # Desativa telemetria do CrewAI (evita chamadas de rede extras a
 # telemetry.crewai.com e a respectiva latência de retry quando a rede não
@@ -18,27 +19,21 @@ from crewai import Agent, LLM
 from dotenv import load_dotenv
 
 # Carrega as variáveis de ambiente (chave API)
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-# Nome do modelo Gemini configurável via variável de ambiente, para facilitar a
-# atualização quando a Google descontinuar/renomear versões do modelo sem
-# precisar alterar o código.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 
 def build_judge_llm() -> LLM:
-    """Constrói o LLM (Gemini) usado pelo Agente Juiz.
-
-    Lança ``ValueError`` se ``GOOGLE_API_KEY`` não estiver configurada — o
-    chamador (``ferramentas_agentes.llm_judge_tool``) deve tratar essa exceção e
-    cair no fallback determinístico (``judge_tool``).
-    """
+    """Constrói o Gemini; sem chave, interrompe production/deep explicitamente."""
     api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
+    if not api_key or not api_key.strip():
         raise ValueError("GOOGLE_API_KEY não configurada no ambiente (.env).")
 
+    model_name = (os.getenv("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL).strip()
+    model_name = model_name.removeprefix("models/")
     return LLM(
-        model=f"gemini/{GEMINI_MODEL}",
+        model=f"gemini/{model_name}",
         api_key=api_key,
         temperature=0.1,
     )

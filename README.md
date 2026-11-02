@@ -105,7 +105,7 @@ válido da sua conta Google AI Studio:
 
 ```dotenv
 GOOGLE_API_KEY=sua_chave_real
-GEMINI_MODEL=gemini-3.1-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
 Não publique, envie em mensagens ou versione o arquivo `.env`. Se a chave já

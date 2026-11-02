@@ -1,0 +1,99 @@
+ETAPA 0 — AJUSTES ANTES DE CONTINUAR
+
+Escopo e preservação
+- Ambiente ativado com `source venv/bin/activate`; Python 3.12.16.
+- Dataset não foi alterado: MD5 cfa6ae1176de2fd46466651fcc0663c7.
+- GOOGLE_API_KEY não foi exibida em saída nem escrita em arquivo versionado.
+- Nenhum treino foi iniciado. Os arquivos de reports e os diffs de Etapa 2
+  permaneceram fora dos commits da Etapa 0.
+
+0.1 — Nome do pacote
+- ✅ Diretório e imports usam `orquestacao`.
+- Commit de padronização já existente: `a322147 refactor: padroniza nome do
+  pacote para orquestacao`.
+- Evidência: busca `grep -rn --exclude-dir=.git --exclude-dir=venv
+  --exclude-dir=.venv 'orquestracao' .` retornou `0 ocorrências`.
+- Referência documental corrigida em README.md e docs/etapas/etapa2_api.txt.
+
+0.2 — Commit e revisão da Etapa 1
+- ✅ Etapa 1 já estava commitada em `faed990` e `7dbcbd9`; não havia alterações
+  pendentes exclusivas da Etapa 1 para recommit.
+- ✅ `docs/etapas/etapa1.txt` foi restaurado da versão commitada após a cópia
+  no worktree estar vazia. A versão restaurada tem 6080 bytes.
+- ✅ Os diffs de modelos, inferência, treinamento, dashboard e orquestração
+  foram preservados para a Etapa 2; reports/modelos não foram adicionados.
+- Evidência: `git --no-pager log --oneline -n 5` mostrou os commits de Etapa 1
+  e os commits separados de nome do pacote e ignore.
+- Validação atual: suíte completa `73 passed, 1 warning in 10.20s`.
+- Commit próprio adicional da Etapa 1 não foi criado porque os critérios e o
+  relatório já estavam commitados.
+
+0.3 — Ignorados e dataset
+- ✅ `.env`, `reports/*.log` e `reports/etapa2_checkpoints/` estão no
+  `.gitignore` commitado em `7504216`.
+- ✅ `.env` não está rastreado; `git check-ignore -v .env` apontou
+  `.gitignore:23:.env`.
+- ⚠️ `dataset/dataset_pix_banco.csv` já está rastreado no histórico. Não foi
+  adicionado ao staging nem alterado nesta etapa. Recomendação: mantê-lo
+  versionado para reprodutibilidade do dataset canônico; qualquer alteração
+  ao seu rastreamento aguarda confirmação explícita do usuário.
+- Evidência: `git ls-files --error-unmatch dataset/dataset_pix_banco.csv`
+  retornou o caminho; MD5 permaneceu igual ao esperado.
+
+0.4 — Modelo Gemini
+- ✅ Modelo selecionado por preferência do usuário: `gemini-3.5-flash-lite`.
+- ✅ Configuração lê `GEMINI_MODEL` do ambiente/.env e usa
+  `gemini-3.5-flash-lite` como fallback se não definido. Prefixo opcional
+  `models/` é normalizado para o formato CrewAI.
+- ✅ `.env` contém `GEMINI_MODEL=gemini-3.5-flash-lite` e permanece ignorado.
+- ✅ README atualizado para o mesmo modelo.
+- ✅ Teste real único está marcado `@pytest.mark.live`; `pytest.ini` exclui
+  `live` por padrão. O teste live permite no máximo uma chamada
+  `generate_content` e agora também exige filtro explicitamente igual a
+  `-m live`.
+- ✅ Testes não-live focados: `pytest -q --no-cov tests/test_gemini_config.py
+  tests/test_gemini_live.py` resultou em 2 passed, 1 deselected.
+- ✅ Suíte padrão: `pytest -q` resultou em 72 passed, 1 deselected, 1 warning;
+  cobertura 91.67%. O teste live foi excluído.
+- ⚠️ Dois comandos anteriores usaram `-o addopts=''` e removeram o filtro que
+  exclui live; cada execução passou pelo teste live e fez uma chamada lógica
+  `generate_content`. A chave não apareceu em saída. O filtro adicional foi
+  adicionado depois; não foram feitas novas chamadas.
+- ✅ Sintaxe e `git diff --check` passaram.
+- ⚠️ A credencial do ambiente foi usada nessas duas chamadas live acidentais;
+  não foi revelada em texto ou gravada em arquivo versionado.
+
+IDs Flash fornecidos pelo usuário a partir de sua listagem local
+- models/gemini-2.5-flash
+- models/gemini-2.5-flash-preview-tts
+- models/gemini-flash-latest
+- models/gemini-flash-lite-latest
+- models/gemini-2.5-flash-lite
+- models/gemini-2.5-flash-image
+- models/gemini-3-flash-preview
+- models/gemini-3.1-flash-lite-preview
+- models/gemini-3.1-flash-lite
+- models/gemini-3.1-flash-image-preview
+- models/gemini-3.1-flash-image
+- models/gemini-3.1-flash-lite-image
+- models/gemini-3.5-flash
+- models/gemini-3.5-flash-lite
+- models/gemini-omni-flash-preview
+- models/gemini-omni-1.1-flash
+- models/gemini-3.6-flash
+- models/gemini-3.7-flash
+- models/gemini-3.8-flash
+- models/gemini-3.1-flash-tts-preview
+- models/gemini-3.8-flash-tts
+- models/gemini-3.8-flash-lite-tts
+- models/gemini-2.5-flash-native-audio-latest
+- models/gemini-2.5-flash-native-audio-preview-09-2025
+- models/gemini-2.5-flash-native-audio-preview-12-2025
+- models/gemini-3.1-flash-live-preview
+
+Observação: `models/gemini-3.8-flash` é o ID Flash mais recente da lista
+fornecida. A configuração usa `gemini-3.5-flash-lite` conforme a escolha
+explícita do usuário; `gemini-1.5-flash` não consta da lista fornecida.
+
+Gate
+- A Etapa 2 (incluindo treino) não foi iniciada. Aguarda o "ok" do usuário.
