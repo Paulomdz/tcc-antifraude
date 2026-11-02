@@ -94,5 +94,6 @@ Atualização de estado (2026-11-02)
 - Equivalência: teste sintético compara nós amostrados e edge_index com helper
   que reproduz a lógica anterior, em 3 seeds e 3 combinações de fanout; passou.
 - Retreino final IF/LSTM: pendente; o modo existe, mas não foi executado.
-- API: nomes de artefatos esperados conferem com a inferência; não foi testada
-  com modelos novos após o retreino final.
+- API: a inferência espera isolation_forest.pkl, lstm_model.pt e gnn_model.pt.
+  isolation_forest.pkl está ausente; os arquivos LSTM/GNN presentes são
+  anteriores ao retreino final. A API não foi testada com artefatos novos.
