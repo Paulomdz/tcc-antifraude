@@ -6,7 +6,6 @@ Decisões de Engenharia / TCC:
 - D4: PIX_TROCO tratado como outgoing.
 - D5: is_incoming = 1 se nameOrig começa com 'B' (banco/TED salário/empréstimo), senão 0.
 - Regra Anti-Vazamento: IDs nameOrig/nameDest nunca usados como features de entrada.
-- Tratamento de float: -0.0 tratado como 0.0 em newbalanceOrig.
 """
 
 import json
@@ -42,7 +41,9 @@ TRANSACTION_TYPES = [
     "EMPRESTIMO",
 ]
 
-# Lista exata das 21 features do Isolation Forest na ordem fixa (TCC §3 / D6)
+# TCC / anti-vazamento: a lista final tem 18 features; as flags de saldo zerado
+# e divergência foram removidas porque usam saldos pós-transação. A razão
+# amount_to_balance_ratio permanece porque usa somente oldbalanceOrg.
 IF_FEATURE_NAMES = [
     "amount",
     "is_incoming",
@@ -60,11 +61,25 @@ IF_FEATURE_NAMES = [
     "type_EMPRESTIMO",
     "hora_norm",
     "amount_to_balance_ratio",
-    "emptied_origin",
     "log_amount",
     "is_madrugada",
-    "balance_mismatch_orig",
-    "balance_mismatch_dest",
+]
+
+# Features sequenciais e de nó também são derivadas somente das transações.
+# IDs servem exclusivamente para agrupar o histórico (LSTM) e formar arestas (GNN).
+LSTM_FEATURE_NAMES = [
+    "log_amount",
+    "is_incoming",
+    *[f"type_{tx_type}" for tx_type in TRANSACTION_TYPES],
+    "hora_norm",
+    "amount_to_balance_ratio",
+    "is_madrugada",
+]
+GNN_FEATURE_NAMES = [
+    "log_amount",
+    "is_incoming",
+    "hora_norm",
+    "amount_to_balance_ratio",
 ]
 
 REQUIRED_COLUMNS = {
@@ -101,18 +116,12 @@ def hora_norm_from_step(step: Any) -> float:
 
 
 def extract_if_features_row(tx: Dict[str, Any]) -> np.ndarray:
-    """Extrai o vetor de 21 features para uma única transação (modo interativo / inferência).
+    """Extrai as features pré-transação para uma transação individual.
 
     Garante idêntica ordenação e fórmulas às usadas no pré-processamento tabular do treino.
     """
     amount = float(tx.get("amount", 0.0))
     old_orig = float(tx.get("oldbalanceOrg", 0.0))
-    new_orig = float(tx.get("newbalanceOrig", 0.0))
-    if abs(new_orig) < 1e-12:
-        new_orig = 0.0
-
-    old_dest = float(tx.get("oldbalanceDest", 0.0))
-    new_dest = float(tx.get("newbalanceDest", 0.0))
 
     # Regra D5: is_incoming baseado na origem B
     name_orig = str(tx.get("nameOrig", ""))
@@ -130,15 +139,11 @@ def extract_if_features_row(tx: Dict[str, Any]) -> np.ndarray:
         hora_val = int(step_val) % 24
     hora_norm = hora_norm_from_step(hora_val)
 
-    # Derivadas
+    # TCC / anti-vazamento: não derivar emptied_origin ou balance_mismatch_*,
+    # pois dependem de saldos pós-transação; a razão usa apenas saldo anterior.
     ratio = amount / (abs(old_orig) + 1.0)
-    emptied = 1.0 if (new_orig < 1.0 and amount > 0.0) else 0.0
     log_amt = math.log1p(max(0.0, amount))
     is_madrug = 1.0 if hora_val in {0, 1, 2, 3, 4, 5} else 0.0
-
-    # Contábeis
-    mismatch_orig = old_orig - new_orig - amount
-    mismatch_dest = new_dest - old_dest - amount
 
     vec = [
         amount,
@@ -146,24 +151,18 @@ def extract_if_features_row(tx: Dict[str, Any]) -> np.ndarray:
         *one_hot,
         hora_norm,
         ratio,
-        emptied,
         log_amt,
         is_madrug,
-        mismatch_orig,
-        mismatch_dest,
     ]
-    return np.array(vec, dtype=np.float64)
+    return np.array(vec, dtype=np.float32)
 
 
 def extract_if_features_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Extrai DataFrame com as 21 colunas na ordem fixa do Isolation Forest."""
+    """Extrai as colunas pré-transação na ordem fixa do Isolation Forest."""
     res = pd.DataFrame(index=df.index)
 
     amount = df["amount"].astype(float)
     old_orig = df["oldbalanceOrg"].astype(float)
-    new_orig = df["newbalanceOrig"].astype(float).replace(-0.0, 0.0)
-    old_dest = df["oldbalanceDest"].astype(float)
-    new_dest = df["newbalanceDest"].astype(float)
 
     # Base
     res["amount"] = amount
@@ -179,17 +178,13 @@ def extract_if_features_df(df: pd.DataFrame) -> pd.DataFrame:
     hora = (df["step"].astype(int) % 24)
     res["hora_norm"] = (hora / 23.0).astype(float)
 
-    # Derivadas
+    # TCC / anti-vazamento: não derivar emptied_origin ou balance_mismatch_*,
+    # pois dependem de saldos pós-transação; a razão usa apenas saldo anterior.
     res["amount_to_balance_ratio"] = (amount / (old_orig.abs() + 1.0)).astype(float)
-    res["emptied_origin"] = ((new_orig < 1.0) & (amount > 0.0)).astype(float)
     res["log_amount"] = np.log1p(np.maximum(0.0, amount)).astype(float)
     res["is_madrugada"] = hora.isin([0, 1, 2, 3, 4, 5]).astype(float)
 
-    # Contábeis
-    res["balance_mismatch_orig"] = (old_orig - new_orig - amount).astype(float)
-    res["balance_mismatch_dest"] = (new_dest - old_dest - amount).astype(float)
-
-    return res[IF_FEATURE_NAMES]
+    return res[IF_FEATURE_NAMES].astype(np.float32)
 
 
 def compute_if_features(data: Any) -> np.ndarray | pd.DataFrame:
@@ -233,27 +228,18 @@ def preprocess_dataset(df: pd.DataFrame) -> pd.DataFrame:
     for column in numeric_columns[1:]:
         df[column] = df[column].astype(float)
 
-    # Tratamento de artefato float -0.0
-    df["newbalanceOrig"] = df["newbalanceOrig"].replace(-0.0, 0.0)
-
-    # Criação de features derivadas
-    df["amount_log"] = np.log1p(np.maximum(0.0, df["amount"]))
-    df["balance_org_delta"] = df["oldbalanceOrg"] - df["newbalanceOrig"]
-    df["balance_dest_delta"] = df["newbalanceDest"] - df["oldbalanceDest"]
-
     # Regra D5: is_incoming
     df["is_incoming"] = df["nameOrig"].astype(str).str.startswith("B").astype(int)
 
     # Regra D2: hora e hora_norm
-    df["hora"] = df["step"] % 24
-    df["hora_norm"] = df["hora"] / 23.0
-    df["is_madrugada"] = df["hora"].isin([0, 1, 2, 3, 4, 5]).astype(int)
+    hora = df["step"] % 24
+    df["hora_norm"] = hora / 23.0
+    df["is_madrugada"] = hora.isin([0, 1, 2, 3, 4, 5]).astype(int)
 
-    # Derivadas adicionais do IF
+    # TCC / anti-vazamento: as flags emptied_origin e balance_mismatch_* usam
+    # saldos pós-transação e são excluídas; esta razão usa saldo anterior.
     df["amount_to_balance_ratio"] = df["amount"] / (df["oldbalanceOrg"].abs() + 1.0)
-    df["emptied_origin"] = ((df["newbalanceOrig"] < 1.0) & (df["amount"] > 0.0)).astype(int)
-    df["balance_mismatch_orig"] = df["oldbalanceOrg"] - df["newbalanceOrig"] - df["amount"]
-    df["balance_mismatch_dest"] = df["newbalanceDest"] - df["oldbalanceDest"] - df["amount"]
+    df["log_amount"] = np.log1p(np.maximum(0.0, df["amount"]))
 
     # One-hot encoding fixo para os 12 tipos
     type_dummies = pd.get_dummies(df["type"], prefix="type", dtype=int)
@@ -299,7 +285,7 @@ def generate_feature_stats(
 ) -> Dict[str, Any]:
     """Calcula estatísticas (mean, std, min, max, p05, p95) SOMENTE sobre o treino (step < 600).
 
-    Gera o artefato feature_stats.json na ordem fixa das 21 features.
+    Gera o artefato feature_stats.json na ordem fixa das features permitidas.
     """
     if "step" not in train_completo_df.columns:
         raise ValueError("Não é possível gerar feature_stats sem a coluna step.")

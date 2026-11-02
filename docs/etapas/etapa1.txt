@@ -11,11 +11,12 @@ este relatório e corrige o link do CSV no README.
 Arquivos da Etapa 1
 - dataset/dataset_pix_banco.csv: mantido sem alteração; MD5 validado abaixo.
 - dataset/dataset_pix_banco_processado.parquet: gerado a partir do CSV no
-  commit 620e8d3; contém 454.117 linhas.
+  commit 620e8d3 e regenerado nesta correção; contém 454.117 linhas e não
+  contém as features derivadas de saldos pós-transação.
 - src/preprocessamento/carregar_dataset.py: leitura e validação do esquema,
-  tratamento de -0.0, features, split D3 e geração de feature_stats.
-- src/preprocessamento/feature_stats.json: estatísticas das 21 features,
-  calculadas a partir de step < 600.
+  features pré-transação, split D3 e geração de feature_stats.
+- src/preprocessamento/feature_stats.json: estatísticas das 18 features
+  oficiais, calculadas a partir de step < 600.
 - src/ferramentas/inferencia_modelos.py: inferência usa compute_if_features,
   compartilhada com o pré-processamento de treino.
 - src/modelos/arquitetura_lstm.py: IDs usados para agrupar histórico por
@@ -47,13 +48,26 @@ Decisões D1–D13
 - D8: fast, production e deep são modos explícitos; lote usa fast. Isso foi
   implementado/testado na Etapa 2, não pelo pré-processamento da Etapa 1.
 - D9: nomes finais usados sem aliases.
-- D10: README aponta para docs/secao_dataset_tcc.txt e taxa de fraude 5,56%.
-  docs/explicacao_dataset_pix_banco_final.txt não existe no repositório atual;
-  não foi criado, alterado ou renomeado nesta revisão.
+- D10: README aponta para docs/secao_dataset_tcc.txt, fonte de documentação
+  do dataset, e taxa de fraude 5,56%.
 - D11: commits locais separados, sem push.
 - D12: comentários TCC em carregar_dataset.py justificam D2–D5, split e
   anti-vazamento.
 - D13: renomeações via git mv nos commits da Etapa 1; nomes legados ausentes.
+
+Correção de vazamento de features
+- Removidas `emptied_origin`, `balance_mismatch_orig` e
+  `balance_mismatch_dest`: dependem de saldos após a execução e não podem
+  estar disponíveis no momento de previsão.
+- Mantida `amount_to_balance_ratio = amount / (abs(oldbalanceOrg) + 1)`,
+  baseada somente no saldo anterior.
+- Vetor IF final (18): amount, is_incoming, type_PIX_P2P, type_PIX_QRCODE,
+  type_PIX_SAQUE, type_PIX_TROCO, type_PIX_AUTOMATICO,
+  type_CARTAO_ECOMMERCE, type_CARTAO_PRESENCIAL, type_TEF, type_BOLETO,
+  type_SAQUE, type_TED, type_EMPRESTIMO, hora_norm,
+  amount_to_balance_ratio, log_amount, is_madrugada.
+- `preprocess_dataset` e `compute_if_features` usam os nomes e valores do
+  contrato final; feature_stats e Parquet foram regenerados do pipeline.
 
 Critérios de aceite e evidências
 - ✅ T1.1 — grep -ri 'paysim' src/
@@ -71,13 +85,13 @@ Critérios de aceite e evidências
   extract_behavior_features; inferencia_modelos.py implementa essa função
   via compute_if_features(transaction).
 - ✅ T1.7 — split D3 sem interseção.
-  Saída: train=(335973, 18673 fraudes), val=(30677, 1653),
-  train_completo=(366650, 20326), test=(87467, 4921);
-  interseções train/val=0, train/test=0, val/test=0.
-- ✅ T1.8 — feature_stats.json contém as 21 features em ordem fixa e as
+  Saída: train=335973, val=30677, train_completo=366650, test=87467;
+  interseções (train-val, train-test, val-test)=(0, 0, 0).
+- ✅ T1.8 — feature_stats.json contém as 18 features em ordem fixa e as
   estatísticas mean/std/min/max/p05/p95 coincidem com o Parquet step < 600.
-  Saída da verificação: “21 features na ordem IF; mean/std/min/max/p05/p95
-  iguais ao parquet step<600”.
+  Saída: “T1.8: ✅ 18 features; max_step=599; recomputed stats match for
+  mean/std/min/max/p05/p95/low_variance; post-transaction flags absent from
+  Parquet”.
 - ✅ T1.9 — caminho canônico e renomeações.
   Saída: busca por dataset_pix_banco_final*, run_simulation.py,
   fluxo_crewai.py e ferramentas_crewai.py não encontrou caminhos.
@@ -90,13 +104,12 @@ Critérios de aceite e evidências
   True”.
 - ✅ Comentários TCC presentes nos pontos D2, D3, D5 e anti-vazamento.
 - ✅ MD5 do CSV: cfa6ae1176de2fd46466651fcc0663c7.
-- ✅ Suíte completa: 70 passed, 1 warning; cobertura 91,67% (limite 80%).
+- ✅ Suíte completa não-live: `.venv/bin/python -m pytest -q -m 'not live'`
+  resultou em 82 passed, 1 deselected, 1 warning in 56.36s; cobertura 91.47%
+  (limite 80%).
 - ✅ Histórico contém os commits d1f2e97, 620e8d3, 53ee78c e faed990.
 
 Limitações
-- O documento histórico docs/explicacao_dataset_pix_banco_final.txt não está
-  versionado nem presente neste checkout, portanto não é possível comparar seu
-  conteúdo histórico. Nenhuma operação foi feita sobre esse caminho.
 - dataset/dataset_pix_banco.csv já está versionado no histórico. Foi mantido
   sem staging ou modificação; nenhuma nova inclusão do CSV foi feita.
 - Não houve treinamento de modelos nesta revisão da Etapa 1.

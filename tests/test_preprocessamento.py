@@ -4,6 +4,7 @@ import pytest
 
 from src.preprocessamento.carregar_dataset import (
     IF_FEATURE_NAMES,
+    LSTM_FEATURE_NAMES,
     RAW_DATA_PATH,
     TRANSACTION_TYPES,
     compute_if_features,
@@ -29,7 +30,15 @@ def test_preprocesses_all_categories_and_derives_features():
 
     assert all(f"type_{tx_type}" in processed for tx_type in TRANSACTION_TYPES)
     assert processed["hora_norm"].between(0, 1).all()
-    assert processed["amount_log"].notna().all()
+    assert processed["log_amount"].notna().all()
+    assert "amount_log" not in processed
+    assert not {
+        "emptied_origin",
+        "balance_mismatch_orig",
+        "balance_mismatch_dest",
+        "balance_org_delta",
+        "balance_dest_delta",
+    }.intersection(processed.columns)
 
 
 def test_preprocess_rejects_unknown_transaction_types():
@@ -89,7 +98,36 @@ def test_anti_leakage_ids_not_in_if_features():
     for feat in IF_FEATURE_NAMES:
         assert "nameOrig" not in feat
         assert "nameDest" not in feat
-    assert len(IF_FEATURE_NAMES) == 21
+    assert not {
+        "emptied_origin",
+        "balance_mismatch_orig",
+        "balance_mismatch_dest",
+    }.intersection(IF_FEATURE_NAMES)
+    assert len(IF_FEATURE_NAMES) == 18
+    assert len(LSTM_FEATURE_NAMES) == 17
+
+
+def test_post_transaction_balances_do_not_change_model_features():
+    from src.preprocessamento.carregar_dataset import extract_if_features_row
+
+    transaction = {
+        "step": 25,
+        "type": "PIX_P2P",
+        "amount": 100.0,
+        "nameOrig": "C1000001",
+        "oldbalanceOrg": 250.0,
+        "newbalanceOrig": 150.0,
+        "nameDest": "C1000002",
+        "oldbalanceDest": 0.0,
+        "newbalanceDest": 100.0,
+    }
+    original = extract_if_features_row(transaction)
+    transaction["newbalanceOrig"] = 0.0
+    transaction["newbalanceDest"] = 9999.0
+    changed = extract_if_features_row(transaction)
+
+    assert original.dtype == np.float32
+    assert np.array_equal(original, changed)
 
 
 def test_if_features_equivalence_df_and_dict():
@@ -103,7 +141,7 @@ def test_if_features_equivalence_df_and_dict():
     for idx in range(len(raw)):
         row_dict = raw.iloc[idx].to_dict()
         row_feats = extract_if_features_row(row_dict)
-        assert np.allclose(df_feats.iloc[idx].values, row_feats, atol=1e-9)
+        assert np.allclose(df_feats.iloc[idx].values, row_feats, atol=1e-6)
 
 
 def test_if_feature_order_and_hour_formula_are_fixed():
@@ -157,6 +195,11 @@ def test_feature_stats_are_generated_in_fixed_order_from_training_only(tmp_path)
     stats = generate_feature_stats(raw, output_path=output_path)
 
     assert list(stats) == IF_FEATURE_NAMES
-    assert len(stats) == 21
+    assert len(stats) == 18
     assert output_path.exists()
-    assert stats["balance_mismatch_orig"]["std"] < 1e-6
+    assert "amount_to_balance_ratio" in stats
+    assert not {
+        "emptied_origin",
+        "balance_mismatch_orig",
+        "balance_mismatch_dest",
+    }.intersection(stats)
