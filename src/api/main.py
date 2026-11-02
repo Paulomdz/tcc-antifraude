@@ -11,9 +11,9 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from src.historico.database import (
     DB_PATH,
@@ -22,14 +22,15 @@ from src.historico.database import (
     obter_historico,
     salvar_analise,
 )
+from src.ferramentas.leitor_arquivo_lote import ler_arquivo_lote
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 logger = logging.getLogger(__name__)
 GEMINI_NOT_CONFIGURED = "Gemini não configurado. Defina GOOGLE_API_KEY no .env."
-SERVICE_NAME = (
-    "Sistema Multiagente de IA para Detecção de Fraudes em Transações Financeiras"
-)
+SERVICE_NAME = "Sistema Multiagente de IA para Detecção de Fraudes"
+LIMITE_LOTE = 500
+SEED_AMOSTRAGEM_LOTE = 42
 
 @asynccontextmanager
 async def lifespan(_app):
@@ -39,10 +40,7 @@ async def lifespan(_app):
 
 app = FastAPI(
     title=SERVICE_NAME,
-    description=(
-        f"{SERVICE_NAME}: detecção de fraudes usando Isolation Forest, LSTM e GNN, "
-        "com orquestração multiagente."
-    ),
+    description=SERVICE_NAME,
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -102,7 +100,7 @@ class ResultadoAnalise(BaseModel):
 
 
 class LoteInput(BaseModel):
-    transacoes: list[TransacaoInput] = Field(..., min_length=1, max_length=100)
+    transacoes: list[TransacaoInput] = Field(..., min_length=1)
 
 
 class ItemLote(BaseModel):
@@ -120,6 +118,15 @@ class ResultadoLote(BaseModel):
     bloqueados: int
     erros: int
     resultados: list[ItemLote]
+    llm_usado: str = "NAO"
+
+
+class ResultadoLoteArquivo(ResultadoLote):
+    quantidade_solicitada: int
+    quantidade_usada: int
+    total_arquivo: int
+    seed: int
+    arquivo_menor_que_quantidade: bool
 
 
 def _get_orchestrator():
@@ -205,7 +212,17 @@ def _save_analysis(
 
 @app.get("/", summary="Health check", tags=["Sistema"])
 def health_check() -> dict[str, str]:
-    return {"status": "ok", "message": f"{SERVICE_NAME} API operacional"}
+    return {"status": "ok", "message": SERVICE_NAME}
+
+
+@app.get("/config", summary="Consultar configuração pública", tags=["Sistema"])
+def obter_configuracao() -> dict[str, bool | str | int | None]:
+    modelo = os.getenv("GEMINI_MODEL", "").strip() or None
+    return {
+        "llm_disponivel": bool(os.getenv("GOOGLE_API_KEY", "").strip()),
+        "modelo_llm": modelo,
+        "limite_lote": LIMITE_LOTE,
+    }
 
 
 @app.post(
@@ -255,11 +272,19 @@ def analise_transacao(transacao: TransacaoInput) -> ResultadoAnalise:
     tags=["Análise"],
 )
 def analise_lote(payload: LoteInput) -> ResultadoLote:
-    """Analisa até 100 transações em fast e persiste sucesso ou falha individual."""
+    """Analisa até 500 transações em fast e persiste sucesso ou falha individual."""
+    return _processar_lote(payload.transacoes)
+
+
+def _processar_lote(transacoes: list[TransacaoInput]) -> ResultadoLote:
+    if len(transacoes) > LIMITE_LOTE:
+        raise HTTPException(
+            status_code=422, detail="Lote máximo de 500 transações."
+        )
     fluxo = _get_orchestrator()
     items: list[ItemLote] = []
     approved = reviews = blocked = errors = 0
-    for index, tx in enumerate(payload.transacoes):
+    for index, tx in enumerate(transacoes):
         tx_data = tx.model_dump()
         started = time.perf_counter()
         resultado: dict[str, Any] | None = None
@@ -306,12 +331,61 @@ def analise_lote(payload: LoteInput) -> ResultadoLote:
             )
 
     return ResultadoLote(
-        total=len(payload.transacoes),
+        total=len(transacoes),
         aprovados=approved,
         revisoes=reviews,
         bloqueados=blocked,
         erros=errors,
         resultados=items,
+        llm_usado="NAO",
+    )
+
+
+@app.post(
+    "/analise_lote/arquivo",
+    response_model=ResultadoLoteArquivo,
+    summary="Analisar arquivo CSV/TXT com amostragem no modo fast",
+    tags=["Análise"],
+)
+async def analise_lote_arquivo(
+    arquivo: UploadFile = File(...),
+    quantidade: int = Query(default=300, ge=1, le=LIMITE_LOTE),
+) -> ResultadoLoteArquivo:
+    """Lê e amostra um CSV/TXT usando o leitor compartilhado."""
+    try:
+        dataframe = ler_arquivo_lote(
+            await arquivo.read(), arquivo.filename or ""
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    total_arquivo = len(dataframe)
+    quantidade_usada = min(quantidade, total_arquivo)
+    if total_arquivo > quantidade:
+        amostra = dataframe.sample(
+            n=quantidade, random_state=SEED_AMOSTRAGEM_LOTE
+        )
+    else:
+        amostra = dataframe
+
+    transacoes: list[TransacaoInput] = []
+    for indice, (_, linha) in enumerate(amostra.iterrows(), start=1):
+        try:
+            transacoes.append(TransacaoInput.model_validate(linha.to_dict()))
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Linha amostrada {indice} contém dados inválidos.",
+            ) from exc
+
+    resultado = _processar_lote(transacoes)
+    return ResultadoLoteArquivo(
+        **resultado.model_dump(),
+        quantidade_solicitada=quantidade,
+        quantidade_usada=quantidade_usada,
+        total_arquivo=total_arquivo,
+        seed=SEED_AMOSTRAGEM_LOTE,
+        arquivo_menor_que_quantidade=total_arquivo < quantidade,
     )
 
 

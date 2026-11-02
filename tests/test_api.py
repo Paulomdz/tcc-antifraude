@@ -38,14 +38,48 @@ def analysis_result(decision="Aprovada"):
     }
 
 
+def lot_file_content(delimiter=",", row_count=3, include_label=False):
+    columns = [
+        "step",
+        "type",
+        "amount",
+        "nameOrig",
+        "oldbalanceOrg",
+        "newbalanceOrig",
+        "nameDest",
+        "oldbalanceDest",
+        "newbalanceDest",
+    ]
+    if include_label:
+        columns.append("isFraud")
+    rows = [delimiter.join(columns)]
+    for index in range(row_count):
+        values = [
+            str(index + 1),
+            "PIX_P2P",
+            str(index + 1),
+            f"C{index:07d}",
+            "100",
+            "90",
+            f"C{index + 100:07d}",
+            "0",
+            "10",
+        ]
+        if include_label:
+            values.append(str(index % 2))
+        rows.append(delimiter.join(values))
+    return "\n".join(rows).encode("utf-8")
+
+
 def test_health_check():
     response = client.get("/")
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["message"] == f"{api.SERVICE_NAME} API operacional"
-    assert api.app.title == api.SERVICE_NAME
-    assert api.SERVICE_NAME in api.app.description
+    expected_name = "Sistema Multiagente de IA para Detecção de Fraudes"
+    assert response.json()["message"] == expected_name
+    assert api.app.title == expected_name
+    assert api.app.description == expected_name
 
 
 @pytest.mark.parametrize("api_key", ["", "   "])
@@ -159,6 +193,156 @@ def test_batch_of_ten_works_without_api_key_and_counts_every_transaction(monkeyp
         == body["total"]
     )
     assert body["erros"] == 0
+
+
+def test_batch_rejects_more_than_the_single_configured_limit():
+    response = client.post(
+        "/analise_lote",
+        json={"transacoes": [{"amount": 1}] * (api.LIMITE_LOTE + 1)},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Lote máximo de 500 transações."}
+
+
+def test_batch_accepts_exactly_the_configured_limit(monkeypatch):
+    class FakeOrchestrator:
+        def orchestrate_ml_only(self, _transaction):
+            return analysis_result()
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    monkeypatch.setattr(api, "_save_analysis", lambda *_args, **_kwargs: None)
+    response = client.post(
+        "/analise_lote",
+        json={"transacoes": [{"amount": 1}] * api.LIMITE_LOTE},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == api.LIMITE_LOTE
+    assert response.json()["llm_usado"] == "NAO"
+
+
+def test_fast_batch_is_identical_with_and_without_api_key(monkeypatch):
+    class FakeOrchestrator:
+        def orchestrate_ml_only(self, transaction):
+            return analysis_result(
+                "Aprovada" if transaction["amount"] == 1 else "Recusada"
+            )
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    monkeypatch.setattr(api, "_save_analysis", lambda *_args, **_kwargs: None)
+    payload = {"transacoes": [{"amount": 1}, {"amount": 2}]}
+
+    without_key = client.post("/analise_lote", json=payload)
+    monkeypatch.setenv("GOOGLE_API_KEY", "synthetic-test-value-not-a-credential")
+    with_key = client.post("/analise_lote", json=payload)
+
+    assert without_key.status_code == with_key.status_code == 200
+    assert without_key.json() == with_key.json()
+    assert with_key.json()["llm_usado"] == "NAO"
+
+
+def test_config_reports_model_and_key_availability_without_exposing_key(monkeypatch):
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+
+    unavailable = client.get("/config")
+    assert unavailable.status_code == 200
+    assert unavailable.json() == {
+        "llm_disponivel": False,
+        "modelo_llm": "gemini-3.5-flash-lite",
+        "limite_lote": 500,
+    }
+
+    monkeypatch.setenv("GOOGLE_API_KEY", "synthetic-test-value-not-a-credential")
+    available = client.get("/config")
+    assert available.status_code == 200
+    assert available.json()["llm_disponivel"] is True
+    assert available.json()["modelo_llm"] == "gemini-3.5-flash-lite"
+    assert "GOOGLE_API_KEY" not in available.text
+    assert "synthetic-test-value-not-a-credential" not in available.text
+
+
+def test_csv_upload_uses_fixed_seed_and_reports_sample_size(monkeypatch):
+    observed_amounts = []
+
+    class FakeOrchestrator:
+        def orchestrate_ml_only(self, transaction):
+            observed_amounts.append(transaction["amount"])
+            return analysis_result()
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    monkeypatch.setattr(api, "_save_analysis", lambda *_args, **_kwargs: None)
+    file_content = lot_file_content(row_count=8, include_label=True)
+
+    responses = [
+        client.post(
+            "/analise_lote/arquivo",
+            params={"quantidade": 4},
+            files={"arquivo": ("transacoes.csv", file_content, "text/csv")},
+        )
+        for _ in range(2)
+    ]
+
+    assert all(response.status_code == 200 for response in responses)
+    first, second = [response.json() for response in responses]
+    assert observed_amounts[:4] == observed_amounts[4:]
+    assert first["quantidade_solicitada"] == 4
+    assert first["quantidade_usada"] == 4
+    assert first["total_arquivo"] == 8
+    assert first["seed"] == 42
+    assert first["arquivo_menor_que_quantidade"] is False
+    assert first["llm_usado"] == "NAO"
+    assert first == second
+
+
+def test_txt_upload_uses_all_rows_when_file_is_smaller_than_requested(monkeypatch):
+    class FakeOrchestrator:
+        def orchestrate_ml_only(self, _transaction):
+            return analysis_result()
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    monkeypatch.setattr(api, "_save_analysis", lambda *_args, **_kwargs: None)
+    response = client.post(
+        "/analise_lote/arquivo",
+        files={
+            "arquivo": (
+                "transacoes.txt",
+                lot_file_content(";", row_count=2),
+                "text/plain",
+            )
+        },
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["total"] == 2
+    assert body["quantidade_solicitada"] == 300
+    assert body["quantidade_usada"] == 2
+    assert body["total_arquivo"] == 2
+    assert body["seed"] == 42
+    assert body["arquivo_menor_que_quantidade"] is True
+
+
+def test_upload_requires_documented_columns_and_separator():
+    missing_columns = client.post(
+        "/analise_lote/arquivo",
+        files={"arquivo": ("invalido.csv", b"step,type\n1,PIX_P2P", "text/csv")},
+    )
+    wrong_separator = client.post(
+        "/analise_lote/arquivo",
+        files={
+            "arquivo": (
+                "invalido.csv",
+                lot_file_content(";", row_count=1),
+                "text/csv",
+            )
+        },
+    )
+
+    assert missing_columns.status_code == 422
+    assert "Colunas obrigatórias ausentes" in missing_columns.json()["detail"]
+    assert wrong_separator.status_code == 422
+    assert "deve usar o separador" in wrong_separator.json()["detail"]
 
 
 def test_batch_counts_invalid_transaction_as_error(monkeypatch):

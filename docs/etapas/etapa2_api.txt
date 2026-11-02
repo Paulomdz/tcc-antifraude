@@ -7,8 +7,7 @@ orquestração foi alterado nesta tarefa; nenhum treinamento foi executado.
 Arquivos
 - src/api/main.py
   - Padronizados title, description e health check com o nome oficial informado
-    pelo usuário: "Sistema Multiagente de IA para Detecção de Fraudes em
-    Transações Financeiras".
+    pelo usuário: "Sistema Multiagente de IA para Detecção de Fraudes".
   - Mantido o import do módulo real da orquestração.
   - Adicionado o contador "erros" ao resultado do lote; cada falha de análise
     incrementa esse contador.
@@ -20,13 +19,19 @@ Arquivos
     antes de hora_norm = hora / 23, no treino e na inferência.
   - Mantidos o 503 e texto exato de D7, o modo fast do lote sem chave, os
     endpoints de histórico sem chave e explicabilidade.top3 vazio.
+- src/ferramentas/leitor_arquivo_lote.py
+  - Leitor único de CSV/TXT, com separador validado pelo cabeçalho, colunas
+    obrigatórias e isFraud opcional; reutilizável pelo futuro dashboard.
+- requirements.txt
+  - Declarada a dependência python-multipart necessária ao upload multipart.
 - src/historico/__init__.py e src/historico/database.py
   - Suporte SQLite usado pelos endpoints e testes do histórico, necessário
     para os endpoints /historico.
 - tests/test_api.py
   - Adicionadas verificações do nome do serviço, contadores do lote, lote de
     dez transações sem chave, linha inválida, falha simulada de persistência,
-    decisão desconhecida e fórmula horária D2.
+    decisão desconhecida, fórmula horária D2, limite 500, /config, upload,
+    amostragem determinística e equivalência fast com/sem chave.
 - docs/etapas/etapa2_api.txt
   - Este relatório de alterações e evidências.
 
@@ -43,6 +48,16 @@ Decisões
   para src/orquestacao/fluxo_multiagente.py.
 - Serviço: usado o nome oficial escolhido pelo usuário, sem inventar uma nova
   marca.
+- Lote: `LIMITE_LOTE = 500` é a única constante do limite; 501 itens resultam
+  em 422 com a mensagem exata "Lote máximo de 500 transações.".
+- Arquivo: `POST /analise_lote/arquivo` recebe CSV com vírgula ou TXT com
+  ponto e vírgula, amostra com seed fixa 42 e aceita `quantidade` de 1 a 500
+  (padrão 300). A resposta informa quantidade solicitada/usada, total do
+  arquivo, seed e se o arquivo tinha menos linhas que a quantidade pedida.
+- Configuração: `GET /config` informa disponibilidade booleana do LLM, modelo
+  selecionado e limite, sem expor GOOGLE_API_KEY.
+- Fast: `/analise_lote` e o upload chamam somente `orchestrate_ml_only` e
+  retornam `llm_usado="NAO"`, com ou sem GOOGLE_API_KEY.
 
 Critérios de aceite e evidências
 - ✅ Import da orquestração resolve o módulo real.
@@ -70,6 +85,21 @@ Critérios de aceite e evidências
   Saída: test_unknown_decision_is_an_explicit_item_error PASSED.
 - ✅ title, description e health check usam o nome oficial escolhido.
   Saída: test_health_check PASSED.
+- ✅ `LIMITE_LOTE` é 500; 500 itens são aceitos e 501 retornam 422 com detalhe
+  exato. Saídas: `test_batch_accepts_exactly_the_configured_limit PASSED` e
+  `test_batch_rejects_more_than_the_single_configured_limit PASSED`.
+- ✅ `GET /config` funciona sem chave, informa modelo e limite, e não expõe
+  GOOGLE_API_KEY. Saída: `test_config_reports_model_and_key_availability_without_exposing_key PASSED`.
+- ✅ Fast gera resposta idêntica com e sem chave e informa `llm_usado="NAO"`.
+  Saída: `test_fast_batch_is_identical_with_and_without_api_key PASSED`.
+- ✅ Upload aceita CSV e TXT, detecta/se valida o separador, mantém `isFraud`
+  opcional, usa seed 42 e informa quando processa menos linhas que o pedido.
+  Saídas: `test_csv_upload_uses_fixed_seed_and_reports_sample_size PASSED`,
+  `test_txt_upload_uses_all_rows_when_file_is_smaller_than_requested PASSED`
+  e `test_upload_requires_documented_columns_and_separator PASSED`.
+- ✅ Testes focados da API, sem cobertura parcial nem testes live:
+  `.venv/bin/python -m pytest -q -o addopts=--no-cov tests/test_api.py`
+  Saída: `22 passed in 1.65s`.
 - ✅ Busca por fallback: grep -rn --exclude='*.pyc' 'fallback' src/
   encontrou somente o fallback de estado do dashboard e o comentário que
   afirma que production não tem fallback determinístico. Nenhum fallback
@@ -79,13 +109,15 @@ Critérios de aceite e evidências
   válidos para src.orquestacao.
 - ✅ Sintaxe Pylance: sem erros em src/api/main.py e tests/test_api.py.
 - ✅ git diff --check: terminou com código 0, sem erros.
-- ✅ Suíte completa: .venv/bin/python -m pytest -q
-  Saída: 70 passed, 1 warning in 11.38s; cobertura total 91.67% (limite 80%).
+- ✅ Suíte completa não-live, executada nesta continuação:
+  `.venv/bin/python -m pytest -q -m 'not live'`
+  Saída: 82 passed, 1 deselected, 1 warning in 56.36s; cobertura total 91.47%
+  (limite 80%).
 
 Limitações
-- A execução isolada dos testes da API com as opções padrão executa os testes,
-  mas falha no limite global de cobertura: 15 passaram e a cobertura parcial é
-  33.56%. A execução completa acima satisfaz o limite configurado.
+- A suíte completa registrada acima foi executada após a correção de features
+  da Etapa 1 e antes do contrato de upload; a validação posterior da API foi
+  focada nos 22 testes da API. Nenhuma chamada ao Gemini foi executada.
 - O D13 do prompt usa uma grafia divergente; o diretório real e o import
   validado pelo teste são src/orquestacao/.
 - A busca textual por "fallback" mantém referências benignas no dashboard e
