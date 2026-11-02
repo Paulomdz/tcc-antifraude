@@ -11,8 +11,8 @@ Escopo e preservação
 - ✅ Diretório e imports usam `orquestacao`.
 - Commit de padronização já existente: `a322147 refactor: padroniza nome do
   pacote para orquestacao`.
-- Evidência: busca `grep -rn --exclude-dir=.git --exclude-dir=venv
-  --exclude-dir=.venv 'orquestracao' .` retornou `0 ocorrências`.
+- Evidência: busca recursiva pela grafia incorreta, excluindo `.git`, `venv`
+  e `.venv`, retornou `0 ocorrências`.
 - Referência documental corrigida em README.md e docs/etapas/etapa2_api.txt.
 
 0.2 — Commit e revisão da Etapa 1
