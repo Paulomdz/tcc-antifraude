@@ -86,3 +86,13 @@ registros anteriores ao teste (step < 600), enquanto as métricas e o threshold 
 LSTM vêm da validação antes do ajuste final. O teste é lido uma vez após os dois
 retreinos; métricas, tempos e memória ficam em reports/etapa2_final_if_lstm.json.
 Os modelos finais são gravados em src/modelos/modelos_salvos/.
+
+Atualização de estado (2026-11-02)
+- GNN: correção de pré-cálculo implementada; medição de desempenho após a
+  mudança pendente. Antes, o diagnóstico registrou 11,250740 s de amostragem
+  e 6,932547 s de montagem em 20 batches; não há tempos "depois" medidos.
+- Equivalência: teste sintético compara nós amostrados e edge_index com helper
+  que reproduz a lógica anterior, em 3 seeds e 3 combinações de fanout; passou.
+- Retreino final IF/LSTM: pendente; o modo existe, mas não foi executado.
+- API: nomes de artefatos esperados conferem com a inferência; não foi testada
+  com modelos novos após o retreino final.
