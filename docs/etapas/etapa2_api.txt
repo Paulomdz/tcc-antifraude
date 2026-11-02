@@ -1,0 +1,98 @@
+ETAPA 2 - CORREÇÕES DA API
+
+Escopo
+Correções da API e seus testes. Nenhum modelo, feature, split ou módulo de
+orquestração foi alterado nesta tarefa; nenhum treinamento foi executado.
+
+Arquivos
+- src/api/main.py
+  - Padronizados title, description e health check com o nome oficial informado
+    pelo usuário: "Sistema Multiagente de IA para Detecção de Fraudes em
+    Transações Financeiras".
+  - Mantido o import do módulo real da orquestração.
+  - Adicionado o contador "erros" ao resultado do lote; cada falha de análise
+    incrementa esse contador.
+  - Isolada a gravação no histórico em try/except por transação, com log de
+    exceção e continuação do processamento do lote.
+  - Decisões fora do mapeamento permitido agora geram ValueError explícito e
+    são contabilizadas como erro no lote.
+  - Comentário TCC registra que D2 é aplicado na função de features: step % 24
+    antes de hora_norm = hora / 23, no treino e na inferência.
+  - Mantidos o 503 e texto exato de D7, o modo fast do lote sem chave, os
+    endpoints de histórico sem chave e explicabilidade.top3 vazio.
+- src/historico/__init__.py e src/historico/database.py
+  - Suporte SQLite usado pelos endpoints e testes do histórico, necessário
+    para os endpoints /historico.
+- tests/test_api.py
+  - Adicionadas verificações do nome do serviço, contadores do lote, lote de
+    dez transações sem chave, linha inválida, falha simulada de persistência,
+    decisão desconhecida e fórmula horária D2.
+- docs/etapas/etapa2_api.txt
+  - Este relatório de alterações e evidências.
+
+Decisões
+- D2: a API preserva o step recebido. A função compartilhada de features aplica
+  o módulo 24 antes da normalização; limitar a entrada a 0..23 seria
+  incompatível com steps do dataset.
+- D7: sem GOOGLE_API_KEY, /analise_transacao mantém o 503 com
+  {"detail": "Gemini não configurado. Defina GOOGLE_API_KEY no .env."};
+  lote e histórico continuam disponíveis sem chave.
+- D8: lote chama orchestrate_ml_only (fast). Production continua na análise
+  individual; deep permanece somente função de orquestração.
+- D13: o pacote real neste repositório é src/orquestacao/ (sem o "r" após
+  "t"). O import da API já corresponde a src/orquestacao/fluxo_multiagente.py.
+  A grafia src/orquestracao/ mostrada no texto de D13 não existe no filesystem.
+- Serviço: usado o nome oficial escolhido pelo usuário, sem inventar uma nova
+  marca.
+
+Critérios de aceite e evidências
+- ✅ Import da orquestração resolve o módulo real.
+  Comando: .venv/bin/python -m pytest -v -o addopts='' [seletores da API]
+  Saída: test_get_orchestrator_imports_the_actual_ascii_package PASSED.
+- ✅ Sem chave, POST /analise_transacao retorna 503 e a mensagem exata D7.
+  Saída: test_production_requires_gemini_key_with_exact_503[] PASSED e
+  test_production_requires_gemini_key_with_exact_503[   ] PASSED.
+- ✅ Sem chave, POST /analise_lote com 10 transações retorna 200 e
+  aprovados + revisoes + bloqueados + erros == total.
+  Saída: test_batch_of_ten_works_without_api_key_and_counts_every_transaction
+  PASSED.
+- ✅ GET /historico e GET /historico/estatisticas funcionam sem chave.
+  Saída: test_history_and_statistics_work_without_gemini_key PASSED.
+- ✅ Transação inválida no lote retorna 200 e conta erros=1.
+  Saída: test_batch_counts_invalid_transaction_as_error PASSED.
+- ✅ Falha simulada no banco não interrompe o lote e é registrada no log.
+  Saída: test_batch_continues_after_history_database_failure PASSED; o teste
+  confirma duas tentativas de gravação e a persistência da segunda transação.
+- ✅ D2 aplica step % 24 antes da normalização na inferência.
+  Saída: test_feature_hour_uses_dataset_step_modulo PASSED; step=25 resulta em
+  hora_norm=1/23. No treino, carregar_dataset.py contém hora = step % 24 e
+  hora_norm = hora / 23.0.
+- ✅ Decisão desconhecida é erro explícito, não bloqueio.
+  Saída: test_unknown_decision_is_an_explicit_item_error PASSED.
+- ✅ title, description e health check usam o nome oficial escolhido.
+  Saída: test_health_check PASSED.
+- ✅ Busca por fallback: grep -rn --exclude='*.pyc' 'fallback' src/
+  encontrou somente o fallback de estado do dashboard e o comentário que
+  afirma que production não tem fallback determinístico. Nenhum fallback
+  determinístico do juiz foi adicionado.
+- ✅ Busca por orquestacao: grep -rn --exclude='*.pyc' 'orquestacao' src/
+  encontrou apenas imports para o pacote real src.orquestacao. A busca por
+  'src.orquestracao' não encontrou resultados.
+- ✅ Sintaxe Pylance: sem erros em src/api/main.py e tests/test_api.py.
+- ✅ git diff --check: terminou com código 0, sem erros.
+- ✅ Suíte completa: .venv/bin/python -m pytest -q
+  Saída: 70 passed, 1 warning in 11.38s; cobertura total 91.67% (limite 80%).
+
+Limitações
+- A execução isolada dos testes da API com as opções padrão executa os testes,
+  mas falha no limite global de cobertura: 15 passaram e a cobertura parcial é
+  33.56%. A execução completa acima satisfaz o limite configurado.
+- O D13 no prompt descreve src/orquestracao/, mas o pacote presente no
+  repositório é src/orquestacao/. O import foi validado contra o filesystem e
+  o teste de import passou.
+- A busca textual por "fallback" mantém referências benignas no dashboard e
+  comentário explicativo; nenhuma delas é fallback determinístico do juiz.
+- Os testes validam a API usando um orquestrador controlado; a implementação de
+  modelos/orquestração não foi modificada nem revalidada neste escopo.
+- Treinamento não foi executado nesta correção de API; tempo e RAM pico por
+  modelo não se aplicam a esta tarefa.
