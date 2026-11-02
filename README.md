@@ -1,6 +1,6 @@
-# Sistema Multiagente de IA para Detecção de Fraudes em Transações Financeiras
+# Sistema Multiagente de IA para Detecção de Fraudes
 
-Projeto acadêmico concluído que aplica técnicas de Machine Learning e
+Projeto acadêmico de TCC que aplica técnicas de Machine Learning e
 orquestração multiagente à análise de risco de transações financeiras. O sistema
 combina modelos especializados e disponibiliza os resultados por meio de uma
 API REST e de um dashboard interativo.
@@ -126,11 +126,14 @@ pip install "crewai[google-genai]>=1.15.0"
 ```
 
 Depois, **encerre e reinicie a API e o Streamlit** para que os processos
-carreguem o pacote e as variáveis de ambiente atualizados. A análise individual
-da API e do dashboard tenta usar o Juiz Gemini. A análise em lote usa a regra
-determinística por padrão para não fazer uma chamada de LLM para cada linha.
+carreguem o pacote e as variáveis de ambiente atualizados. Há três modos:
+`fast` executa os três modelos e a agregação determinística sem LLM;
+`production` executa os três modelos e o Juiz Gemini; `deep` usa quatro
+agentes LLM. A análise individual da API e do dashboard exige a chave e usa
+`production`. A análise em lote usa sempre `fast` e continua disponível sem
+chave. Não há fallback de `production` ou `deep` para decisão determinística.
 
-Se o provedor estiver instalado e o agente ainda cair no fallback, verifique:
+Se o agente não puder iniciar, verifique:
 
 - se a chave é válida, está ativa e pertence ao Google AI Studio;
 - se o modelo definido em `GEMINI_MODEL` está disponível para essa chave;
@@ -139,9 +142,8 @@ Se o provedor estiver instalado e o agente ainda cair no fallback, verifique:
   inválida, limites de uso, rede ou modelo indisponível são problemas
   diferentes da ausência do pacote do provedor.
 
-O fallback determinístico continua funcionando quando o Gemini não pode ser
-usado; portanto, receber uma decisão significa que a análise ocorreu, mas não
-confirma que o Agente Juiz LLM foi executado.
+Falhas de configuração ou execução do Gemini em `production`/`deep` são
+retornadas explicitamente. Use `fast` quando a análise sem LLM for a intenção.
 
 ## Execução das interfaces
 
@@ -173,22 +175,19 @@ usado pelo treinamento e pela simulação. Para executar os testes e a validaç�
 integrada:
 
 ```bash
-pytest
+pytest -m 'not live'
 python run_sistema_completo.py
 ```
 
 ### O que significa a cobertura dos testes
 
-Na última execução, o pytest informou **88,87% de cobertura**. Isso significa
-que os testes executaram aproximadamente 89 de cada 100 instruções de código
-incluídas no cálculo de cobertura. Esse percentual mede quais partes do código
-foram percorridas pelos testes; **não** significa que o modelo tem 88,87% de
-acurácia, nem garante que todas as situações possíveis estejam corretas.
-
 A configuração exige pelo menos 80% para a suite passar. Alguns módulos de
 treinamento e definições de agentes estão explicitamente fora do cálculo em
 `.coveragerc`, por isso o percentual não representa cada linha de todo o
-projeto. Os resultados podem ser repetidos com `pytest`.
+projeto. A última execução completa não-live registrada nesta atualização
+resultou em **82 passed, 1 deselected, 1 warning** e **91,47% de cobertura**.
+Esse percentual mede as instruções percorridas pelos testes; **não** significa
+que o modelo tem 91,47% de acurácia, nem garante todos os cenários possíveis.
 
 Para iniciar a API:
 
@@ -199,6 +198,27 @@ python -m uvicorn src.api.main:app --reload --port 8000
 A documentação interativa da API fica disponível em
 <http://localhost:8000/docs>.
 
+### Contrato da API
+
+- `POST /analise_transacao`: análise individual no modo `production`; exige
+  `GOOGLE_API_KEY`.
+- `POST /analise_lote`: análise `fast` sem Gemini, com 1 a 500 transações JSON.
+  Acima do limite, retorna HTTP 422 com `Lote máximo de 500 transações.`.
+- `POST /analise_lote/arquivo`: recebe `multipart/form-data` com o campo
+  `arquivo` e aceita CSV separado por vírgula ou TXT separado por ponto e
+  vírgula. As colunas obrigatórias são `step`, `type`, `amount`, `nameOrig`,
+  `oldbalanceOrg`, `newbalanceOrig`, `nameDest`, `oldbalanceDest` e
+  `newbalanceDest`; `isFraud` é opcional.
+  O parâmetro `quantidade` aceita 1–500 e padrão 300. A amostra usa seed fixa
+  42; se o arquivo tiver menos linhas, todas são processadas e a resposta
+  informa as quantidades e a seed usadas.
+- `GET /config`: informa disponibilidade do LLM, modelo configurado e limite
+  do lote, sem expor a chave.
+
+O nome oficial apresentado pela API é **Sistema Multiagente de IA para
+Detecção de Fraudes**. O modo `fast` não consulta o Gemini e responde com
+`llm_usado="NAO"` mesmo quando uma chave está configurada.
+
 Para iniciar o dashboard, em outro terminal:
 
 ```bash
@@ -207,7 +227,7 @@ python -m streamlit run src/dashboard/app.py --server.headless true --server.por
 
 ## Considerações finais
 
-O sistema finaliza a proposta do projeto: reunir análise de transações,
+O sistema reúne análise de transações,
 modelos de Machine Learning e coordenação multiagente em uma solução acadêmica
 com interfaces de API e dashboard. Os resultados devem ser interpretados no
 contexto experimental dos dados sintéticos utilizados.

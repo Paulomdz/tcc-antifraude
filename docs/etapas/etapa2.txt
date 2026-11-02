@@ -1,0 +1,80 @@
+ETAPA 2 — STATUS ANTES DO RETREINO
+
+Escopo realizado antes do treino
+- Corrigida a política de features: removidas emptied_origin,
+  balance_mismatch_orig e balance_mismatch_dest, pois usam saldos
+  pós-transação; mantida amount_to_balance_ratio, baseada em oldbalanceOrg.
+- Regenerados dataset/dataset_pix_banco_processado.parquet e
+  src/preprocessamento/feature_stats.json com as 18 features finais e somente
+  step < 600 nas estatísticas.
+- Contrato de lote da API implementado: JSON até 500 transações, upload CSV/TXT,
+  amostragem determinística com seed 42 e GET /config.
+- O fast não chama Gemini, com ou sem chave, e informa llm_usado="NAO".
+- Nenhum treino foi iniciado; nenhum resultado de modelo foi inventado.
+
+Features IF (18)
+amount, is_incoming, type_PIX_P2P, type_PIX_QRCODE, type_PIX_SAQUE,
+type_PIX_TROCO, type_PIX_AUTOMATICO, type_CARTAO_ECOMMERCE,
+type_CARTAO_PRESENCIAL, type_TEF, type_BOLETO, type_SAQUE, type_TED,
+type_EMPRESTIMO, hora_norm, amount_to_balance_ratio, log_amount,
+is_madrugada.
+
+Arquivos e commits
+- src/preprocessamento/carregar_dataset.py, feature_stats.json,
+  dataset/dataset_pix_banco_processado.parquet,
+  tests/test_preprocessamento.py e docs/etapas/etapa1.txt:
+  commit cfbc26d (Etapa 1 — features sem saldo pós-transação).
+- src/api/main.py, src/ferramentas/leitor_arquivo_lote.py, requirements.txt,
+  tests/test_api.py e docs/etapas/etapa2_api.txt:
+  commit b6c40d1 (contrato de lote e /config).
+- README.md e este relatório: documentação atualizada antes do retreino.
+- dataset/dataset_pix_banco.csv permaneceu intacto; MD5
+  cfa6ae1176de2fd46466651fcc0663c7.
+- Sem push.
+
+Critérios e evidências
+- ✅ Conjunto IF com 18 features, na ordem documentada.
+  Evidência: `feature_stats.json` tem 18 chaves; compute_if_features retorna
+  as 18 colunas da lista oficial.
+- ✅ Flags baseadas em saldos pós-transação ausentes das features e do Parquet.
+  Evidência: teste de pré-processamento passou e a verificação de schema
+  confirmou as três flags ausentes.
+- ✅ Split D3 sem interseção.
+  Saída: `train=335973, val=30677, train_completo=366650, test=87467;
+  intersections(train-val,train-test,val-test)=(0, 0, 0)`.
+- ✅ Estatísticas recalculadas só com step < 600.
+  Saída: `18 features; max_step=599; recomputed stats match for
+  mean/std/min/max/p05/p95/low_variance`.
+- ✅ API aceita 500 e rejeita 501 com status 422 e mensagem especificada.
+  Evidência: `test_batch_accepts_exactly_the_configured_limit PASSED` e
+  `test_batch_rejects_more_than_the_single_configured_limit PASSED`.
+- ✅ CSV/TXT, separadores, colunas obrigatórias, isFraud opcional, amostra fixa
+  e arquivo menor que a quantidade foram cobertos.
+  Evidência: `test_csv_upload_uses_fixed_seed_and_reports_sample_size PASSED`,
+  `test_txt_upload_uses_all_rows_when_file_is_smaller_than_requested PASSED`
+  e `test_upload_requires_documented_columns_and_separator PASSED`.
+- ✅ /config não expõe a chave; fast tem a mesma resposta com e sem chave e
+  llm_usado="NAO".
+  Evidência: `test_config_reports_model_and_key_availability_without_exposing_key PASSED`
+  e `test_fast_batch_is_identical_with_and_without_api_key PASSED`.
+- ✅ Suíte completa não-live executada antes das mudanças finais da API:
+  `.venv/bin/python -m pytest -q -m 'not live'` → 82 passed, 1 deselected,
+  1 warning in 56.36s; cobertura 91.47%.
+- ✅ Testes focados da API após a implementação do contrato:
+  `.venv/bin/python -m pytest -q -o addopts=--no-cov tests/test_api.py`
+  → 22 passed in 1.65s. Testes live foram excluídos; nenhuma chamada Gemini.
+- ✅ `git diff --check`: sem erros antes dos commits.
+
+Treino
+PENDENTE — não executado. Aguardando "ok" após esta documentação. Nenhuma
+configuração, métrica, tempo de treino, RAM ou VRAM de treino foi registrada.
+Depois da autorização, executar primeiro apenas o teste rápido solicitado e
+parar para apresentar PR-AUC de validação, tempo, RAM e VRAM antes de qualquer
+grade completa.
+
+Limitações
+- Os testes da API usam orquestrador controlado; não fazem chamada real ao
+  Gemini nem validam desempenho dos modelos.
+- A suíte completa foi executada antes das mudanças finais da API; os 22 testes
+  focados cobrem a API após essas mudanças.
+- Ainda não existem métricas válidas dos modelos sob a política corrigida.
