@@ -7,8 +7,5 @@ hora não registrada | docs/etapas/etapa2.txt; docs/etapas/etapa2_api.txt | Regi
 2026-11-02 hora não registrada | reports/etapa2_grid_v2.csv | Registro retroativo: fim de linha convertido de CRLF para LF; FALHA DE PROCESSO: feita sem aprovação e sem registro | Motivo não registrado; sem evidência no git; relato do usuário | aprovado: não
 2026-11-02 hora não registrada | reports/etapa2_grid_diagnostico_v1.csv | Registro retroativo: renomeação de reports/etapa2_grid.csv relatada pelo usuário, sem evidência no git | Separar o diagnóstico da política antiga | aprovação não registrada
 2026-11-02 19:28 | venv | Registro retroativo: link venv removido do índice do git (git rm --cached), commit 6865eb0 | Link versionado por engano | aprovação não registrada
-2026-11-03 01:51 | docs/etapas/etapa2.txt | Registradas limitações da grade, da LSTM e da GNN; conclusão da seção 4 marcada como hipótese | Corrigir a documentação sem mudar números finais | aprovado por: Paulo (dev) em 03/11/2026
-2026-11-03 01:51 | docs/etapas/etapa2_api.txt | Corrigidos a limitação da suíte e o comando de testes | A limitação contradizia 100 passed | aprovado por: Paulo (dev) em 03/11/2026
-2026-11-03 01:51 | README.md | Atualizados testes e cobertura; documentados modos de treino e limitação da GNN | Alinhar à Etapa 2 fechada | aprovado por: Paulo (dev) em 03/11/2026
-2026-11-03 01:51 | docs/REGRAS_VIGENTES.md | Atualizadas as seções 1, 5, 7, 12, 14 e 15 | Etapa 2 fechada, 100 testes e chave revogada | aprovado por: Paulo (dev) em 03/11/2026
-2026-11-03 01:51 | docs/etapas/etapa0.txt; docs/etapas/etapa1.txt | Acrescentada nota de documento histórico no topo | Contagens antigas são da data do relatório | aprovado por: Paulo (dev) em 03/11/2026
+2026-11-03 01:51 | README.md; docs/etapas/etapa0.txt, etapa1.txt, etapa2.txt, etapa2_api.txt; docs/REGRAS_VIGENTES.md | Documentação da Etapa 2 atualizada
+2026-11-03 02:31 | .gitignore | venv (link simbólico) ignorado
