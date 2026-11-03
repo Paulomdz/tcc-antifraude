@@ -640,3 +640,163 @@ def test_archives_incompatible_candidate_checkpoints_and_preserves_current_ones(
         / old_model.name
     ).read_bytes() == b"diagnostic model"
     assert len(diagnostic_report["archived_artifacts"]) == 2
+
+
+def test_ablacao_flag_nao_chama_rotina_padrao(monkeypatch):
+    calls = []
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("--ablacao só pode chamar run_ablacao")
+
+    for name in (
+        "main",
+        "smoke_only",
+        "grade_if_lstm_only",
+        "run_final_if_lstm",
+        "run_final_gnn",
+    ):
+        monkeypatch.setattr(training, name, fail)
+    monkeypatch.setattr(training, "run_ablacao", lambda: calls.append("ablacao"))
+
+    training._cli(["--ablacao"])
+
+    assert calls == ["ablacao"]
+
+
+def test_ablacao_features_nao_contem_amount_to_balance_ratio():
+    removed = "amount_to_balance_ratio"
+
+    assert removed in training.IF_FEATURE_NAMES
+    assert removed in training.LSTM_FEATURE_NAMES
+    assert removed not in training.ABLACAO_IF_FEATURE_NAMES
+    assert removed not in training.ABLACAO_LSTM_FEATURE_NAMES
+    assert len(training.ABLACAO_IF_FEATURE_NAMES) == 17
+    assert len(training.ABLACAO_LSTM_FEATURE_NAMES) == 16
+
+
+def test_ablacao_le_teste_uma_vez_depois_de_salvar_e_recusa_repeticao(
+    tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+
+    import pandas as pd
+    import pytest
+
+    processed_path = tmp_path / "processed.parquet"
+    processed_path.touch()
+    report_path = tmp_path / "reports" / "etapa2_ablacao.json"
+    events = []
+
+    def frame(step):
+        return pd.DataFrame(
+            {
+                "step": [step],
+                "type": ["PIX_P2P"],
+                "amount": [10.0],
+                "nameOrig": ["C0000001"],
+                "nameDest": ["M0000001"],
+                "oldbalanceOrg": [100.0],
+                "isFraud": [0],
+            }
+        )
+
+    train_frame = frame(1)
+
+    def fake_read_parquet(_path, columns, filters):
+        events.append(("read", filters[0][1]))
+        if filters == [("step", "<", 600)]:
+            return train_frame.copy()
+        assert json.loads(report_path.read_text("utf-8"))["test_read_count"] == 1
+        return frame(600)
+
+    def fake_train(name, best_epoch=None):
+        def train(_splits, config, feature_names):
+            events.append((name, config.copy(), list(feature_names)))
+            result = {
+                "metrics": {"train": {}, "validation": {}},
+                "decision_threshold": 0.5,
+                "best_epoch": best_epoch,
+            }
+            return SimpleNamespace(), result
+
+        return train
+
+    def fake_eval(name, expected):
+        def evaluate(*args):
+            assert args[-1] == expected
+            events.append(("evaluate_test", name))
+            return {"pr_auc": 0.5}
+
+        return evaluate
+
+    monkeypatch.setattr(training, "PROCESSED_DATA_PATH", processed_path)
+    monkeypatch.setattr(training, "ABLACAO_REPORT_PATH", report_path)
+    monkeypatch.setattr(training, "MODEL_DIR", tmp_path / "models")
+    monkeypatch.setattr(
+        training,
+        "temporal_split",
+        lambda _frame: {
+            "train": train_frame,
+            "val": train_frame,
+            "train_completo": train_frame,
+            "test": train_frame.iloc[:0],
+        },
+    )
+    monkeypatch.setattr(training.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(training.pd, "read_parquet", fake_read_parquet)
+    monkeypatch.setattr(training, "_train_final_if", fake_train("final_if"))
+    monkeypatch.setattr(
+        training, "_train_final_lstm", fake_train("final_lstm", best_epoch=1)
+    )
+    monkeypatch.setattr(
+        training,
+        "_evaluate_final_if_test",
+        fake_eval("if", training.ABLACAO_IF_FEATURE_NAMES),
+    )
+    monkeypatch.setattr(
+        training,
+        "_evaluate_final_lstm_test",
+        fake_eval("lstm", training.ABLACAO_LSTM_FEATURE_NAMES),
+    )
+    monkeypatch.setattr(
+        training.pickle, "dump", lambda *_args: events.append(("save", "if"))
+    )
+    monkeypatch.setattr(
+        training,
+        "salvar_lstm",
+        lambda *_args, **_kwargs: events.append(("save", "lstm")),
+    )
+
+    report = training.run_ablacao()
+
+    assert [event[0] for event in events] == [
+        "read",
+        "final_if",
+        "final_lstm",
+        "save",
+        "save",
+        "read",
+        "evaluate_test",
+        "evaluate_test",
+    ]
+    assert events[1][1:] == (
+        training.FINAL_IF_CONFIG,
+        training.ABLACAO_IF_FEATURE_NAMES,
+    )
+    assert events[2][1:] == (
+        training.FINAL_LSTM_CONFIG,
+        training.ABLACAO_LSTM_FEATURE_NAMES,
+    )
+    assert events.count(("read", ">=")) == 1
+    assert report["status"] == "completed"
+    assert report["test_read_count"] == 1
+    assert report["test_read_after_final_refit"] is True
+    assert report["feature_policy_version"] == "pre_execution_causal_v2"
+    for result in report["models"].values():
+        assert "_ablacao" in result["model_path"]
+        assert "DIAG_v1" not in result["model_path"]
+    assert json.loads(report_path.read_text("utf-8"))["status"] == "completed"
+
+    with pytest.raises(RuntimeError, match="já foi lido"):
+        training.run_ablacao()
+    assert events.count(("read", ">=")) == 1

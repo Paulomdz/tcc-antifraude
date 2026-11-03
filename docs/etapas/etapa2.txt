@@ -1,81 +1,81 @@
 ETAPA 2 — RETREINO COM POLÍTICA ANTI-VAZAMENTO
 
-Estado: treino final concluído para IF, LSTM e GNN; validação da API com os artefatos reais concluída; ablação NÃO executada. Commit de código: 94eb71a. Relatório: commit separado.
+Estado: concluída. Treino final de IF, LSTM e GNN, ablação de IF e LSTM, e validação da API com os artefatos reais. Commit de código do retreino: 94eb71a.
 
 1. POLÍTICA VIGENTE
 
-- Features: 18, sem IDs e sem saldos pós-transação. Removidas emptied_origin, balance_mismatch_orig e balance_mismatch_dest, por usarem saldo depois da transação.
+- Features: 18, sem IDs e sem saldos pós-transação. Removidas emptied_origin, balance_mismatch_orig e balance_mismatch_dest.
 - Split temporal: treino com step < 550 (335.973 linhas); validação com 550 a 599 (30.677); treino completo com step < 600 (366.650); teste com step >= 600 (87.467).
-- Seleção de configuração e de limiar: PR-AUC e F1 na validação. O teste foi lido uma única vez, depois do retreino final, em cada modelo.
+- Seleção de configuração e de limiar pela validação (PR-AUC e F1). O teste foi lido uma única vez por execução, depois do retreino final.
 - Baseline de acaso na validação: PR-AUC 0,053884 (1.653 de 30.677).
 
 2. GRADE IF E LSTM (VALIDAÇÃO)
 
-- Arquivo: reports/etapa2_grid_v2.csv (18 linhas, sem erros).
-- Fim de linha convertido de CRLF para LF nesse arquivo. Os valores não mudaram.
+- Arquivo: reports/etapa2_grid_v2.csv (18 linhas, sem erros). Fim de linha convertido de CRLF para LF; valores inalterados.
 - IF escolhido: n_estimators=100, max_samples=auto, contamination=0,056. PR-AUC de validação: 0,6627.
 - LSTM escolhida: hidden_size=32, dropout=0,1, lr=1e-3, num_layers=2. PR-AUC de validação: 0,4065.
-- A grade antiga, com vazamento, está em reports/etapa2_grid_diagnostico_v1.csv. Não foi usada para nenhuma decisão e não está no commit.
+- A grade antiga, com vazamento, está em reports/etapa2_grid_diagnostico_v1.csv. Não foi usada para decisão e não está versionada.
 
 3. RETREINO FINAL
 
 Isolation Forest:
-- PR-AUC: validação 0,6626; teste 0,6881.
-- Threshold: 0,5152, escolhido pelo F1 da validação.
-- Tempo de treino: 3,8 s. Pico de RAM: 1,29 GiB.
+- PR-AUC: validação 0,6626; teste 0,6881. Threshold 0,5152 (F1 da validação).
+- Tempo de treino 3,8 s. RAM pico 1,29 GiB.
 - Artefato: src/modelos/modelos_salvos/isolation_forest.pkl.
 
 LSTM:
-- PR-AUC: validação 0,4065; teste 0,3577.
-- Threshold: 0,7408, escolhido pelo F1 da validação. No teste: precisão 0,949 e revocação 0,230.
-- Melhor época: 9. Tempo de treino: 128 s. Pico de RAM: 1,94 GiB. Pico de VRAM: 0,07 GiB.
+- PR-AUC: validação 0,4065; teste 0,3577. Threshold 0,7408 (F1 da validação). No teste: precisão 0,949 e revocação 0,230.
+- Melhor época 9. Tempo de treino 128 s. RAM pico 1,94 GiB. VRAM pico 0,07 GiB.
+- Arquitetura bidirecional com atenção, sobre janelas causais de 5 transações por conta. A janela usa só transações de steps estritamente anteriores ao alvo. Verificado pelo teste test_lstm_janela_so_com_passado_estrito.
+- O código que gerou o modelo é o do commit 94eb71a: arquitetura_lstm.py tem última modificação às 12:52:32, antes do retreino (14:27:54).
 - Artefato: src/modelos/modelos_salvos/lstm_model.pt.
 
 GNN (configuração única, por restrição de tempo):
-- Config: hidden_dim=32, dropout=0,1, lr=1e-3, num_layers=2, batch=4096, fanouts=(10, 5).
-- Limite: máximo de 10 épocas, com parada antecipada pela PR-AUC de validação.
-- Resultado: o limite de 10 épocas foi atingido sem parada. A melhor época foi a 10, com PR-AUC de validação ainda subindo (0,3367). O modelo NÃO convergiu.
-- PR-AUC: validação 0,3367; teste 0,4081. O teste ficou acima da validação; esse valor não foi usado para nenhuma escolha.
-- Threshold: 0,8248, escolhido pelo F1 da validação.
-- Tempo: 3.230 s no total (seleção 1.455 s; métricas de validação 85 s; retreino final 1.642 s; teste 46 s).
-- Pico de RAM: 2,38 GiB. Pico de VRAM: 2,19 GiB (RTX 4060 Laptop, 8 GB).
+- Config: hidden_dim=32, dropout=0,1, lr=1e-3, num_layers=2, batch=4096, fanouts=(10, 5). Máximo de 10 épocas com parada antecipada pela PR-AUC de validação.
+- O limite de 10 épocas foi atingido sem parada. A melhor época foi a 10, com PR-AUC de validação ainda subindo (0,3367). O modelo NÃO convergiu.
+- PR-AUC: validação 0,3367; teste 0,4081. Threshold 0,8248 (F1 da validação). O valor de teste não foi usado para nenhuma escolha.
+- Tempo total 3.230 s (seleção 1.455 s; métricas 85 s; retreino final 1.642 s; teste 46 s). RAM pico 2,38 GiB. VRAM pico 2,19 GiB.
+- Avisos de alocação CUDA com nova tentativa durante o treino; sem erro.
+- Medição prévia: 145 s a 147 s por época (83 batches). A medição rodou duas vezes por engano no mesmo log; os resultados concordam.
 - Artefato: src/modelos/modelos_salvos/gnn_model.pt.
-- Durante o treino, a CUDA emitiu avisos de alocação com nova tentativa. O treino seguiu sem erro, com pouca memória livre na GPU.
 
-Medição de época (antes do treino final): 83 batches, 145 s a 147 s por época, batch 4096. Essa medição foi feita duas vezes por engano, escrevendo no mesmo log; os dois resultados concordam (perda média 1,133002).
+4. ABLAÇÃO (sem amount_to_balance_ratio)
 
-4. ABLAÇÃO
-
-- NÃO executada. Os arquivos *_ablation_final.json e os modelos *_ablation* de 1º de novembro usam as features removidas, com vazamento. Foram renomeados com o prefixo DIAG_v1_ e não entram no relatório.
-- Se for executada, precisa usar a política final, sem amount_to_balance_ratio.
+- Executada com a flag --ablacao, política pre_execution_causal_v2, sem GNN e sem Gemini. Tempo 98,2 s; RAM pico 1,95 GiB. Teste lido uma vez.
+- Features: IF com 17 (as 18 menos a razão); LSTM com 16 (a LSTM usa log_amount e não usa amount; retira-se só a razão, para medir uma variável por vez).
+- IF: PR-AUC de validação 0,6626 → 0,3486; teste 0,6881 → 0,3641.
+- LSTM: PR-AUC de validação 0,4065 → 0,3567; teste 0,3577 → 0,3462.
+- Conclusão: o IF depende fortemente da razão valor/saldo, e a LSTM perde pouco, porque o histórico da conta compensa parte da informação. Os dois seguem bem acima do acaso.
+- GNN fora da ablação, por custo de tempo (~55 min).
+- Relatório: reports/etapa2_ablacao.json. Arquivos antigos de ablação (política com vazamento) têm prefixo DIAG_v1_ e não são usados.
 
 5. VALIDAÇÃO DA API (artefatos reais, modo fast, sem chave Gemini)
 
-- GET /config: funciona sem chave, limite de lote 500.
+- GET /config funciona sem chave; limite de lote 500.
 - POST /analise_lote com 500 transações: HTTP 200, llm_usado=NAO, erros=0.
-- POST /analise_lote com 501 transações: HTTP 422, mensagem "Lote máximo de 500 transações.".
-- POST /analise_transacao sem chave: HTTP 503, mensagem exata do D7.
-- Limitação: as 500 transações do teste eram sintéticas e iguais, só com IDs diferentes. A validação mostra que o contrato da API funciona; não mostra desempenho dos modelos.
+- POST /analise_lote com 501: HTTP 422, mensagem "Lote máximo de 500 transações.".
+- POST /analise_transacao sem chave: HTTP 503 com a mensagem exata do D7.
+- Limitação: o lote de 500 usou transações sintéticas iguais, com IDs diferentes. Valida o contrato da API, não o desempenho dos modelos.
 
 6. TESTES
 
-- Suíte oficial, sem testes live: 96 passed, 0 failed, 1 deselected. Cobertura: 90,88%.
-- Número oficial para todos os documentos: 96. Execuções anteriores (82 passed) estão obsoletas.
-- Nenhuma chamada ao Gemini nesta etapa. Antes, duas chamadas reais ocorreram por engano em testes, sem marcador live. A chave foi rotacionada.
+- Suíte oficial, sem testes live: 100 passed, 1 deselected. Cobertura 90,88%.
+- Número oficial para todos os documentos: 100. Contagens anteriores (72, 82, 96) estão obsoletas.
+- Nenhuma chamada ao Gemini nesta etapa. Antes, duas chamadas reais ocorreram por engano, sem marcador live; a chave foi revogada.
 
-7. CÓDIGO
+7. CÓDIGO E REGISTRO
 
-- Commit 94eb71a: "etapa2: retreino com política anti-vazamento".
-- Arquivos: treinar_modelos.py (modo --final-if-lstm e --final-gnn), tests/test_treinamento.py, arquitetura_lstm.py (sequência causal por conta e artefato usado pelo treino e pela API), inferencia_modelos.py (carregamento e execução dos três modelos reais), .gitignore, e os JSONs de resultado final.
-- Fora deste commit: dashboard, orquestração, scripts run_*, documentação de planejamento e logs.
+- Commit 94eb71a: modos --final-if-lstm e --final-gnn, arquitetura_lstm.py (janelas causais por conta), inferencia_modelos.py (carregamento dos três modelos reais), .gitignore, testes e JSONs finais.
+- Depois do commit: modo --ablacao e testes de ablação em treinar_modelos.py e test_treinamento.py; teste da janela causal em test_modelos.py.
+- Alterações de código registradas em docs/MUDANCAS.md, incluindo uma alteração feita sem aprovação e depois removida.
 
 8. LIMITAÇÕES
 
-- GNN não convergiu no limite de 10 épocas. Os resultados são parciais e precisam ser lidos com essa ressalva.
-- Ablação sem amount_to_balance_ratio não executada.
-- Base sintética: os padrões de fraude seguem as regras de geração e podem não cobrir toda a variabilidade real.
-- LSTM com threshold da validação tem precisão alta e revocação baixa no teste (0,949 e 0,230).
-- Validação da API com lote sintético, não com dados reais.
-- Grade v2 com fim de linha convertido (CRLF para LF).
+- GNN não convergiu no limite de 10 épocas; resultados parciais.
+- GNN sem grade e sem ablação, por restrição de tempo.
+- O desempenho do IF depende fortemente da razão valor/saldo.
+- Base sintética: os padrões de fraude seguem as regras de geração.
+- LSTM com precisão alta e revocação baixa no teste (0,949 e 0,230).
+- Validação da API com lote sintético.
 
-ETAPA 2: pronta para revisão. Aguardando "ok" para fechar a etapa.
+ETAPA 2 concluída.

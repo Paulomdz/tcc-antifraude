@@ -1,0 +1,196 @@
+{
+  "status": "completed",
+  "seed": 42,
+  "feature_policy_version": "pre_execution_causal_v2",
+  "removed_feature": "amount_to_balance_ratio",
+  "feature_names": {
+    "isolation_forest": [
+      "amount",
+      "is_incoming",
+      "type_PIX_P2P",
+      "type_PIX_QRCODE",
+      "type_PIX_SAQUE",
+      "type_PIX_TROCO",
+      "type_PIX_AUTOMATICO",
+      "type_CARTAO_ECOMMERCE",
+      "type_CARTAO_PRESENCIAL",
+      "type_TEF",
+      "type_BOLETO",
+      "type_SAQUE",
+      "type_TED",
+      "type_EMPRESTIMO",
+      "hora_norm",
+      "log_amount",
+      "is_madrugada"
+    ],
+    "lstm": [
+      "log_amount",
+      "is_incoming",
+      "type_PIX_P2P",
+      "type_PIX_QRCODE",
+      "type_PIX_SAQUE",
+      "type_PIX_TROCO",
+      "type_PIX_AUTOMATICO",
+      "type_CARTAO_ECOMMERCE",
+      "type_CARTAO_PRESENCIAL",
+      "type_TEF",
+      "type_BOLETO",
+      "type_SAQUE",
+      "type_TED",
+      "type_EMPRESTIMO",
+      "hora_norm",
+      "is_madrugada"
+    ]
+  },
+  "config": {
+    "isolation_forest": {
+      "n_estimators": 100,
+      "max_samples": "auto",
+      "contamination": 0.056
+    },
+    "lstm": {
+      "hidden_size": 32,
+      "dropout": 0.1,
+      "lr": 0.001,
+      "num_layers": 2
+    }
+  },
+  "split_rows": {
+    "train_core": 335973,
+    "validation": 30677,
+    "train_complete": 366650,
+    "test": 87467
+  },
+  "test_read_count": 1,
+  "models": {
+    "isolation_forest": {
+      "config": {
+        "n_estimators": 100,
+        "max_samples": "auto",
+        "contamination": 0.056
+      },
+      "feature_names": [
+        "amount",
+        "is_incoming",
+        "type_PIX_P2P",
+        "type_PIX_QRCODE",
+        "type_PIX_SAQUE",
+        "type_PIX_TROCO",
+        "type_PIX_AUTOMATICO",
+        "type_CARTAO_ECOMMERCE",
+        "type_CARTAO_PRESENCIAL",
+        "type_TEF",
+        "type_BOLETO",
+        "type_SAQUE",
+        "type_TED",
+        "type_EMPRESTIMO",
+        "hora_norm",
+        "log_amount",
+        "is_madrugada"
+      ],
+      "metrics": {
+        "train": {
+          "pr_auc": 0.3427805287849606,
+          "precision": 0.3859990432147983,
+          "recall": 0.6481550902372409,
+          "f1": 0.4838490445350604,
+          "threshold": 0.41372003428807674
+        },
+        "validation": {
+          "pr_auc": 0.34863389528036975,
+          "precision": 0.38606930346517326,
+          "recall": 0.6672716273442226,
+          "f1": 0.4891352549889135,
+          "threshold": 0.41372003428807674
+        },
+        "test": {
+          "pr_auc": 0.36414207168645035,
+          "precision": 0.40732919254658384,
+          "recall": 0.6663279821174558,
+          "f1": 0.5055893917199907,
+          "threshold": 0.41372003428807674
+        }
+      },
+      "decision_threshold": 0.41372003428807674,
+      "threshold_selection": "validation_f1",
+      "selection_fit_seconds": 2.3276074989989866,
+      "final_fit_seconds": 1.2778997019922826,
+      "training_seconds": 4.12120357400272,
+      "ram_free_before_gib": 0.2193145751953125,
+      "ram_available_before_gib": 2.5390968322753906,
+      "peak_ram_gib": 1.2995567321777344,
+      "vram_free_before_gib": 7.528076171875,
+      "peak_vram_gib": 0.0,
+      "model_path": "/home/Paulomdz/UniLinux/TCClinux/tcc-antifraude-main/src/modelos/modelos_salvos/isolation_forest_ablacao.pkl"
+    },
+    "lstm": {
+      "config": {
+        "hidden_size": 32,
+        "dropout": 0.1,
+        "lr": 0.001,
+        "num_layers": 2
+      },
+      "feature_names": [
+        "log_amount",
+        "is_incoming",
+        "type_PIX_P2P",
+        "type_PIX_QRCODE",
+        "type_PIX_SAQUE",
+        "type_PIX_TROCO",
+        "type_PIX_AUTOMATICO",
+        "type_CARTAO_ECOMMERCE",
+        "type_CARTAO_PRESENCIAL",
+        "type_TEF",
+        "type_BOLETO",
+        "type_SAQUE",
+        "type_TED",
+        "type_EMPRESTIMO",
+        "hora_norm",
+        "is_madrugada"
+      ],
+      "metrics": {
+        "train": {
+          "pr_auc": 0.2955755424706557,
+          "precision": 0.3601374033882426,
+          "recall": 0.24704118245595244,
+          "f1": 0.2930563496601232,
+          "threshold": 0.7786648869514465
+        },
+        "validation": {
+          "pr_auc": 0.35666629792309784,
+          "precision": 0.9066985645933014,
+          "recall": 0.22928009679370842,
+          "f1": 0.3660067600193143,
+          "threshold": 0.7786648869514465
+        },
+        "test": {
+          "pr_auc": 0.3461825085810394,
+          "precision": 0.8986928104575164,
+          "recall": 0.2235318024791709,
+          "f1": 0.3580146460537022,
+          "threshold": 0.7786648869514465
+        }
+      },
+      "decision_threshold": 0.7786648869514465,
+      "threshold_selection": "validation_f1",
+      "best_epoch": 6,
+      "selection_fit_seconds": 47.63743032497587,
+      "final_fit_seconds": 38.34229985400452,
+      "training_seconds": 91.80659927500528,
+      "ram_free_before_gib": 0.17084121704101562,
+      "ram_available_before_gib": 2.324016571044922,
+      "peak_ram_gib": 1.9365081787109375,
+      "vram_free_before_gib": 7.528076171875,
+      "peak_vram_gib": 0.07063627243041992,
+      "positive_class_weight_from_train_core": 16.992448990521073,
+      "final_fit_device": "cuda",
+      "model_path": "/home/Paulomdz/UniLinux/TCClinux/tcc-antifraude-main/src/modelos/modelos_salvos/lstm_model_ablacao.pt"
+    }
+  },
+  "test_step_min": 600,
+  "test_step_max": 743,
+  "test_read_after_final_refit": true,
+  "test_evaluation_seconds": 1.6258367379778065,
+  "elapsed_seconds": 98.21509975998197,
+  "peak_ram_gib": 1.9521903991699219
+}

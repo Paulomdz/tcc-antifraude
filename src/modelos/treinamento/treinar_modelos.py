@@ -100,6 +100,14 @@ FINAL_GNN_CONFIG = {
     "num_layers": 2,
 }
 FINAL_GNN_REPORT_PATH = REPORT_PATH.parent / "etapa2_final_gnn.json"
+ABLACAO_REPORT_PATH = REPORT_PATH.parent / "etapa2_ablacao.json"
+ABLACAO_REMOVED_FEATURE = "amount_to_balance_ratio"
+ABLACAO_IF_FEATURE_NAMES = [
+    name for name in IF_FEATURE_NAMES if name != ABLACAO_REMOVED_FEATURE
+]
+ABLACAO_LSTM_FEATURE_NAMES = [
+    name for name in LSTM_FEATURE_NAMES if name != ABLACAO_REMOVED_FEATURE
+]
 
 
 def _set_seed() -> None:
@@ -1221,8 +1229,11 @@ def _nn_candidate_search(
 
 
 def _train_final_if(
-    splits: dict[str, pd.DataFrame], config: dict[str, Any]
+    splits: dict[str, pd.DataFrame],
+    config: dict[str, Any],
+    feature_names: list[str] | None = None,
 ) -> tuple[IsolationForest, dict[str, Any]]:
+    feature_names = feature_names or IF_FEATURE_NAMES
     ram_before = _ram_snapshot()
     vram_before = _vram_snapshot()
     if ram_before["available_gib"] < 2:
@@ -1232,7 +1243,7 @@ def _train_final_if(
     _reset_vram_peak()
     with _PeakRSSMonitor() as memory_monitor:
         matrices = {
-            key: _feature_matrix(splits[key], IF_FEATURE_NAMES)
+            key: _feature_matrix(splits[key], feature_names)
             for key in ("train", "val", "train_completo")
         }
         labels = {
@@ -1275,7 +1286,7 @@ def _train_final_if(
     final_model.feature_policy_version_ = FEATURE_POLICY_VERSION
     return final_model, {
         "config": config,
-        "feature_names": IF_FEATURE_NAMES,
+        "feature_names": feature_names,
         "metrics": metrics,
         "decision_threshold": decision_threshold,
         "threshold_selection": "validation_f1",
@@ -1291,8 +1302,11 @@ def _train_final_if(
 
 
 def _train_final_lstm(
-    splits: dict[str, pd.DataFrame], config: dict[str, Any]
+    splits: dict[str, pd.DataFrame],
+    config: dict[str, Any],
+    feature_names: list[str] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
+    feature_names = feature_names or LSTM_FEATURE_NAMES
     if not TORCH_AVAILABLE or torch is None:
         raise RuntimeError("O retreino final LSTM exige PyTorch.")
     ram_before = _ram_snapshot()
@@ -1306,16 +1320,16 @@ def _train_final_lstm(
         positive_weight = _class_positive_weight(
             splits["train"]["isFraud"].to_numpy(dtype=np.int64)
         )
-        loaders = _lstm_loaders(splits, LSTM_FEATURE_NAMES)
+        loaders = _lstm_loaders(splits, feature_names)
         selection_started = time.perf_counter()
         candidate = _train_lstm_candidate(
-            loaders, LSTM_FEATURE_NAMES, config, positive_weight
+            loaders, feature_names, config, positive_weight
         )
         selection_seconds = time.perf_counter() - selection_started
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         selection_model = LSTMFraudDetector(
-            input_size=len(LSTM_FEATURE_NAMES),
+            input_size=len(feature_names),
             hidden_size=config["hidden_size"],
             dropout=config["dropout"],
             num_layers=config["num_layers"],
@@ -1350,7 +1364,7 @@ def _train_final_lstm(
         final_fit_started = time.perf_counter()
         final_model, final_device = _refit_lstm(
             loaders,
-            LSTM_FEATURE_NAMES,
+            feature_names,
             config,
             positive_weight,
             best_epoch,
@@ -1361,7 +1375,7 @@ def _train_final_lstm(
 
     return final_model, {
         "config": config,
-        "feature_names": LSTM_FEATURE_NAMES,
+        "feature_names": feature_names,
         "metrics": metrics,
         "decision_threshold": decision_threshold,
         "threshold_selection": "validation_f1",
@@ -1383,8 +1397,11 @@ def _evaluate_final_if_test(
     model: IsolationForest,
     test_frame: pd.DataFrame,
     result: dict[str, Any],
+    feature_names: list[str] | None = None,
 ) -> dict[str, float]:
-    test_features = _feature_matrix(test_frame, IF_FEATURE_NAMES)
+    test_features = _feature_matrix(
+        test_frame, feature_names or IF_FEATURE_NAMES
+    )
     test_labels = test_frame["isFraud"].to_numpy(dtype=np.int64)
     test_scores = _if_scores(model, test_features)
     return _metrics(
@@ -1397,13 +1414,14 @@ def _evaluate_final_lstm_test(
     test_frame: pd.DataFrame,
     context: pd.DataFrame,
     result: dict[str, Any],
+    feature_names: list[str] | None = None,
 ) -> dict[str, float]:
     if torch is None:
         raise RuntimeError("O retreino final LSTM exige PyTorch.")
     test_dataset = TransactionSequenceDataset(
         test_frame,
         seq_length=LSTM_SEQUENCE_LENGTH,
-        feature_cols=LSTM_FEATURE_NAMES,
+        feature_cols=feature_names or LSTM_FEATURE_NAMES,
         context_df=context,
     )
     test_loader = DataLoader(
@@ -1560,6 +1578,186 @@ def run_final_if_lstm() -> dict[str, Any]:
     del test_context, test_frame, splits, if_model, lstm_model
     gc.collect()
     print(f"Relatório final IF/LSTM salvo em {FINAL_IF_LSTM_REPORT_PATH}")
+    return report
+
+
+def _write_ablacao_report(report: dict[str, Any]) -> None:
+    ABLACAO_REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = ABLACAO_REPORT_PATH.with_suffix(".tmp")
+    temporary_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(ABLACAO_REPORT_PATH)
+
+
+def run_ablacao() -> dict[str, Any]:
+    """Treina IF/LSTM sem a razão de saldo e lê o teste uma única vez."""
+    if ABLACAO_REPORT_PATH.exists():
+        previous = json.loads(ABLACAO_REPORT_PATH.read_text(encoding="utf-8"))
+        if previous.get("test_read_count", 0) >= 1:
+            raise RuntimeError(
+                "O teste da ablação já foi lido; arquive "
+                f"{ABLACAO_REPORT_PATH} antes de executar de novo."
+            )
+    if not PROCESSED_DATA_PATH.exists():
+        raise FileNotFoundError(
+            f"Dados processados não encontrados: {PROCESSED_DATA_PATH}."
+        )
+    if not TORCH_AVAILABLE or torch is None or not torch.cuda.is_available():
+        raise RuntimeError("A ablação exige PyTorch com CUDA para a LSTM.")
+
+    print(
+        f"Ablação: device=cuda; política={FEATURE_POLICY_VERSION}; "
+        f"removida={ABLACAO_REMOVED_FEATURE}; GNN=disabled; Gemini=not_called",
+        flush=True,
+    )
+    print(
+        f"Features IF ({len(ABLACAO_IF_FEATURE_NAMES)}): "
+        f"{ABLACAO_IF_FEATURE_NAMES}",
+        flush=True,
+    )
+    print(
+        f"Features LSTM ({len(ABLACAO_LSTM_FEATURE_NAMES)}): "
+        f"{ABLACAO_LSTM_FEATURE_NAMES}",
+        flush=True,
+    )
+    required_columns = [
+        "step",
+        "type",
+        "amount",
+        "nameOrig",
+        "nameDest",
+        "oldbalanceOrg",
+        "isFraud",
+    ]
+    started = time.perf_counter()
+    with _PeakRSSMonitor() as memory_monitor:
+        train_frame = pd.read_parquet(
+            PROCESSED_DATA_PATH,
+            columns=required_columns,
+            filters=[("step", "<", 600)],
+        )
+        if not train_frame["step"].lt(600).all():
+            raise ValueError("A leitura pré-teste incluiu step >= 600.")
+        train_frame = train_frame.reset_index(drop=True)
+        splits = temporal_split(train_frame)
+        if not splits["test"].empty:
+            raise RuntimeError(
+                "O split pré-teste não pode conter transações de teste."
+            )
+        splits["context"] = train_frame.sort_values(
+            "step", kind="stable"
+        ).drop(columns=["isFraud"])
+        del train_frame
+        gc.collect()
+
+        if_model, if_result = _train_final_if(
+            splits, dict(FINAL_IF_CONFIG), ABLACAO_IF_FEATURE_NAMES
+        )
+        lstm_model, lstm_result = _train_final_lstm(
+            splits, dict(FINAL_LSTM_CONFIG), ABLACAO_LSTM_FEATURE_NAMES
+        )
+
+        # O pickle do IF não guarda nomes de colunas; sem isto, um modelo de
+        # 17 features não se distingue do principal ao ser carregado.
+        if_model.ablacao_feature_names_ = list(ABLACAO_IF_FEATURE_NAMES)
+        MODEL_DIR.mkdir(parents=True, exist_ok=True)
+        if_model_path = MODEL_DIR / "isolation_forest_ablacao.pkl"
+        with if_model_path.open("wb") as model_file:
+            pickle.dump(if_model, model_file)
+        if_result["model_path"] = str(if_model_path)
+        lstm_model_path = MODEL_DIR / "lstm_model_ablacao.pt"
+        salvar_lstm(
+            lstm_model,
+            str(lstm_model_path),
+            metadata={
+                "feature_names": ABLACAO_LSTM_FEATURE_NAMES,
+                "seq_length": LSTM_SEQUENCE_LENGTH,
+                "seed": SEED,
+                "training_step_max": 599,
+                "selected_config": FINAL_LSTM_CONFIG,
+                "best_epoch": lstm_result["best_epoch"],
+                "decision_threshold": lstm_result["decision_threshold"],
+                "threshold_selection": "validation_f1",
+                "feature_policy_version": FEATURE_POLICY_VERSION,
+            },
+        )
+        lstm_result["model_path"] = str(lstm_model_path)
+        final_fit_completed_at = time.perf_counter()
+
+        report = {
+            "status": "test_read_started",
+            "seed": SEED,
+            "feature_policy_version": FEATURE_POLICY_VERSION,
+            "removed_feature": ABLACAO_REMOVED_FEATURE,
+            "feature_names": {
+                "isolation_forest": ABLACAO_IF_FEATURE_NAMES,
+                "lstm": ABLACAO_LSTM_FEATURE_NAMES,
+            },
+            "config": {
+                "isolation_forest": FINAL_IF_CONFIG,
+                "lstm": FINAL_LSTM_CONFIG,
+            },
+            "split_rows": {
+                "train_core": len(splits["train"]),
+                "validation": len(splits["val"]),
+                "train_complete": len(splits["train_completo"]),
+            },
+            "test_read_count": 1,
+            "models": {"isolation_forest": if_result, "lstm": lstm_result},
+        }
+        # Registrado antes da leitura: uma queda durante a avaliação não pode
+        # liberar uma segunda leitura do teste na próxima execução.
+        _write_ablacao_report(report)
+
+        test_started = time.perf_counter()
+        test_frame = pd.read_parquet(
+            PROCESSED_DATA_PATH,
+            columns=required_columns,
+            filters=[("step", ">=", 600)],
+        )
+        if test_frame.empty or not test_frame["step"].ge(600).all():
+            raise ValueError("A leitura do teste exige somente step >= 600.")
+        test_frame.index = pd.RangeIndex(
+            start=len(splits["context"]),
+            stop=len(splits["context"]) + len(test_frame),
+        )
+        test_context = pd.concat(
+            (splits["context"], test_frame.drop(columns=["isFraud"]))
+        )
+        if_result["metrics"]["test"] = _evaluate_final_if_test(
+            if_model, test_frame, if_result, ABLACAO_IF_FEATURE_NAMES
+        )
+        lstm_result["metrics"]["test"] = _evaluate_final_lstm_test(
+            lstm_model,
+            test_frame,
+            test_context,
+            lstm_result,
+            ABLACAO_LSTM_FEATURE_NAMES,
+        )
+        report["split_rows"]["test"] = len(test_frame)
+        report["test_step_min"] = int(test_frame["step"].min())
+        report["test_step_max"] = int(test_frame["step"].max())
+        report["test_read_after_final_refit"] = (
+            final_fit_completed_at < test_started
+        )
+        report["test_evaluation_seconds"] = time.perf_counter() - test_started
+        del test_context, test_frame, splits, if_model, lstm_model
+        gc.collect()
+
+    report["status"] = "completed"
+    report["elapsed_seconds"] = time.perf_counter() - started
+    report["peak_ram_gib"] = memory_monitor.peak_gib
+    _write_ablacao_report(report)
+    for name, result in report["models"].items():
+        print(f"Ablação {name}: {result['metrics']}", flush=True)
+    print(
+        f"Relatório da ablação salvo em {ABLACAO_REPORT_PATH}; "
+        f"tempo={report['elapsed_seconds']:.1f}s; "
+        f"RAM pico={report['peak_ram_gib']:.2f} GiB",
+        flush=True,
+    )
     return report
 
 
@@ -3279,7 +3477,7 @@ def grade_if_lstm_only(
     return results
 
 
-if __name__ == "__main__":
+def _cli(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--smoke-only",
@@ -3312,7 +3510,21 @@ if __name__ == "__main__":
         default=None,
         help="Caminho do grid seletivo (deve ser etapa2_grid_v2.csv).",
     )
-    arguments = parser.parse_args()
+    parser.add_argument(
+        "--ablacao",
+        action="store_true",
+        help="Treina somente IF/LSTM sem amount_to_balance_ratio e lê o teste uma vez ao final.",
+    )
+    arguments = parser.parse_args(argv)
+    if arguments.ablacao and (
+        arguments.smoke_only
+        or arguments.grade_if_lstm
+        or arguments.primeiro_passe
+        or arguments.grid_path is not None
+        or arguments.final_if_lstm
+        or arguments.final_gnn
+    ):
+        parser.error("--ablacao não pode ser combinado com outras flags.")
     if arguments.final_if_lstm and (
         arguments.smoke_only
         or arguments.grade_if_lstm
@@ -3337,7 +3549,9 @@ if __name__ == "__main__":
         parser.error("--primeiro-passe exige --grade-if-lstm.")
     if arguments.smoke_only and arguments.grade_if_lstm:
         parser.error("--smoke-only e --grade-if-lstm são mutuamente exclusivos.")
-    if arguments.final_if_lstm:
+    if arguments.ablacao:
+        run_ablacao()
+    elif arguments.final_if_lstm:
         run_final_if_lstm()
     elif arguments.final_gnn:
         run_final_gnn()
@@ -3352,3 +3566,7 @@ if __name__ == "__main__":
         parser.error("--grid-path exige --grade-if-lstm.")
     else:
         main()
+
+
+if __name__ == "__main__":
+    _cli()

@@ -1,3 +1,5 @@
+import math
+
 import pandas as pd
 import pytest
 import torch
@@ -75,6 +77,42 @@ def test_lstm_windows_only_include_strictly_prior_steps_from_same_account():
     assert torch.count_nonzero(same_step_sibling) == 1
     assert torch.count_nonzero(other_account) == 0
     assert torch.count_nonzero(step_3) == 3
+
+
+@pytest.mark.skipif(not lstm.TORCH_AVAILABLE, reason="PyTorch não instalado")
+def test_lstm_janela_so_com_passado_estrito():
+    steps = [1, 1, 2, 3, 3, 5]
+    sample = pd.DataFrame(
+        [
+            {
+                "step": step,
+                "amount": math.expm1(line_index + 1),
+                "type": "PIX_P2P",
+                "nameOrig": "A",
+                "nameDest": "X",
+                "oldbalanceOrg": 20.0,
+                "isFraud": 0,
+            }
+            for line_index, step in enumerate(steps)
+        ]
+    )
+    dataset = lstm.TransactionSequenceDataset(
+        sample, feature_cols=["log_amount"]
+    )
+
+    account_start = dataset.account_offsets[0]
+    account_end = dataset.account_offsets[1]
+    account_steps = dataset.steps[dataset.account_members[account_start:account_end]]
+    assert account_steps.tolist() == sorted(steps)
+
+    for target_index, target_step in enumerate(steps):
+        window, _label = dataset[target_index]
+        source_indices = [
+            round(float(value)) - 1 for value in window[:, 0] if value > 0
+        ]
+
+        assert all(steps[source_index] < target_step for source_index in source_indices)
+        assert target_index not in source_indices
 
 
 @pytest.mark.skipif(not lstm.TORCH_AVAILABLE, reason="PyTorch não instalado")

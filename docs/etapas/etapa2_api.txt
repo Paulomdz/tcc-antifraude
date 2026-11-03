@@ -111,7 +111,7 @@ Critérios de aceite e evidências
 - ✅ git diff --check: terminou com código 0, sem erros.
 - ✅ Suíte completa não-live, executada nesta continuação:
   `.venv/bin/python -m pytest -q -m 'not live'`
-  Saída: 82 passed, 1 deselected, 1 warning in 56.36s; cobertura total 91.47%
+  Saída: 100 passed, 1 deselected; cobertura total 90,88%
   (limite 80%).
 
 Limitações
