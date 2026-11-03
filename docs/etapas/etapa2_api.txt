@@ -61,7 +61,7 @@ Decisões
 
 Critérios de aceite e evidências
 - ✅ Import da orquestração resolve o módulo real.
-  Comando: .venv/bin/python -m pytest -v -o addopts='' [seletores da API]
+  Comando: .venv/bin/python -m pytest -q -o addopts=--no-cov -m 'not live' [seletores da API]
   Saída: test_get_orchestrator_imports_the_actual_ascii_package PASSED.
 - ✅ Sem chave, POST /analise_transacao retorna 503 e a mensagem exata D7.
   Saída: test_production_requires_gemini_key_with_exact_503[] PASSED e
@@ -115,9 +115,8 @@ Critérios de aceite e evidências
   (limite 80%).
 
 Limitações
-- A suíte completa registrada acima foi executada após a correção de features
-  da Etapa 1 e antes do contrato de upload; a validação posterior da API foi
-  focada nos 22 testes da API. Nenhuma chamada ao Gemini foi executada.
+- A suíte registrada (100 passed, 1 deselected) inclui os testes da API. Nenhuma
+  chamada ao Gemini foi executada.
 - O D13 do prompt usa uma grafia divergente; o diretório real e o import
   validado pelo teste são src/orquestacao/.
 - A busca textual por "fallback" mantém referências benignas no dashboard e

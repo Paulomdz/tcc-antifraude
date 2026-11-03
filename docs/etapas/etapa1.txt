@@ -1,3 +1,5 @@
+Documento histórico; contagens de testes e cobertura correspondem à data deste relatório.
+
 ETAPA 1 — DATASET, FEATURES E PRÉ-PROCESSAMENTO
 
 Escopo e estado dos commits

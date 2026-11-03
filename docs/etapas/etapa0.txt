@@ -1,3 +1,5 @@
+Documento histórico; contagens de testes e cobertura correspondem à data deste relatório.
+
 ETAPA 0 — AJUSTES ANTES DE CONTINUAR
 
 Escopo e preservação

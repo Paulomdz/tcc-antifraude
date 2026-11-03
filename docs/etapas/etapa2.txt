@@ -11,10 +11,12 @@ Estado: concluída. Treino final de IF, LSTM e GNN, ablação de IF e LSTM, e va
 
 2. GRADE IF E LSTM (VALIDAÇÃO)
 
-- Arquivo: reports/etapa2_grid_v2.csv (18 linhas, sem erros). Fim de linha convertido de CRLF para LF; valores inalterados.
+- Arquivo: reports/etapa2_grid_v2.csv (18 linhas, sem erros). Fim de linha convertido de CRLF para LF; valores não verificáveis pelo git.
 - IF escolhido: n_estimators=100, max_samples=auto, contamination=0,056. PR-AUC de validação: 0,6627.
 - LSTM escolhida: hidden_size=32, dropout=0,1, lr=1e-3, num_layers=2. PR-AUC de validação: 0,4065.
 - A grade antiga, com vazamento, está em reports/etapa2_grid_diagnostico_v1.csv. Não foi usada para decisão e não está versionada.
+- Cobertura da grade do IF: só 9 de 27 combinações foram executadas, todas com max_samples="auto". O código limita a grade a essas 9 com a flag --primeiro-passe; o log mostra 9 configurações, mas não registra o comando usado. reduced=False no log, sem explicação verificada no código. Logo, max_samples=0,5 e 0,8 não foram testados.
+- n_estimators=100 está na borda inferior da grade e teve a melhor PR-AUC; valores menores não foram testados.
 
 3. RETREINO FINAL
 
@@ -25,7 +27,7 @@ Isolation Forest:
 
 LSTM:
 - PR-AUC: validação 0,4065; teste 0,3577. Threshold 0,7408 (F1 da validação). No teste: precisão 0,949 e revocação 0,230.
-- Melhor época 9. Tempo de treino 128 s. RAM pico 1,94 GiB. VRAM pico 0,07 GiB.
+- Melhor época 9; 4 de 8 configurações com melhor época no teto de 10. A época de parada não foi registrada; os tempos sugerem que outras também rodaram até o teto. Tempo de treino 128 s. RAM pico 1,94 GiB. VRAM pico 0,07 GiB.
 - Arquitetura bidirecional com atenção, sobre janelas causais de 5 transações por conta. A janela usa só transações de steps estritamente anteriores ao alvo. Verificado pelo teste test_lstm_janela_so_com_passado_estrito.
 - O código que gerou o modelo é o do commit 94eb71a: arquitetura_lstm.py tem última modificação às 12:52:32, antes do retreino (14:27:54).
 - Artefato: src/modelos/modelos_salvos/lstm_model.pt.
@@ -37,6 +39,8 @@ GNN (configuração única, por restrição de tempo):
 - Tempo total 3.230 s (seleção 1.455 s; métricas 85 s; retreino final 1.642 s; teste 46 s). RAM pico 2,38 GiB. VRAM pico 2,19 GiB.
 - Avisos de alocação CUDA com nova tentativa durante o treino; sem erro.
 - Medição prévia: 145 s a 147 s por época (83 batches). A medição rodou duas vezes por engano no mesmo log; os resultados concordam.
+- Tentativa anterior abortada de forma preventiva: a checagem barrou o início com "RAM disponível abaixo de 2 GiB", antes do treino (reports/final_gnn_falhou_ram.log).
+- Execução interrompida: batch 1024, encerrada externamente por volta de 4min30s, antes do batch 50, sem época completa e sem PR-AUC (reports/gnn_epoca_completa.log). Os tempos desse log não são comparáveis aos do treino final (batch 4096).
 - Artefato: src/modelos/modelos_salvos/gnn_model.pt.
 
 4. ABLAÇÃO (sem amount_to_balance_ratio)
@@ -45,7 +49,7 @@ GNN (configuração única, por restrição de tempo):
 - Features: IF com 17 (as 18 menos a razão); LSTM com 16 (a LSTM usa log_amount e não usa amount; retira-se só a razão, para medir uma variável por vez).
 - IF: PR-AUC de validação 0,6626 → 0,3486; teste 0,6881 → 0,3641.
 - LSTM: PR-AUC de validação 0,4065 → 0,3567; teste 0,3577 → 0,3462.
-- Conclusão: o IF depende fortemente da razão valor/saldo, e a LSTM perde pouco, porque o histórico da conta compensa parte da informação. Os dois seguem bem acima do acaso.
+- Conclusão: o IF depende fortemente da razão valor/saldo, e a LSTM perde pouco. Hipótese não verificada: o histórico da conta compensaria parte da informação. Os dois seguem bem acima do acaso.
 - GNN fora da ablação, por custo de tempo (~55 min).
 - Relatório: reports/etapa2_ablacao.json. Arquivos antigos de ablação (política com vazamento) têm prefixo DIAG_v1_ e não são usados.
 
@@ -77,5 +81,7 @@ GNN (configuração única, por restrição de tempo):
 - Base sintética: os padrões de fraude seguem as regras de geração.
 - LSTM com precisão alta e revocação baixa no teste (0,949 e 0,230).
 - Validação da API com lote sintético.
+- Grade do IF parcial: 9 de 27 combinações, max_samples só "auto" e n_estimators=100 na borda inferior.
+- Comparação da LSTM limitada: 4 de 8 configurações com melhor época no teto de 10, possivelmente ainda melhorando.
 
 ETAPA 2 concluída.

@@ -179,15 +179,36 @@ pytest -m 'not live'
 python run_sistema_completo.py
 ```
 
+O comando de treino acima, sem flags, roda o pipeline completo (smoke, busca,
+retreino e ablação) e não serve para rodar só a ablação. Modos dedicados:
+
+```bash
+python -m src.modelos.treinamento.treinar_modelos --final-if-lstm
+python -m src.modelos.treinamento.treinar_modelos --final-gnn
+python -m src.modelos.treinamento.treinar_modelos --ablacao
+```
+
+- `--final-if-lstm`: retreina IF e LSTM com as configurações fixas e avalia o
+  teste ao final.
+- `--final-gnn`: treina a GNN com a configuração fixa, escolhe a época de maior
+  PR-AUC na validação (no máximo 10 épocas, paciência 2), retreina por esse
+  número de épocas e avalia o teste ao final.
+- `--ablacao`: treina só IF e LSTM sem `amount_to_balance_ratio` e lê o teste
+  uma vez. Recusa nova execução se `reports/etapa2_ablacao.json` já registrar
+  `test_read_count` igual ou maior que 1.
+
+**Limitação da GNN:** não convergiu em 10 épocas e foi treinada sem grade e sem
+ablação, por restrição de tempo.
+
 ### O que significa a cobertura dos testes
 
 A configuração exige pelo menos 80% para a suite passar. Alguns módulos de
 treinamento e definições de agentes estão explicitamente fora do cálculo em
 `.coveragerc`, por isso o percentual não representa cada linha de todo o
 projeto. A última execução completa não-live registrada nesta atualização
-resultou em **82 passed, 1 deselected, 1 warning** e **91,47% de cobertura**.
+resultou em **100 passed, 1 deselected** e **90,88% de cobertura**.
 Esse percentual mede as instruções percorridas pelos testes; **não** significa
-que o modelo tem 91,47% de acurácia, nem garante todos os cenários possíveis.
+que o modelo tem 90,88% de acurácia, nem garante todos os cenários possíveis.
 
 Para iniciar a API:
 
