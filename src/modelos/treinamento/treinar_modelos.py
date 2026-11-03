@@ -64,7 +64,7 @@ except ImportError:
 SEED = 42
 MODEL_DIR = Path(__file__).resolve().parents[1] / "modelos_salvos"
 REPORT_PATH = Path(__file__).resolve().parents[3] / "reports" / "treinamento_etapa2.json"
-GRID_CSV_PATH = REPORT_PATH.parent / "etapa2_grid.csv"
+GRID_CSV_PATH = REPORT_PATH.parent / "etapa2_grid_v2.csv"
 CHECKPOINT_DIR = REPORT_PATH.parent / "etapa2_checkpoints"
 MODEL_TIME_LIMIT_SECONDS = 30 * 60
 SEARCH_TIME_LIMIT_SECONDS = 15 * 60

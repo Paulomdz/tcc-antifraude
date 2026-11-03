@@ -5,3 +5,5 @@
 2026-11-02 hora não registrada | tests/test_modelos.py | Registro retroativo: adicionado test_lstm_janela_so_com_passado_estrito; versionado em 53e7514 | Verificar que a janela da LSTM usa só o passado | aprovação não registrada
 2026-11-02 hora não registrada | reports/etapa2_grid_v2.csv | Registro retroativo: fim de linha convertido de CRLF para LF; FALHA DE PROCESSO: feita sem aprovação e sem registro | Motivo não registrado; sem evidência no git; relato do usuário | aprovado: não
 2026-11-02 hora não registrada | reports/etapa2_grid_diagnostico_v1.csv | Registro retroativo: renomeação de reports/etapa2_grid.csv relatada pelo usuário, sem evidência no git | Separar o diagnóstico da política antiga | aprovação não registrada
+2026-11-03 | src/modelos/treinamento/treinar_modelos.py | Caminho padrão da grade passa a ser etapa2_grid_v2.csv | Grade v2 é a usada na Etapa 2
+2026-11-03 | docs/REGRAS_VIGENTES.md | Seção 13 passa a registrar mudanças sem campo de aprovação | Regra vale para qualquer documento
