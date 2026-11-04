@@ -85,7 +85,9 @@ def test_health_check():
 @pytest.mark.parametrize("api_key", ["", "   "])
 def test_production_requires_gemini_key_with_exact_503(monkeypatch, api_key):
     monkeypatch.setenv("GOOGLE_API_KEY", api_key)
-    response = client.post("/analise_transacao", json={"amount": 100})
+    response = client.post(
+        "/analise_transacao", json={"amount": 100, "oldbalanceOrg": 1000}
+    )
 
     assert response.status_code == 503
     assert response.json() == {
@@ -105,7 +107,9 @@ def test_single_transaction_uses_production_and_persists(monkeypatch):
             return result
 
     monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
-    response = client.post("/analise_transacao", json={"amount": 100})
+    response = client.post(
+        "/analise_transacao", json={"amount": 100, "oldbalanceOrg": 1000}
+    )
 
     assert response.status_code == 200
     assert response.json()["decisao"] == "APROVADO"
@@ -151,7 +155,9 @@ def test_top3_com_feature_stats_ausente_retorna_vazio_e_loga(
     monkeypatch.setattr(api, "FEATURE_STATS_PATH", tmp_path / "ausente.json")
     api._carregar_feature_stats.cache_clear()
     try:
-        response = client.post("/analise_transacao", json={"amount": 100})
+        response = client.post(
+            "/analise_transacao", json={"amount": 100, "oldbalanceOrg": 1000}
+        )
     finally:
         api._carregar_feature_stats.cache_clear()
 
@@ -171,11 +177,46 @@ def test_lote_nao_calcula_top3(monkeypatch):
 
     monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
     monkeypatch.setattr(api, "top3_por_zscore", fail)
-    response = client.post("/analise_lote", json={"transacoes": [{"amount": 100}]})
+    response = client.post(
+        "/analise_lote",
+        json={"transacoes": [{"amount": 100, "oldbalanceOrg": 1000}]},
+    )
 
     assert response.status_code == 200
     assert response.json()["erros"] == 0
     assert "explicabilidade" not in response.json()["resultados"][0]
+
+
+def test_analise_transacao_sem_saldo_retorna_422(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key-not-used")
+
+    def fail():
+        raise AssertionError("o orquestrador não deve ser chamado")
+
+    monkeypatch.setattr(api, "_get_orchestrator", fail)
+    response = client.post("/analise_transacao", json={"amount": 100})
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "oldbalanceOrg"]
+
+
+def test_lote_com_item_sem_saldo_retorna_422_para_o_lote(monkeypatch):
+    def fail():
+        raise AssertionError("o orquestrador não deve ser chamado")
+
+    monkeypatch.setattr(api, "_get_orchestrator", fail)
+    response = client.post(
+        "/analise_lote",
+        json={"transacoes": [{"amount": 1, "oldbalanceOrg": 1000}, {"amount": 2}]},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == [
+        "body",
+        "transacoes",
+        1,
+        "oldbalanceOrg",
+    ]
 
 
 def test_single_transaction_reports_missing_model(monkeypatch):
@@ -187,7 +228,9 @@ def test_single_transaction_reports_missing_model(monkeypatch):
             raise FileNotFoundError("isolation_forest.pkl")
 
     monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
-    response = client.post("/analise_transacao", json={"amount": 10})
+    response = client.post(
+        "/analise_transacao", json={"amount": 10, "oldbalanceOrg": 1000}
+    )
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Modelo treinado não encontrado."
@@ -201,7 +244,9 @@ def test_single_transaction_reports_runtime_error(monkeypatch):
             raise RuntimeError(f"erro controlado ({modo})")
 
     monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
-    response = client.post("/analise_transacao", json={"amount": 10})
+    response = client.post(
+        "/analise_transacao", json={"amount": 10, "oldbalanceOrg": 1000}
+    )
 
     assert response.status_code == 502
     assert response.json()["detail"] == "Falha ao executar análise production."
@@ -217,7 +262,12 @@ def test_batch_uses_fast_and_persists_item_errors(monkeypatch):
     monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
     response = client.post(
         "/analise_lote",
-        json={"transacoes": [{"amount": 1}, {"amount": 2}]},
+        json={
+            "transacoes": [
+                {"amount": 1, "oldbalanceOrg": 1000},
+                {"amount": 2, "oldbalanceOrg": 1000},
+            ]
+        },
     )
 
     body = response.json()
@@ -245,7 +295,12 @@ def test_batch_of_ten_works_without_api_key_and_counts_every_transaction(monkeyp
     monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
     response = client.post(
         "/analise_lote",
-        json={"transacoes": [{"amount": amount} for amount in range(1, 11)]},
+        json={
+            "transacoes": [
+                {"amount": amount, "oldbalanceOrg": 1000}
+                for amount in range(1, 11)
+            ]
+        },
     )
 
     body = response.json()
@@ -261,7 +316,10 @@ def test_batch_of_ten_works_without_api_key_and_counts_every_transaction(monkeyp
 def test_batch_rejects_more_than_the_single_configured_limit():
     response = client.post(
         "/analise_lote",
-        json={"transacoes": [{"amount": 1}] * (api.LIMITE_LOTE + 1)},
+        json={
+            "transacoes": [{"amount": 1, "oldbalanceOrg": 1000}]
+            * (api.LIMITE_LOTE + 1)
+        },
     )
 
     assert response.status_code == 422
@@ -277,7 +335,7 @@ def test_batch_accepts_exactly_the_configured_limit(monkeypatch):
     monkeypatch.setattr(api, "_save_analysis", lambda *_args, **_kwargs: None)
     response = client.post(
         "/analise_lote",
-        json={"transacoes": [{"amount": 1}] * api.LIMITE_LOTE},
+        json={"transacoes": [{"amount": 1, "oldbalanceOrg": 1000}] * api.LIMITE_LOTE},
     )
 
     assert response.status_code == 200
@@ -294,7 +352,12 @@ def test_fast_batch_is_identical_with_and_without_api_key(monkeypatch):
 
     monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
     monkeypatch.setattr(api, "_save_analysis", lambda *_args, **_kwargs: None)
-    payload = {"transacoes": [{"amount": 1}, {"amount": 2}]}
+    payload = {
+        "transacoes": [
+            {"amount": 1, "oldbalanceOrg": 1000},
+            {"amount": 2, "oldbalanceOrg": 1000},
+        ]
+    }
 
     without_key = client.post("/analise_lote", json=payload)
     monkeypatch.setenv("GOOGLE_API_KEY", "synthetic-test-value-not-a-credential")
@@ -418,7 +481,12 @@ def test_batch_counts_invalid_transaction_as_error(monkeypatch):
     monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
     response = client.post(
         "/analise_lote",
-        json={"transacoes": [{"amount": 1}, {"amount": 9999}]},
+        json={
+            "transacoes": [
+                {"amount": 1, "oldbalanceOrg": 1000},
+                {"amount": 9999, "oldbalanceOrg": 1000},
+            ]
+        },
     )
 
     body = response.json()
@@ -451,7 +519,12 @@ def test_batch_continues_after_history_database_failure(monkeypatch, caplog):
     monkeypatch.setattr(api, "salvar_analise", fail_first_save)
     response = client.post(
         "/analise_lote",
-        json={"transacoes": [{"amount": 1}, {"amount": 2}]},
+        json={
+            "transacoes": [
+                {"amount": 1, "oldbalanceOrg": 1000},
+                {"amount": 2, "oldbalanceOrg": 1000},
+            ]
+        },
     )
 
     body = response.json()
@@ -471,7 +544,10 @@ def test_unknown_decision_is_an_explicit_item_error(monkeypatch):
             return analysis_result("DECISAO_DESCONHECIDA")
 
     monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
-    response = client.post("/analise_lote", json={"transacoes": [{"amount": 1}]})
+    response = client.post(
+        "/analise_lote",
+        json={"transacoes": [{"amount": 1, "oldbalanceOrg": 1000}]},
+    )
 
     body = response.json()
     assert response.status_code == 200

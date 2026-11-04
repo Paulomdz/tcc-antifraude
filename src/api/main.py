@@ -77,7 +77,7 @@ class TransacaoInput(BaseModel):
     type: str = Field(default="PIX_P2P", description="Tipo de transação")
     amount: float = Field(..., ge=0.0, description="Valor da transação em R$")
     nameOrig: str = Field(default="", description="Identificador da conta de origem")
-    oldbalanceOrg: float = Field(default=0.0, ge=0.0)
+    oldbalanceOrg: float = Field(..., ge=0.0)
     newbalanceOrig: float = Field(default=0.0, ge=0.0)
     nameDest: str = Field(default="", description="Identificador da conta de destino")
     oldbalanceDest: float = Field(default=0.0, ge=0.0)
