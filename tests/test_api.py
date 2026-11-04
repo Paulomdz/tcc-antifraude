@@ -110,9 +110,72 @@ def test_single_transaction_uses_production_and_persists(monkeypatch):
     assert response.status_code == 200
     assert response.json()["decisao"] == "APROVADO"
     assert response.json()["modo"] == "production"
-    assert response.json()["explicabilidade"]["top3"] == []
+    assert len(response.json()["explicabilidade"]["top3"]) == 3
     with sqlite3.connect(api.DB_PATH) as connection:
         assert connection.execute("SELECT COUNT(*) FROM analises").fetchone()[0] == 1
+
+
+def test_single_transaction_retorna_top3_preenchido(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key-not-used")
+
+    class FakeOrchestrator:
+        def orchestrate_transaction(self, transaction, modo):
+            return analysis_result()
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    response = client.post(
+        "/analise_transacao",
+        json={"amount": 100, "oldbalanceOrg": 1000, "step": 12},
+    )
+
+    assert response.status_code == 200
+    top3 = response.json()["explicabilidade"]["top3"]
+    assert len(top3) == 3
+    for item in top3:
+        assert set(item) == {"nome", "valor", "z", "direcao", "desvio_zero"}
+        assert item["nome"] != "log_amount"
+    magnitudes = [abs(item["z"]) for item in top3]
+    assert magnitudes == sorted(magnitudes, reverse=True)
+
+
+def test_top3_com_feature_stats_ausente_retorna_vazio_e_loga(
+    tmp_path, monkeypatch, caplog
+):
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key-not-used")
+
+    class FakeOrchestrator:
+        def orchestrate_transaction(self, transaction, modo):
+            return analysis_result()
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    monkeypatch.setattr(api, "FEATURE_STATS_PATH", tmp_path / "ausente.json")
+    api._carregar_feature_stats.cache_clear()
+    try:
+        response = client.post("/analise_transacao", json={"amount": 100})
+    finally:
+        api._carregar_feature_stats.cache_clear()
+
+    assert response.status_code == 200
+    assert response.json()["explicabilidade"]["top3"] == []
+    assert "Não foi possível calcular o top-3" in caplog.text
+    assert "FileNotFoundError" in caplog.text
+
+
+def test_lote_nao_calcula_top3(monkeypatch):
+    class FakeOrchestrator:
+        def orchestrate_ml_only(self, transaction):
+            return analysis_result()
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("o lote não deve calcular top-3")
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    monkeypatch.setattr(api, "top3_por_zscore", fail)
+    response = client.post("/analise_lote", json={"transacoes": [{"amount": 100}]})
+
+    assert response.status_code == 200
+    assert response.json()["erros"] == 0
+    assert "explicabilidade" not in response.json()["resultados"][0]
 
 
 def test_single_transaction_reports_missing_model(monkeypatch):

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import time
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from typing import Any
 
 from dotenv import load_dotenv
@@ -22,7 +23,13 @@ from src.historico.database import (
     obter_historico,
     salvar_analise,
 )
+from src.ferramentas.explicabilidade import top3_por_zscore
 from src.ferramentas.leitor_arquivo_lote import ler_arquivo_lote
+from src.preprocessamento.carregar_dataset import (
+    FEATURE_STATS_PATH,
+    IF_FEATURE_NAMES,
+    compute_if_features,
+)
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
@@ -84,7 +91,7 @@ class ScoreAgente(BaseModel):
 
 
 class Explicabilidade(BaseModel):
-    """Explicações de features; top3 será preenchido na Etapa 3."""
+    """Top-3 de features por |z| em relação a feature_stats.json."""
 
     top3: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -139,7 +146,23 @@ def _get_orchestrator():
         ) from exc
 
 
-def _parse_resultado(resultado: dict[str, Any]) -> ResultadoAnalise:
+@lru_cache(maxsize=1)
+def _carregar_feature_stats() -> dict[str, dict[str, float]]:
+    return json.loads(FEATURE_STATS_PATH.read_text(encoding="utf-8"))
+
+
+def _calcular_top3(transacao: dict[str, Any]) -> list[dict[str, Any]]:
+    try:
+        valores = dict(zip(IF_FEATURE_NAMES, compute_if_features(transacao)))
+        return top3_por_zscore(valores, _carregar_feature_stats())
+    except (OSError, ValueError, KeyError, TypeError):
+        logger.exception("Não foi possível calcular o top-3 de explicabilidade.")
+        return []
+
+
+def _parse_resultado(
+    resultado: dict[str, Any], transacao: dict[str, Any] | None = None
+) -> ResultadoAnalise:
     decision = resultado["decision"]
     raw_decision = decision["decision"]
     if not isinstance(raw_decision, str) or raw_decision not in _DECISION_MAP:
@@ -173,7 +196,9 @@ def _parse_resultado(resultado: dict[str, Any]) -> ResultadoAnalise:
                 explicacao=str(identity["details"]["explanation"]),
             ),
         },
-        explicabilidade=Explicabilidade(top3=[]),
+        explicabilidade=Explicabilidade(
+            top3=_calcular_top3(transacao) if transacao is not None else []
+        ),
         modo=str(resultado.get("modo", "production")),
     )
 
@@ -249,7 +274,7 @@ def analise_transacao(transacao: TransacaoInput) -> ResultadoAnalise:
         resultado = _get_orchestrator().orchestrate_transaction(
             payload, modo="production"
         )
-        parsed = _parse_resultado(resultado)
+        parsed = _parse_resultado(resultado, payload)
     except FileNotFoundError as exc:
         duration_ms = round((time.perf_counter() - started) * 1000)
         _save_analysis(payload, parsed, duration_ms, "production", str(exc))
