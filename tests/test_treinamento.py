@@ -136,6 +136,11 @@ def test_isolation_forest_smoke_checkpoint_resumes_without_refitting(
     monkeypatch.setattr(training, "GRID_CSV_PATH", tmp_path / "grid.csv")
     monkeypatch.setattr(training, "CHECKPOINT_DIR", tmp_path / "checkpoints")
     monkeypatch.setattr(training, "DATASET_SIGNATURE", "test-dataset")
+    monkeypatch.setattr(
+        training,
+        "_ram_snapshot",
+        lambda: {"free_gib": 8.0, "available_gib": 8.0},
+    )
 
     first = training._run_smoke_test(
         "isolation_forest", splits, IF_FEATURE_NAMES
@@ -148,6 +153,33 @@ def test_isolation_forest_smoke_checkpoint_resumes_without_refitting(
     assert first["training_seconds"] >= 0.0
     assert second["resumed"] is True
     assert len(training._grid_rows()) == 1
+
+
+def test_smoke_test_retorna_skipped_memory_com_ram_baixa(tmp_path, monkeypatch):
+    import pandas as pd
+
+    from src.preprocessamento.carregar_dataset import IF_FEATURE_NAMES
+
+    def fail_if_trained(*_args, **_kwargs):
+        raise AssertionError("o smoke test não deve treinar com RAM baixa")
+
+    monkeypatch.setattr(training, "GRID_CSV_PATH", tmp_path / "grid.csv")
+    monkeypatch.setattr(training, "CHECKPOINT_DIR", tmp_path / "checkpoints")
+    monkeypatch.setattr(training, "DATASET_SIGNATURE", "test-dataset")
+    monkeypatch.setattr(
+        training,
+        "_ram_snapshot",
+        lambda: {"free_gib": 0.19, "available_gib": 1.97},
+    )
+    monkeypatch.setattr(training, "IsolationForest", fail_if_trained)
+    frame = pd.DataFrame()
+
+    result = training._run_smoke_test(
+        "isolation_forest", {"train": frame, "val": frame}, IF_FEATURE_NAMES
+    )
+
+    assert result["status"] == "skipped_memory"
+    assert "metrics" not in result
 
 
 def test_isolated_smoke_does_not_read_or_write_grid_or_checkpoint(

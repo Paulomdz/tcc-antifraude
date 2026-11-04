@@ -7,3 +7,4 @@
 2026-11-02 hora não registrada | reports/etapa2_grid_diagnostico_v1.csv | Registro retroativo: renomeação de reports/etapa2_grid.csv relatada pelo usuário, sem evidência no git | Separar o diagnóstico da política antiga | aprovação não registrada
 2026-11-03 | src/modelos/treinamento/treinar_modelos.py | Caminho padrão da grade passa a ser etapa2_grid_v2.csv | Grade v2 é a usada na Etapa 2
 2026-11-03 | docs/REGRAS_VIGENTES.md | Seção 13 passa a registrar mudanças sem campo de aprovação | Regra vale para qualquer documento
+2026-11-03 | tests/test_treinamento.py | Teste de checkpoint do smoke test fixa a RAM disponível; novo teste cobre o status skipped_memory | Falha intermitente quando a RAM da máquina ficava abaixo de 2 GiB
