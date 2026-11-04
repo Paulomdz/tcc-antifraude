@@ -9,3 +9,4 @@
 2026-11-03 | docs/REGRAS_VIGENTES.md | Seção 13 passa a registrar mudanças sem campo de aprovação | Regra vale para qualquer documento
 2026-11-03 | tests/test_treinamento.py | Teste de checkpoint do smoke test fixa a RAM disponível; novo teste cobre o status skipped_memory | Falha intermitente quando a RAM da máquina ficava abaixo de 2 GiB
 2026-11-03 | src/ferramentas/explicabilidade.py; src/api/main.py; tests/test_api.py; tests/test_explicabilidade.py | top3 preenchido por z-score na análise individual | Explicabilidade da Etapa 3
+2026-11-04 | src/modelos/treinamento/treinar_modelos.py; tests/test_treinamento.py | Treino padrão encerra se a grade v2 existir, salvo com --refazer-grade | Evitar renomear ou alterar a grade v2 e reescrever feature_stats.json por engano

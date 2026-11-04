@@ -3515,7 +3515,22 @@ def _cli(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Treina somente IF/LSTM sem amount_to_balance_ratio e lê o teste uma vez ao final.",
     )
+    parser.add_argument(
+        "--refazer-grade",
+        action="store_true",
+        help="Autoriza o treino padrão mesmo com a grade existente; ele pode renomear ou alterar a grade e reescreve feature_stats.json.",
+    )
     arguments = parser.parse_args(argv)
+    if arguments.refazer_grade and (
+        arguments.smoke_only
+        or arguments.grade_if_lstm
+        or arguments.primeiro_passe
+        or arguments.grid_path is not None
+        or arguments.final_if_lstm
+        or arguments.final_gnn
+        or arguments.ablacao
+    ):
+        parser.error("--refazer-grade só vale no treino padrão, sem outras flags.")
     if arguments.ablacao and (
         arguments.smoke_only
         or arguments.grade_if_lstm
@@ -3565,6 +3580,13 @@ def _cli(argv: list[str] | None = None) -> None:
     elif arguments.grid_path is not None:
         parser.error("--grid-path exige --grade-if-lstm.")
     else:
+        if GRID_CSV_PATH.exists() and not arguments.refazer_grade:
+            parser.error(
+                f"{GRID_CSV_PATH} já existe. O treino padrão pode renomear ou "
+                "alterar a grade e reescreve feature_stats.json. Use "
+                "--refazer-grade para confirmar, ou um modo dedicado "
+                "(--final-if-lstm, --final-gnn, --ablacao)."
+            )
         main()
 
 

@@ -695,6 +695,50 @@ def test_ablacao_flag_nao_chama_rotina_padrao(monkeypatch):
     assert calls == ["ablacao"]
 
 
+def test_cli_sem_flag_encerra_se_grade_existe(tmp_path, monkeypatch, capsys):
+    import pytest
+
+    grid_path = tmp_path / "etapa2_grid_v2.csv"
+    grid_path.write_text("model\n", encoding="utf-8")
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("main não deve ser chamada")
+
+    monkeypatch.setattr(training, "GRID_CSV_PATH", grid_path)
+    monkeypatch.setattr(training, "main", fail)
+
+    with pytest.raises(SystemExit) as exit_info:
+        training._cli([])
+
+    assert exit_info.value.code == 2
+    assert "--refazer-grade" in capsys.readouterr().err
+    assert grid_path.read_text(encoding="utf-8") == "model\n"
+
+
+def test_cli_com_refazer_grade_chama_main(tmp_path, monkeypatch):
+    grid_path = tmp_path / "etapa2_grid_v2.csv"
+    grid_path.write_text("model\n", encoding="utf-8")
+    calls = []
+
+    monkeypatch.setattr(training, "GRID_CSV_PATH", grid_path)
+    monkeypatch.setattr(training, "main", lambda: calls.append("main"))
+
+    training._cli(["--refazer-grade"])
+
+    assert calls == ["main"]
+
+
+def test_cli_sem_flag_roda_main_se_grade_nao_existe(tmp_path, monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(training, "GRID_CSV_PATH", tmp_path / "ausente.csv")
+    monkeypatch.setattr(training, "main", lambda: calls.append("main"))
+
+    training._cli([])
+
+    assert calls == ["main"]
+
+
 def test_ablacao_features_nao_contem_amount_to_balance_ratio():
     removed = "amount_to_balance_ratio"
 
