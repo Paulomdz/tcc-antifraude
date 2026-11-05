@@ -21,7 +21,6 @@ RAW_DATA_PATH = PROJECT_ROOT / "dataset" / "dataset_pix_banco.csv"
 PROCESSED_DATA_PATH = PROJECT_ROOT / "dataset" / "dataset_pix_banco_processado.parquet"
 FEATURE_STATS_PATH = Path(__file__).resolve().parent / "feature_stats.json"
 
-STEP_MAX = 743
 DEFAULT_PROCESSED_DATA_PATH = PROCESSED_DATA_PATH
 DEFAULT_CHUNKSIZE = 50_000
 

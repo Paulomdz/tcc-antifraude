@@ -117,19 +117,17 @@ def judge_tool(
     amount = float(transaction.get("amount", 0.0))
     tx_type = str(transaction.get("type", "")).upper()
 
-    # REGRA RÍGIDA 1: Débito de alto valor na madrugada = BLOQUEIO IMEDIATO
+    # Bloqueio de alto valor na madrugada
     is_midnight = 0 <= hours < 6
     is_high_value = amount >= 10000.0
-    is_debit_or_transfer = tx_type in {
-        "DEBIT",
-        "TRANSFER",
+    is_tipo_bloqueio = tx_type in {
         "PIX_P2P",
         "PIX_AUTOMATICO",
         "TED",
         "TEF",
     }
 
-    if is_midnight and is_high_value and is_debit_or_transfer:
+    if is_midnight and is_high_value and is_tipo_bloqueio:
         return {
             "decision": "Recusada",
             "score": float(0.95),

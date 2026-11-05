@@ -11,3 +11,4 @@
 2026-11-03 | src/ferramentas/explicabilidade.py; src/api/main.py; tests/test_api.py; tests/test_explicabilidade.py | top3 preenchido por z-score na análise individual | Explicabilidade da Etapa 3
 2026-11-04 | src/modelos/treinamento/treinar_modelos.py; tests/test_treinamento.py | Treino padrão encerra se a grade v2 existir, salvo com --refazer-grade | Evitar renomear ou alterar a grade v2 e reescrever feature_stats.json por engano
 2026-11-04 | src/api/main.py; tests/test_api.py | oldbalanceOrg passa a ser obrigatório na entrada da API | Sem saldo, a razão valor/saldo explodia e distorcia o score e o top-3
+2026-11-04 | src/ferramentas/ferramentas_agentes.py; src/orquestacao/definicoes_agentes.py; src/preprocessamento/carregar_dataset.py | Removidos tipos herdados do PaySim (DEBIT, TRANSFER) da regra de bloqueio e do texto do juiz; removida a constante STEP_MAX sem uso | Os tipos não existem no dataset atual
