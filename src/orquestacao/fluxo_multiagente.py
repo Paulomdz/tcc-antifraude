@@ -36,7 +36,9 @@ def _run_specialists(transaction: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def orchestrate_ml_only(transaction: dict[str, Any]) -> dict[str, Any]:
+def orchestrate_ml_only(
+    transaction: dict[str, Any], aplicar_regra_madrugada: bool = True
+) -> dict[str, Any]:
     """Modo fast: três modelos e agregação determinística, sem chamadas LLM."""
     outputs = _run_specialists(transaction)
     decision = judge_tool(
@@ -45,6 +47,7 @@ def orchestrate_ml_only(transaction: dict[str, Any]) -> dict[str, Any]:
         temporal_score=outputs["temporal"]["score"],
         identity_score=outputs["identity"]["score"],
         specialist_outputs=outputs,
+        aplicar_regra_madrugada=aplicar_regra_madrugada,
     )
     return {
         "transaction": transaction,

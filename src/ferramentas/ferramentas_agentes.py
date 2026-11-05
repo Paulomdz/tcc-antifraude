@@ -109,8 +109,13 @@ def judge_tool(
     temporal_score: float,
     identity_score: float,
     specialist_outputs: Dict[str, Any],
+    aplicar_regra_madrugada: bool = True,
 ) -> Dict[str, Any]:
-    """Agregador determinístico usado somente pelo modo fast, sem chamada LLM."""
+    """Agregador determinístico usado somente pelo modo fast, sem chamada LLM.
+
+    Com ``aplicar_regra_madrugada=False``, desliga o bloqueio imediato e o bônus
+    de 0,25 da madrugada; serve só para a avaliação da Etapa 4.
+    """
     hours = _hora_do_dia(transaction)
     time_24h = f"{hours:02d}:00"
 
@@ -127,7 +132,7 @@ def judge_tool(
         "TEF",
     }
 
-    if is_midnight and is_high_value and is_tipo_bloqueio:
+    if aplicar_regra_madrugada and is_midnight and is_high_value and is_tipo_bloqueio:
         return {
             "decision": "Recusada",
             "score": float(0.95),
@@ -145,7 +150,7 @@ def judge_tool(
     score = 0.35 * behavior_score + 0.30 * temporal_score + 0.35 * identity_score
 
     # REGRA RÍGIDA 2: Se houver padrão noturno suspeito, elevar score
-    if is_midnight and is_high_value:
+    if aplicar_regra_madrugada and is_midnight and is_high_value:
         score = min(score + 0.25, 1.0)
 
     # Limiares de decisão
