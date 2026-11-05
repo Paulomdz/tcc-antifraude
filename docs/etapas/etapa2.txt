@@ -14,7 +14,7 @@ Estado: concluída. Treino final de IF, LSTM e GNN, ablação de IF e LSTM, e va
 2. GRADE IF E LSTM (VALIDAÇÃO)
 
 - Arquivo: reports/etapa2_grid_v2.csv (18 linhas, sem erros). Fim de linha convertido de CRLF para LF; valores não verificáveis pelo git.
-- IF escolhido: n_estimators=100, max_samples=auto, contamination=0,056. PR-AUC de validação: 0,6627.
+- IF escolhido: n_estimators=100, max_samples=auto, contamination=0,056. PR-AUC de validação: 0,6626.
 - LSTM escolhida: hidden_size=32, dropout=0,1, lr=1e-3, num_layers=2. PR-AUC de validação: 0,4065.
 - A grade antiga, com vazamento, está em reports/etapa2_grid_diagnostico_v1.csv. Não foi usada para decisão e não está versionada.
 - Cobertura da grade do IF: só 9 de 27 combinações foram executadas, todas com max_samples="auto". O código limita a grade a essas 9 com a flag --primeiro-passe; o log mostra 9 configurações, mas não registra o comando usado. reduced=False no log, sem explicação verificada no código. Logo, max_samples=0,5 e 0,8 não foram testados.

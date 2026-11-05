@@ -57,6 +57,10 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Valor ou comportamento: maior F1 na validação.
   - Onde está no código: src/modelos/treinamento/treinar_modelos.py:364, :1261, :1353 e :1872.
   - Origem: Etapa 2 (docs/etapas/etapa2.txt, seção 1).
+- **Contamination do IF na grade**
+  - Valor ou comportamento: para cada par de n_estimators e max_samples, fica a contamination de maior F1 na validação, com limiar fixo de 0,5. Entre esses candidatos, vence o de maior PR-AUC na validação; o F1 desempata.
+  - Onde está no código: src/modelos/treinamento/treinar_modelos.py:352 (limiar 0,5), :715 (métricas) e :773-791 (seleção).
+  - Origem: Etapa 2 (docs/etapas/etapa2.txt, seção 1); docs/REGRAS_VIGENTES.md, seção 4 (local, fora do git).
 - **Configuração final do IF**
   - Valor ou comportamento: n_estimators=100, max_samples=auto, contamination=0,056.
   - Onde está no código: src/modelos/treinamento/treinar_modelos.py:82.

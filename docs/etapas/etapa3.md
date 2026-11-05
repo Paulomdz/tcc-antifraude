@@ -20,6 +20,9 @@
 | Critério | Comando | Resultado |
 |---|---|---|
 | Suíte não-live com cobertura | .venv/bin/python -m pytest -q -m 'not live' -p no:cacheprovider | 119 passed, 0 failed, 1 deselected; cobertura 91,18% (05/11/2026) |
+| Testes novos do top-3 | .venv/bin/python -m pytest -q -o addopts=--no-cov -m 'not live' -p no:cacheprovider tests/test_explicabilidade.py | 10 passed (05/11/2026) |
+| Testes novos da API (top-3 e saldo) | .venv/bin/python -m pytest -q -o addopts=--no-cov -m 'not live' -p no:cacheprovider tests/test_api.py -k 'top3 or sem_saldo' | 5 passed, 22 deselected (05/11/2026) |
+| Testes novos do treino (RAM e proteção) | .venv/bin/python -m pytest -q -o addopts=--no-cov -m 'not live' -p no:cacheprovider tests/test_treinamento.py -k 'skipped_memory or test_cli_sem_flag or test_cli_com_refazer' | 4 passed, 14 deselected, 1 warning (05/11/2026) |
 
 ## Limitações
 - O z-score mostra o quanto a transação foge da média do treino, não o que pesou na decisão do modelo.
