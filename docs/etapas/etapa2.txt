@@ -1,3 +1,5 @@
+Documento histórico; contagens de testes e cobertura correspondem a 02/11/2026.
+
 ETAPA 2 — RETREINO COM POLÍTICA ANTI-VAZAMENTO
 
 Estado: concluída. Treino final de IF, LSTM e GNN, ablação de IF e LSTM, e validação da API com os artefatos reais. Commit de código do retreino: 94eb71a.
@@ -51,7 +53,7 @@ GNN (configuração única, por restrição de tempo):
 - LSTM: PR-AUC de validação 0,4065 → 0,3567; teste 0,3577 → 0,3462.
 - Conclusão: o IF depende fortemente da razão valor/saldo, e a LSTM perde pouco. Hipótese não verificada: o histórico da conta compensaria parte da informação. Os dois seguem bem acima do acaso.
 - GNN fora da ablação, por custo de tempo (~55 min).
-- Relatório: reports/etapa2_ablacao.json. Arquivos antigos de ablação (política com vazamento) têm prefixo DIAG_v1_ e não são usados.
+- Relatório: reports/etapa2_ablacao.json. Arquivos antigos de ablação (política com vazamento) incluem os de prefixo DIAG_v1_ e não são usados.
 
 5. VALIDAÇÃO DA API (artefatos reais, modo fast, sem chave Gemini)
 
@@ -64,14 +66,14 @@ GNN (configuração única, por restrição de tempo):
 6. TESTES
 
 - Suíte oficial, sem testes live: 100 passed, 1 deselected. Cobertura 90,88%.
-- Número oficial para todos os documentos: 100. Contagens anteriores (72, 82, 96) estão obsoletas.
+- Número de testes em 02/11/2026: 100 passed, 1 deselected. Contagens anteriores (72, 82, 96) estão obsoletas.
 - Nenhuma chamada ao Gemini nesta etapa. Antes, duas chamadas reais ocorreram por engano, sem marcador live; a chave foi revogada.
 
 7. CÓDIGO E REGISTRO
 
 - Commit 94eb71a: modos --final-if-lstm e --final-gnn, arquitetura_lstm.py (janelas causais por conta), inferencia_modelos.py (carregamento dos três modelos reais), .gitignore, testes e JSONs finais.
 - Depois do commit: modo --ablacao e testes de ablação em treinar_modelos.py e test_treinamento.py; teste da janela causal em test_modelos.py.
-- Alterações de código registradas em docs/MUDANCAS.md, incluindo uma alteração feita sem aprovação e depois removida.
+- Alterações de código registradas em docs/MUDANCAS.md, incluindo uma alteração que foi depois removida.
 
 8. LIMITAÇÕES
 

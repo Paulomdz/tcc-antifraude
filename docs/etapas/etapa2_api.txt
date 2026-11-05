@@ -1,3 +1,5 @@
+Documento histórico; contagens de testes e cobertura correspondem a 02/11/2026.
+
 ETAPA 2 - CORREÇÕES DA API
 
 Escopo

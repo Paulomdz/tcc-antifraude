@@ -60,6 +60,7 @@ distribuição detalhada por categoria estão documentadas em
 │   ├── api/                 # API REST com FastAPI
 │   ├── dashboard/           # Interface interativa com Streamlit
 │   ├── ferramentas/         # Inferência e ferramentas dos agentes
+│   ├── historico/           # SQLite do histórico de análises
 │   ├── modelos/             # Modelos, treinamento e modelos salvos
 │   ├── orquestacao/         # Definição e fluxo dos agentes
 │   └── preprocessamento/    # Preparação dos dados e feature_stats
@@ -179,8 +180,11 @@ pytest -m 'not live'
 python run_sistema_completo.py
 ```
 
-O comando de treino acima, sem flags, roda o pipeline completo (smoke, busca,
-retreino e ablação) e não serve para rodar só a ablação. Modos dedicados:
+O comando de treino acima, sem flags, encerra com erro se
+`reports/etapa2_grid_v2.csv` existir, antes de qualquer escrita. Para confirmar,
+use `--refazer-grade`: o pipeline completo (smoke, busca, retreino e ablação)
+pode renomear ou alterar a grade e reescreve `feature_stats.json`. Ele não serve
+para rodar só a ablação. Modos dedicados:
 
 ```bash
 python -m src.modelos.treinamento.treinar_modelos --final-if-lstm
@@ -205,10 +209,11 @@ ablação, por restrição de tempo.
 A configuração exige pelo menos 80% para a suite passar. Alguns módulos de
 treinamento e definições de agentes estão explicitamente fora do cálculo em
 `.coveragerc`, por isso o percentual não representa cada linha de todo o
-projeto. A última execução completa não-live registrada nesta atualização
-resultou em **100 passed, 1 deselected** e **90,88% de cobertura**.
+projeto. A última execução completa não-live (05/11/2026)
+resultou em **119 passed, 0 failed, 1 deselected** e **91,18% de cobertura**,
+medida sobre o código fora dos módulos listados em omit no .coveragerc.
 Esse percentual mede as instruções percorridas pelos testes; **não** significa
-que o modelo tem 90,88% de acurácia, nem garante todos os cenários possíveis.
+que o modelo tem 91,18% de acurácia, nem garante todos os cenários possíveis.
 
 Para iniciar a API:
 
@@ -222,9 +227,13 @@ A documentação interativa da API fica disponível em
 ### Contrato da API
 
 - `POST /analise_transacao`: análise individual no modo `production`; exige
-  `GOOGLE_API_KEY`.
+  `GOOGLE_API_KEY`. A resposta inclui `explicabilidade.top3`: as 3 features mais
+  afastadas do padrão do treino, por z-score, entre as 17 candidatas (log_amount
+  não entra). O lote não calcula top-3.
+  `oldbalanceOrg` é obrigatório: sem o campo, a resposta é HTTP 422.
 - `POST /analise_lote`: análise `fast` sem Gemini, com 1 a 500 transações JSON.
   Acima do limite, retorna HTTP 422 com `Lote máximo de 500 transações.`.
+  Um item sem `oldbalanceOrg` faz o lote inteiro retornar HTTP 422.
 - `POST /analise_lote/arquivo`: recebe `multipart/form-data` com o campo
   `arquivo` e aceita CSV separado por vírgula ou TXT separado por ponto e
   vírgula. As colunas obrigatórias são `step`, `type`, `amount`, `nameOrig`,
@@ -245,6 +254,8 @@ Para iniciar o dashboard, em outro terminal:
 ```bash
 python -m streamlit run src/dashboard/app.py --server.headless true --server.port 8502
 ```
+
+As limitações conhecidas estão em [`docs/LIMITACOES.md`](docs/LIMITACOES.md).
 
 ## Considerações finais
 
