@@ -218,11 +218,9 @@ ablação, por restrição de tempo.
 A configuração exige pelo menos 80% para a suite passar. Alguns módulos de
 treinamento e definições de agentes estão explicitamente fora do cálculo em
 `.coveragerc`, por isso o percentual não representa cada linha de todo o
-projeto. A última execução completa não-live (05/11/2026)
-resultou em **119 passed, 0 failed, 1 deselected** e **91,18% de cobertura**,
-medida sobre o código fora dos módulos listados em omit no .coveragerc.
+projeto. A última execução completa não-live (05/11/2026) resultou em **150 passed, 0 failed, 1 deselected** e **89,75% de cobertura**, medida sobre o código fora dos módulos listados em omit no .coveragerc.
 Esse percentual mede as instruções percorridas pelos testes; **não** significa
-que o modelo tem 91,18% de acurácia, nem garante todos os cenários possíveis.
+que o modelo tem 89,75% de acurácia, nem garante todos os cenários possíveis.
 
 Para iniciar a API:
 
