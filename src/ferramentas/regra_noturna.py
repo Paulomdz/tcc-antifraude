@@ -1,16 +1,26 @@
-"""Regra noturna do Pix e da TED entre pessoas físicas.
+"""Regra noturna para transações entre pessoas físicas.
 
-Fonte: Instrução Normativa BCB nº 331/2022, alterada pelas IN BCB nº 512/2024
-e nº 669/2025 (limite noturno de R$ 1.000,00 para Pix e TED entre pessoas
-físicas, das 20h às 6h).
+Fontes:
+- Resolução BCB nº 142, de 23/09/2021, art. 2º, I: limite de R$ 1.000,00 por
+  conta, das 20h às 6h, para o total de transações entre pessoas físicas
+  distintas (exceto empresários individuais). Vale para Pix, TED, DOC,
+  boletos e transferências entre contas. O cliente pode definir outros limites
+  e cadastrar contas autorizadas (art. 3º).
+- IN BCB nº 185/2021: a janela noturna é 20h–6h (padrão) ou 22h–6h.
+- IN BCB nº 331/2022, art. 10: Pix Saque e Pix Troco têm limite próprio de
+  R$ 1.000 à noite (de dia, entre R$ 1.000 e R$ 3.000).
 
 Como o projeto aplica a regra:
 - Noite: hora >= 20 ou hora < 6, com hora = step % 24 (mesma fonte de
   is_madrugada). A noite que começa às 20h termina às 6h do dia seguinte.
 - Pagador e recebedor pessoa física: ID começando com "C", e recebedor
   diferente do pagador. MEI não pode ser separado nos dados.
-- Tipos (escopo B): PIX_P2P, PIX_QRCODE, PIX_AUTOMATICO e TED. Pix saque e
-  troco ficam de fora, embora a norma também os limite à noite.
+- Tipos (escopo B): PIX_P2P, PIX_QRCODE, PIX_AUTOMATICO e TED. A Resolução
+  também cobre transferências entre contas (TEF) e boletos, que ficam de fora;
+  DOC não existe nos dados. Pix saque e troco ficam de fora, embora a IN
+  331/2022 também os limite à noite.
+- Janela fixa das 20h às 6h, sem a opção das 22h, sem limite definido pelo
+  cliente e sem contas autorizadas.
 - O total é acumulado por conta pagadora e por noite, somando só as
   transações elegíveis com step menor que o da transação atual.
 - A transação que faz o total passar de R$ 1.000 gera REVISÃO. Isso é escolha
@@ -26,7 +36,7 @@ import pandas as pd
 
 LIMITE_NOTURNO = 1000.0
 TIPOS_REGRA_NOTURNA = frozenset({"PIX_P2P", "PIX_QRCODE", "PIX_AUTOMATICO", "TED"})
-FONTE = "IN BCB 331/2022, alterada pelas IN BCB 512/2024 e 669/2025"
+FONTE = "Resolução BCB nº 142/2021, art. 2º, I"
 
 
 def e_noite(step: Any) -> bool:

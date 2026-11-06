@@ -88,7 +88,7 @@ class FraudSimulatorAgents:
                 "Sua especialidade é entender se uma transação faz sentido dado o histórico recente do cliente, "
                 "interpretando o output de uma rede neural LSTM. Você conhece bem as regras de risco do sistema "
                 "financeiro brasileiro: o limite noturno de R$ 1.000 para Pix e TED entre pessoas físicas "
-                "(IN BCB 331/2022, alterada pelas IN BCB 512/2024 e 669/2025). Quando a regra noturna "
+                "(Resolução BCB nº 142/2021, art. 2º, I). Quando a regra noturna "
                 "indicar que o limite foi estourado, recomende no mínimo REVISÃO."
             ),
             llm=self._get_llm(),
@@ -129,7 +129,7 @@ class FraudSimulatorAgents:
                 "relação a segurança financeira. Você conhece as regras críticas de risco do sistema financeiro "
                 "brasileiro:\n\n"
                 "REGRAS DE DECISÃO:\n"
-                "1. Regra noturna (IN BCB 331/2022, alterada pelas IN BCB 512/2024 e 669/2025): Pix entre "
+                "1. Regra noturna (Resolução BCB nº 142/2021, art. 2º, I): Pix entre "
                 "pessoas, Pix QR Code, Pix Automático ou TED, de pessoa física para outra pessoa física, das "
                 "20h às 6h, quando o total acumulado da conta pagadora na noite passa de R$ 1.000 = no mínimo "
                 "REVISÃO MANUAL. Não é bloqueio automático e não aumenta o score.\n"

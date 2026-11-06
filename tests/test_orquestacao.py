@@ -37,7 +37,7 @@ def test_regra_noturna_leva_aprovacao_para_revisao(tx_type):
     assert result["decision"] == "Revisão Humana necessária"
     assert result["score"] == pytest.approx(0.1)  # sem bônus
     assert result["regra_noturna"]["aplica"] is True
-    assert "IN BCB 331/2022" in result["justification"]
+    assert "Resolução BCB nº 142/2021" in result["justification"]
 
 
 def test_regra_noturna_nao_bloqueia_nem_rebaixa_recusa():
@@ -345,7 +345,7 @@ def test_juiz_llm_recebe_o_texto_da_regra_noturna(monkeypatch):
         regra_noturna={"aplica": True, "total_com_atual": 1_200.0},
     )
 
-    assert "Regra noturna (IN BCB 331/2022" in tarefas[0]["description"]
+    assert "Regra noturna (Resolução BCB nº 142/2021" in tarefas[0]["description"]
     assert "APLICA" in tarefas[0]["description"]
 
 
