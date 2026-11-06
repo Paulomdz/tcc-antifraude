@@ -279,7 +279,7 @@ def test_gnn_precomputed_neighbors_match_legacy_sampling_and_edges():
     def legacy_sample_nodes(seeds, fanouts):
         nodes = list(map(int, seeds))
         seen = set(nodes)
-        frontier = nodes
+        frontier = list(nodes)  # dois saltos: expande só a fronteira, não a lista crescente
         for fanout in fanouts:
             next_frontier = []
             for node in frontier:

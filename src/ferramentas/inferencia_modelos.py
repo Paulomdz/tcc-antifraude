@@ -125,8 +125,32 @@ def lstm_sequence_score(
     return float(output.clamp(0.0, 1.0).item())
 
 
-def gnn_identity_score(graph_data: Dict[str, Any], model: Any = None) -> float:
-    """Retorna um score de risco de identidade com base em um modelo GNN."""
+def _gnn_score_do_passado(
+    transacao: Dict[str, Any], model: Any, passado: Any
+) -> float:
+    """Subgrafo do passado (dois saltos, fanouts 10 e 5), como no lote."""
+    from src.ferramentas.historico import grafo_do_passado
+    from src.modelos.arquitetura_gnn import carregar_gnn
+
+    if model is None:
+        model, _metadata = carregar_gnn(str(MODEL_DIR / "gnn_model.pt"))
+    model.eval()
+    grafo = passado if passado is not None else grafo_do_passado(None)
+    features, edge_index = grafo.subgrafo(transacao)
+    device = next(model.parameters(), torch.empty(0)).device
+    with torch.no_grad():
+        output = model(features.to(device), edge_index.to(device))
+    return float(output[0].clamp(0.0, 1.0).item())
+
+
+def gnn_identity_score(
+    graph_data: Dict[str, Any], model: Any = None, passado: Any = None
+) -> float:
+    """Retorna um score de risco de identidade com base em um modelo GNN.
+
+    Sem ``sequence`` explícita, usa o passado do Parquet (``passado`` permite
+    injetar um índice, por exemplo com limite de step para a validação).
+    """
     if not TORCH_AVAILABLE:
         raise RuntimeError("PyTorch é necessário para inferir o score da GNN.")
     from src.modelos.arquitetura_gnn import (
@@ -134,6 +158,8 @@ def gnn_identity_score(graph_data: Dict[str, Any], model: Any = None) -> float:
         carregar_gnn,
     )
 
+    if "sequence" not in graph_data:
+        return _gnn_score_do_passado(graph_data, model, passado)
     sequence = graph_data.get("sequence", [])
     if not isinstance(sequence, list):
         raise TypeError("O histórico da GNN deve ser uma lista de transações.")

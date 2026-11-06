@@ -1,0 +1,32 @@
+{
+  "status": "concluido",
+  "modelo": "gnn_model.pt",
+  "modelo_anterior": "gnn_model_etapa2_v1.pt",
+  "leitura_teste": "nenhuma (apenas step < 600)",
+  "sementes_treino": 335973,
+  "sementes_treino_total_core": 335973,
+  "linhas_validacao": 30677,
+  "semente": 42,
+  "fanouts": [
+    10,
+    5
+  ],
+  "config": {
+    "hidden_dim": 32,
+    "dropout": 0.1,
+    "lr": 0.001,
+    "num_layers": 2
+  },
+  "melhor_epoca": 10,
+  "epocas_executadas": 10,
+  "validacao": {
+    "pr_auc": 0.3464052859865232,
+    "precision": 0.18570851836899474,
+    "recall": 0.8348457350272233,
+    "f1": 0.3038309114927345,
+    "threshold": 0.5
+  },
+  "tempo_preparo_s": 0.6935326469974825,
+  "tempo_selecao_s": 53.6971886249994,
+  "tempo_total_s": 54.54404264999903
+}

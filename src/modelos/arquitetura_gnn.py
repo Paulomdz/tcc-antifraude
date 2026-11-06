@@ -178,7 +178,7 @@ class TransactionMiniBatchDataset:
     ) -> list[int]:
         nodes = list(map(int, seeds))
         seen = set(nodes)
-        frontier = nodes
+        frontier = list(nodes)  # cópia: iterar sobre `nodes` expandia toda a componente
         for fanout in fanouts:
             next_frontier = []
             for node in frontier:
