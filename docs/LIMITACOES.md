@@ -18,11 +18,11 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
   - Por que existe: sem registro no repositório de que isso foi pensado.
   - Evidência: dataset/dataset_pix_banco.csv (29.607 linhas de PIX_SAQUE com step < 600).
   - Efeito no TCC: essa categoria não deve ser apresentada como reprodução fiel da modalidade real.
-- **Regra de linha de base sem implementação**
-  - O que é: a regra (≥ 90% do saldo e ≥ R$ 5.000) é descrita como "calculada à parte", mas não há implementação no repositório nem no histórico git.
-  - Por que existe: sem registro no repositório.
-  - Evidência: docs/secao_dataset_tcc.txt:103-106; busca no working tree e em git log --all, em 03/11/2026.
-  - Efeito no TCC: o texto promete uma comparação que o repositório não permite reproduzir.
+- **Regra de linha de base só na avaliação**
+  - O que é: a regra (≥ 90% do saldo e ≥ R$ 5.000) foi implementada na Etapa 4, apenas como linha de base da avaliação; o sistema não a usa.
+  - Por que existe: o texto do dataset a descreve como "calculada à parte" (docs/secao_dataset_tcc.txt:103-106).
+  - Evidência: src/avaliacao/avaliar_scores.py:79-82; docs/etapas/etapa4.md.
+  - Efeito no TCC: a comparação prometida no texto pode ser reproduzida; ver a seção 3, "Regra do banco circular com o gerador".
 
 ## 2. Modelos
 
@@ -59,26 +59,21 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 
 ## 3. Avaliação
 
-- **Sem métrica da decisão final**
-  - O que é: só há métricas por modelo no teste (PR-AUC: IF 0,6881; GNN 0,4081; LSTM 0,3577), não da decisão final do sistema.
-  - Por que existe: avaliar_scores.py foi adiado.
-  - Evidência: reports/etapa2_final_if_lstm.json; reports/etapa2_final_gnn.json.
-  - Efeito no TCC: não é possível afirmar o desempenho do sistema multiagente como um todo.
-- **Sem métricas por tipo de transação**
-  - O que é: os relatórios trazem só métricas globais por modelo.
-  - Por que existe: sem registro no repositório.
-  - Evidência: reports/etapa2_final_if_lstm.json; reports/etapa2_final_gnn.json.
-  - Efeito no TCC: não se sabe em quais tipos os modelos acertam ou erram mais.
-- **Sem comparação com a regra de linha de base do banco**
-  - O que é: a comparação descrita no texto do dataset não foi feita.
-  - Por que existe: a regra não está implementada (seção 1).
-  - Evidência: docs/secao_dataset_tcc.txt:103-106.
-  - Efeito no TCC: não há como dizer quanto os agentes superam uma regra simples.
-- **avaliar_scores.py adiado**
-  - O que é: o script de avaliação não foi feito.
-  - Por que existe: decisão de adiamento na Etapa 3.
-  - Evidência: docs/etapas/etapa3.md.
-  - Efeito no TCC: mantém abertas as lacunas de avaliação desta seção.
+- **Métrica da decisão final: coberta na Etapa 4, com ressalvas**
+  - O que é: a Etapa 4 mediu a decisão final do modo fast no teste, em seis comparações (matriz das 3 decisões, precisão, recall, F1, PR-AUC do score final e taxa de REVISÃO). O modo production, com o juiz Gemini, segue sem medida (seção 4).
+  - Por que existe: o modo fast é o único avaliável sem chamar o Gemini.
+  - Evidência: docs/etapas/etapa4.md; reports/etapa4_avaliacao_teste.json.
+  - Efeito no TCC: os números do sistema entregue (A) medem a LSTM e a GNN sem histórico (seção 4, "LSTM e GNN sem histórico no sistema entregue").
+- **Métricas por tipo de transação: cobertas na Etapa 4, com ressalvas**
+  - O que é: há métricas por tipo para as seis comparações no teste; não há para a LSTM e a GNN isoladas.
+  - Por que existe: o script calcula por tipo só as decisões e as linhas de base.
+  - Evidência: reports/etapa4_avaliacao_teste.json (campo por_tipo).
+  - Efeito no TCC: 7 dos 12 tipos têm menos de 100 fraudes no teste ("Tipos com poucas fraudes").
+- **Comparação com a regra de linha de base do banco: feita na Etapa 4, com ressalvas**
+  - O que é: no teste, a regra teve precisão 0,9989 e recall 0,3536 na leitura estrita.
+  - Por que existe: o texto do dataset previa a comparação.
+  - Evidência: src/avaliacao/avaliar_scores.py:79-82; reports/etapa4_avaliacao_teste.json.
+  - Efeito no TCC: a regra usa um padrão do gerador ("Regra do banco circular com o gerador").
 - **Acurácia não serve como métrica**
   - O que é: com 5,56% de fraude, um modelo que nunca acusa fraude acerta 94,4%. O PR-AUC de acaso na validação é 0,0539.
   - Por que existe: a base é desbalanceada.
@@ -89,9 +84,44 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
   - Por que existe: os modos finais não têm a checagem de --ablacao.
   - Evidência: src/modelos/treinamento/treinar_modelos.py:1499, :1942, :1561, :1992 e :1598.
   - Efeito no TCC: a leitura única nos modos finais depende de disciplina de execução, não de bloqueio no código.
+- **Sistema com histórico (B) abaixo do entregue (A)**
+  - O que é: no teste, B ficou abaixo de A em PR-AUC do score final, recall e F1, com e sem a regra da madrugada (PR-AUC 0,6629 contra 0,7653 com a regra; 0,7038 contra 0,8323 sem).
+  - Por que existe: causa não verificada. Hipótese: com histórico, a LSTM (0,3577) e a GNN (0,4081) têm PR-AUC baixo e diluem o IF (0,6881) no score final.
+  - Evidência: reports/etapa4_avaliacao_teste.json; docs/etapas/etapa4.md.
+  - Efeito no TCC: corrigir a entrada do sistema entregue (seção 4) não garante melhora; nesta base, a versão com histórico ficou abaixo.
+- **Regra do banco circular com o gerador**
+  - O que é: a regra se apoia na razão valor/saldo, ligada ao padrão de esvaziamento de conta que o gerador colocou nas fraudes. No teste: precisão 0,9989 e recall 0 em 6 dos 12 tipos.
+  - Por que existe: a base é sintética; o padrão foi definido na geração.
+  - Evidência: docs/secao_dataset_tcc.txt:108-111; reports/etapa4_avaliacao_teste.json.
+  - Efeito no TCC: a precisão perto de 1,0 não vale como evidência de uma boa regra fora desta base.
+- **Precisão por tipo gravada como 0,0 quando indefinida**
+  - O que é: quando nada de um tipo é bloqueado, a precisão é indefinida, mas o JSON grava 0,0.
+  - Por que existe: o script usa 0,0 quando não há positivos previstos.
+  - Evidência: src/avaliacao/avaliar_scores.py:107.
+  - Efeito no TCC: esses valores do JSON não são precisão zero; docs/etapas/etapa4.md escreve "indefinida".
+- **Validação otimista**
+  - O que é: os números da Etapa 4 na validação (step 550 a 599) vêm de modelos que treinaram com esses dados.
+  - Por que existe: os modelos finais foram treinados com step < 600.
+  - Evidência: src/preprocessamento/carregar_dataset.py:263 e :272; src/modelos/treinamento/treinar_modelos.py:1277 e :1282.
+  - Efeito no TCC: a validação serviu só para conferir o script; o resultado da etapa é o do teste.
+- **Avisos de falta de memória da GPU no cálculo de B**
+  - O que é: o log do teste registra três avisos de alocação CUDA sem memória durante o cálculo dos scores de B.
+  - Por que existe: pouca memória livre na GPU de 8 GB naquele momento (de 0,13 a 0,33 GiB livres); a execução seguiu sem erro.
+  - Evidência: reports/etapa4_avaliacao_teste.log (local, fora do git); os PR-AUC de B reproduzem os da Etapa 2 com diferença < 0,0001.
+  - Efeito no TCC: sem efeito nos scores.
+- **Tipos com poucas fraudes**
+  - O que é: no teste, 7 dos 12 tipos têm menos de 100 fraudes: BOLETO 77, CARTAO_PRESENCIAL 60, EMPRESTIMO 35, PIX_AUTOMATICO 61, PIX_QRCODE 77, TED 58 e TEF 37.
+  - Por que existe: a fraude da base se concentra em poucos tipos.
+  - Evidência: reports/etapa4_avaliacao_teste.json (campo por_tipo).
+  - Efeito no TCC: os números desses tipos variam muito com poucas transações; diferenças entre eles não devem ser tratadas como relevantes.
 
 ## 4. Sistema multiagente e juiz
 
+- **LSTM e GNN sem histórico no sistema entregue (limitação principal)**
+  - O que é: no modo fast, a transação chega sem histórico. A LSTM recebe uma janela 5 × 17 de zeros e dá score constante 0,8217, acima do seu limiar (0,7408); no score final, soma sempre 0,2465 (0,30 × 0,8217). A GNN roda com um único nó, sem arestas de histórico.
+  - Por que existe: sem o campo sequence, o agente temporal usa só a própria transação, e a inferência descarta transações do mesmo step ou posteriores; a API e o dashboard não montam o histórico.
+  - Evidência: src/ferramentas/ferramentas_agentes.py:52; src/ferramentas/inferencia_modelos.py:102-110, :118 e :137-149; reports/etapa4_avaliacao_teste.json (scores_distintos_lstm = 1); reports/etapa2_final_if_lstm.json (limiar 0,7408).
+  - Efeito no TCC: o resultado de A mede o sistema entregue, não os modelos com o histórico do treino. A correção fica como melhoria futura.
 - **Juiz Gemini sem avaliação**
   - O que é: não há avaliação das decisões do juiz. Duas chamadas acidentais no início não foram avaliação.
   - Por que existe: a política proíbe chamar o Gemini em teste, treino ou ablação.
@@ -100,19 +130,19 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 - **Pesos e limites de decisão sem calibração registrada**
   - O que é: pesos de agregação 0,35 / 0,30 / 0,35 e limites de decisão 0,50 / 0,80.
   - Por que existe: sem registro de calibração no repositório.
-  - Evidência: src/ferramentas/ferramentas_agentes.py:145, :152 e :154.
+  - Evidência: src/ferramentas/ferramentas_agentes.py:150, :157 e :159.
   - Efeito no TCC: esses valores devem ser apresentados como parâmetros definidos, não como resultado de otimização.
 - **Modo deep sem endpoint**
   - O que é: existe só como função de orquestração, sem endpoint na API. Os testes usam agentes simulados.
   - Por que existe: decisão D8: o lote usa fast, a análise individual usa production, e deep permanece só como função.
-  - Evidência: src/ferramentas/ferramentas_agentes.py:297; tests/test_orquestacao.py:139 e :241; docs/etapas/etapa2_api.txt (D8).
+  - Evidência: src/ferramentas/ferramentas_agentes.py:302; tests/test_orquestacao.py:139 e :241; docs/etapas/etapa2_api.txt (D8).
   - Efeito no TCC: o modo deep não pode ser apresentado como avaliado nem como disponível na API.
 - **Limite de R$ 10.000 na madrugada**
   - O que é: parâmetro de política, não calibrado com os dados. A referência regulatória do Pix é R$ 1.000 por conta entre pessoas físicas, das 20h às 6h (fonte a confirmar na resolução do Banco Central), com janela diferente de is_madrugada (0h a 5h).
   - Por que existe: sem registro no repositório da origem do valor.
   - Evidência:
     - Agente temporal: src/ferramentas/ferramentas_agentes.py:63 e :66.
-    - Agregador do modo fast: src/ferramentas/ferramentas_agentes.py:122, :130 e :148.
+    - Agregador do modo fast: src/ferramentas/ferramentas_agentes.py:127, :135 e :153.
     - Instruções dos agentes: src/orquestacao/definicoes_agentes.py:68, :81, :90, :110, :123, :132 e :133.
     - is_madrugada: src/preprocessamento/carregar_dataset.py:145, :184 e :236.
     - Contagem com step < 600 (366.650 transações, 5,54% de fraude): de 0h a 5h, amount >= 10.000 reúne 9.365 (82,77% de fraude) e amount >= 1.000, 17.276 (68,17%); das 20h às 6h, amount >= 10.000 reúne 10.086 (81,80%) e amount >= 1.000, 20.545 (61,69%).

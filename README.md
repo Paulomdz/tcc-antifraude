@@ -201,6 +201,15 @@ python -m src.modelos.treinamento.treinar_modelos --ablacao
   uma vez. Recusa nova execução se `reports/etapa2_ablacao.json` já registrar
   `test_read_count` igual ou maior que 1.
 
+Avaliação do sistema no modo fast (Etapa 4):
+
+```bash
+python -m src.avaliacao.avaliar_scores --split validacao
+python -m src.avaliacao.avaliar_scores --split teste
+```
+
+O teste é lido uma vez: se `reports/etapa4_avaliacao_teste.json` existir, o comando encerra sem ler nada, mesmo depois de uma falha. Resultados e decisões: `docs/etapas/etapa4.md`.
+
 **Limitação da GNN:** não convergiu em 10 épocas e foi treinada sem grade e sem
 ablação, por restrição de tempo.
 

@@ -1,0 +1,5008 @@
+{
+  "status": "concluido",
+  "data": "2026-11-05T10:15:24.806722+00:00",
+  "commit": "77fb960dbf62101f5826f1e8cc950c5897d723c4",
+  "split": "validacao",
+  "linhas": 30677,
+  "step_min": 550,
+  "step_max": 599,
+  "sistema_a": {
+    "linhas": 2000,
+    "e_amostra": true,
+    "seed_amostra": 42,
+    "entrada": {
+      "lstm": "matriz de zeros (5 x 17), sem histórico",
+      "gnn": "um nó (a transação atual), sem arestas de histórico"
+    },
+    "scores_distintos_lstm": 1
+  },
+  "sistema_b": {
+    "linhas": 30677,
+    "entrada": {
+      "lstm": "até 5 transações anteriores da mesma conta origem",
+      "gnn": "subgrafo com arestas só do passado para a transação; fanouts (10, 5)"
+    },
+    "dispositivo": "cuda"
+  },
+  "limiar_if": 0.5152371004215558,
+  "pr_auc_modelos_b": {
+    "isolation_forest": 0.684380381279137,
+    "lstm": 0.3570910693789026,
+    "gnn": 0.3817141002639207
+  },
+  "diferenca_max_if_a_b": 0.0,
+  "comparacoes": {
+    "A_com_regra": {
+      "n": 2000,
+      "fraudes": 116,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 10,
+          "legitima": 1755
+        },
+        "REVISÃO": {
+          "fraude": 44,
+          "legitima": 118
+        },
+        "BLOQUEADO": {
+          "fraude": 62,
+          "legitima": 11
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 0.8493150684931506,
+        "recall": 0.5344827586206896,
+        "f1": 0.656084656084656,
+        "tp": 62,
+        "fp": 11,
+        "fn": 54,
+        "tn": 1873
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 0.451063829787234,
+        "recall": 0.9137931034482759,
+        "f1": 0.603988603988604,
+        "tp": 106,
+        "fp": 129,
+        "fn": 10,
+        "tn": 1755
+      },
+      "pr_auc_score_final": 0.7941447099274086,
+      "taxa_revisao": 0.081,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 90,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 87
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 2
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 2,
+            "fn": 1,
+            "tn": 87
+          },
+          "pr_auc_score_final": 0.125,
+          "taxa_revisao": 0.022222222222222223
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 335,
+          "fraudes": 32,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 3,
+              "legitima": 301
+            },
+            "REVISÃO": {
+              "fraude": 14,
+              "legitima": 2
+            },
+            "BLOQUEADO": {
+              "fraude": 15,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.46875,
+            "f1": 0.6382978723404256,
+            "tp": 15,
+            "fp": 0,
+            "fn": 17,
+            "tn": 303
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.9354838709677419,
+            "recall": 0.90625,
+            "f1": 0.9206349206349206,
+            "tp": 29,
+            "fp": 2,
+            "fn": 3,
+            "tn": 301
+          },
+          "pr_auc_score_final": 0.9469748632252339,
+          "taxa_revisao": 0.04776119402985075
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 314,
+          "fraudes": 3,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 309
+            },
+            "REVISÃO": {
+              "fraude": 2,
+              "legitima": 2
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 3,
+            "tn": 311
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.5,
+            "recall": 0.6666666666666666,
+            "f1": 0.5714285714285715,
+            "tp": 2,
+            "fp": 2,
+            "fn": 1,
+            "tn": 309
+          },
+          "pr_auc_score_final": 0.5605806811836963,
+          "taxa_revisao": 0.012738853503184714
+        },
+        "EMPRESTIMO": {
+          "n": 46,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 43
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 3
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 46
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "tn": 43
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.06521739130434782
+        },
+        "PIX_AUTOMATICO": {
+          "n": 66,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 58
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 7
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 65
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.125,
+            "recall": 1.0,
+            "f1": 0.2222222222222222,
+            "tp": 1,
+            "fp": 7,
+            "fn": 0,
+            "tn": 58
+          },
+          "pr_auc_score_final": 0.125,
+          "taxa_revisao": 0.12121212121212122
+        },
+        "PIX_P2P": {
+          "n": 443,
+          "fraudes": 40,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 3,
+              "legitima": 389
+            },
+            "REVISÃO": {
+              "fraude": 13,
+              "legitima": 14
+            },
+            "BLOQUEADO": {
+              "fraude": 24,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.6,
+            "f1": 0.7499999999999999,
+            "tp": 24,
+            "fp": 0,
+            "fn": 16,
+            "tn": 403
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.7254901960784313,
+            "recall": 0.925,
+            "f1": 0.8131868131868133,
+            "tp": 37,
+            "fp": 14,
+            "fn": 3,
+            "tn": 389
+          },
+          "pr_auc_score_final": 0.9404959717451292,
+          "taxa_revisao": 0.060948081264108354
+        },
+        "PIX_QRCODE": {
+          "n": 56,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 51
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 5
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 56
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 0,
+            "tn": 51
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.08928571428571429
+        },
+        "PIX_SAQUE": {
+          "n": 144,
+          "fraudes": 25,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 106
+            },
+            "REVISÃO": {
+              "fraude": 8,
+              "legitima": 13
+            },
+            "BLOQUEADO": {
+              "fraude": 17,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.68,
+            "f1": 0.8095238095238095,
+            "tp": 17,
+            "fp": 0,
+            "fn": 8,
+            "tn": 119
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.6578947368421053,
+            "recall": 1.0,
+            "f1": 0.7936507936507937,
+            "tp": 25,
+            "fp": 13,
+            "fn": 0,
+            "tn": 106
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.14583333333333334
+        },
+        "PIX_TROCO": {
+          "n": 124,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 107
+            },
+            "REVISÃO": {
+              "fraude": 2,
+              "legitima": 9
+            },
+            "BLOQUEADO": {
+              "fraude": 6,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.75,
+            "f1": 0.8571428571428571,
+            "tp": 6,
+            "fp": 0,
+            "fn": 2,
+            "tn": 116
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.47058823529411764,
+            "recall": 1.0,
+            "f1": 0.6399999999999999,
+            "tp": 8,
+            "fp": 9,
+            "fn": 0,
+            "tn": 107
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.08870967741935484
+        },
+        "SAQUE": {
+          "n": 104,
+          "fraudes": 4,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 2,
+              "legitima": 100
+            },
+            "REVISÃO": {
+              "fraude": 2,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 4,
+            "tn": 100
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.5,
+            "f1": 0.6666666666666666,
+            "tp": 2,
+            "fp": 0,
+            "fn": 2,
+            "tn": 100
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.019230769230769232
+        },
+        "TED": {
+          "n": 137,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 80
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 45
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 11
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 11,
+            "fn": 1,
+            "tn": 125
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.017543859649122806,
+            "recall": 1.0,
+            "f1": 0.034482758620689655,
+            "tp": 1,
+            "fp": 56,
+            "fn": 0,
+            "tn": 80
+          },
+          "pr_auc_score_final": 0.03571428571428571,
+          "taxa_revisao": 0.3357664233576642
+        },
+        "TEF": {
+          "n": 141,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 124
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 16
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 140
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.058823529411764705,
+            "recall": 1.0,
+            "f1": 0.1111111111111111,
+            "tp": 1,
+            "fp": 16,
+            "fn": 0,
+            "tn": 124
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.12056737588652482
+        }
+      }
+    },
+    "A_sem_regra": {
+      "n": 2000,
+      "fraudes": 116,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 10,
+          "legitima": 1755
+        },
+        "REVISÃO": {
+          "fraude": 61,
+          "legitima": 129
+        },
+        "BLOQUEADO": {
+          "fraude": 45,
+          "legitima": 0
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 1.0,
+        "recall": 0.3879310344827586,
+        "f1": 0.5590062111801242,
+        "tp": 45,
+        "fp": 0,
+        "fn": 71,
+        "tn": 1884
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 0.451063829787234,
+        "recall": 0.9137931034482759,
+        "f1": 0.603988603988604,
+        "tp": 106,
+        "fp": 129,
+        "fn": 10,
+        "tn": 1755
+      },
+      "pr_auc_score_final": 0.8677997484945087,
+      "taxa_revisao": 0.095,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 90,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 87
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 2
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 2,
+            "fn": 1,
+            "tn": 87
+          },
+          "pr_auc_score_final": 0.125,
+          "taxa_revisao": 0.022222222222222223
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 335,
+          "fraudes": 32,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 3,
+              "legitima": 301
+            },
+            "REVISÃO": {
+              "fraude": 24,
+              "legitima": 2
+            },
+            "BLOQUEADO": {
+              "fraude": 5,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.15625,
+            "f1": 0.2702702702702703,
+            "tp": 5,
+            "fp": 0,
+            "fn": 27,
+            "tn": 303
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.9354838709677419,
+            "recall": 0.90625,
+            "f1": 0.9206349206349206,
+            "tp": 29,
+            "fp": 2,
+            "fn": 3,
+            "tn": 301
+          },
+          "pr_auc_score_final": 0.9469748632252339,
+          "taxa_revisao": 0.07761194029850746
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 314,
+          "fraudes": 3,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 309
+            },
+            "REVISÃO": {
+              "fraude": 2,
+              "legitima": 2
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 3,
+            "tn": 311
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.5,
+            "recall": 0.6666666666666666,
+            "f1": 0.5714285714285715,
+            "tp": 2,
+            "fp": 2,
+            "fn": 1,
+            "tn": 309
+          },
+          "pr_auc_score_final": 0.5605806811836963,
+          "taxa_revisao": 0.012738853503184714
+        },
+        "EMPRESTIMO": {
+          "n": 46,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 43
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 3
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 46
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "tn": 43
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.06521739130434782
+        },
+        "PIX_AUTOMATICO": {
+          "n": 66,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 58
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 7
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 65
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.125,
+            "recall": 1.0,
+            "f1": 0.2222222222222222,
+            "tp": 1,
+            "fp": 7,
+            "fn": 0,
+            "tn": 58
+          },
+          "pr_auc_score_final": 0.125,
+          "taxa_revisao": 0.12121212121212122
+        },
+        "PIX_P2P": {
+          "n": 443,
+          "fraudes": 40,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 3,
+              "legitima": 389
+            },
+            "REVISÃO": {
+              "fraude": 19,
+              "legitima": 14
+            },
+            "BLOQUEADO": {
+              "fraude": 18,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.45,
+            "f1": 0.6206896551724138,
+            "tp": 18,
+            "fp": 0,
+            "fn": 22,
+            "tn": 403
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.7254901960784313,
+            "recall": 0.925,
+            "f1": 0.8131868131868133,
+            "tp": 37,
+            "fp": 14,
+            "fn": 3,
+            "tn": 389
+          },
+          "pr_auc_score_final": 0.9404959717451292,
+          "taxa_revisao": 0.0744920993227991
+        },
+        "PIX_QRCODE": {
+          "n": 56,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 51
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 5
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 56
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 0,
+            "tn": 51
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.08928571428571429
+        },
+        "PIX_SAQUE": {
+          "n": 144,
+          "fraudes": 25,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 106
+            },
+            "REVISÃO": {
+              "fraude": 9,
+              "legitima": 13
+            },
+            "BLOQUEADO": {
+              "fraude": 16,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.64,
+            "f1": 0.7804878048780487,
+            "tp": 16,
+            "fp": 0,
+            "fn": 9,
+            "tn": 119
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.6578947368421053,
+            "recall": 1.0,
+            "f1": 0.7936507936507937,
+            "tp": 25,
+            "fp": 13,
+            "fn": 0,
+            "tn": 106
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.1527777777777778
+        },
+        "PIX_TROCO": {
+          "n": 124,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 107
+            },
+            "REVISÃO": {
+              "fraude": 2,
+              "legitima": 9
+            },
+            "BLOQUEADO": {
+              "fraude": 6,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.75,
+            "f1": 0.8571428571428571,
+            "tp": 6,
+            "fp": 0,
+            "fn": 2,
+            "tn": 116
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.47058823529411764,
+            "recall": 1.0,
+            "f1": 0.6399999999999999,
+            "tp": 8,
+            "fp": 9,
+            "fn": 0,
+            "tn": 107
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.08870967741935484
+        },
+        "SAQUE": {
+          "n": 104,
+          "fraudes": 4,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 2,
+              "legitima": 100
+            },
+            "REVISÃO": {
+              "fraude": 2,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 4,
+            "tn": 100
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.5,
+            "f1": 0.6666666666666666,
+            "tp": 2,
+            "fp": 0,
+            "fn": 2,
+            "tn": 100
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.019230769230769232
+        },
+        "TED": {
+          "n": 137,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 80
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 56
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 136
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.017543859649122806,
+            "recall": 1.0,
+            "f1": 0.034482758620689655,
+            "tp": 1,
+            "fp": 56,
+            "fn": 0,
+            "tn": 80
+          },
+          "pr_auc_score_final": 0.04,
+          "taxa_revisao": 0.41605839416058393
+        },
+        "TEF": {
+          "n": 141,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 124
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 16
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 140
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.058823529411764705,
+            "recall": 1.0,
+            "f1": 0.1111111111111111,
+            "tp": 1,
+            "fp": 16,
+            "fn": 0,
+            "tn": 124
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.12056737588652482
+        }
+      }
+    },
+    "B_com_regra": {
+      "n": 30677,
+      "fraudes": 1653,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 318,
+          "legitima": 26407
+        },
+        "REVISÃO": {
+          "fraude": 688,
+          "legitima": 2452
+        },
+        "BLOQUEADO": {
+          "fraude": 647,
+          "legitima": 165
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 0.7967980295566502,
+        "recall": 0.3914095583787054,
+        "f1": 0.5249492900608519,
+        "tp": 647,
+        "fp": 165,
+        "fn": 1006,
+        "tn": 28859
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 0.33780364372469635,
+        "recall": 0.8076225045372051,
+        "f1": 0.47636039250669043,
+        "tp": 1335,
+        "fp": 2617,
+        "fn": 318,
+        "tn": 26407
+      },
+      "pr_auc_score_final": 0.6412070571379573,
+      "taxa_revisao": 0.10235681455161848,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 1796,
+          "fraudes": 20,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 17,
+              "legitima": 1761
+            },
+            "REVISÃO": {
+              "fraude": 3,
+              "legitima": 15
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 1776
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.16666666666666666,
+            "recall": 0.15,
+            "f1": 0.15789473684210525,
+            "tp": 3,
+            "fp": 15,
+            "fn": 17,
+            "tn": 1761
+          },
+          "pr_auc_score_final": 0.15756835949974352,
+          "taxa_revisao": 0.01002227171492205
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 5152,
+          "fraudes": 397,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 137,
+              "legitima": 4751
+            },
+            "REVISÃO": {
+              "fraude": 159,
+              "legitima": 4
+            },
+            "BLOQUEADO": {
+              "fraude": 101,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.25440806045340053,
+            "f1": 0.4056224899598394,
+            "tp": 101,
+            "fp": 0,
+            "fn": 296,
+            "tn": 4755
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.9848484848484849,
+            "recall": 0.654911838790932,
+            "f1": 0.7866868381240544,
+            "tp": 260,
+            "fp": 4,
+            "fn": 137,
+            "tn": 4751
+          },
+          "pr_auc_score_final": 0.7997047690612725,
+          "taxa_revisao": 0.031638198757763976
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 4914,
+          "fraudes": 27,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 27,
+              "legitima": 4882
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 5
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 27,
+            "tn": 4887
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 27,
+            "tn": 4882
+          },
+          "pr_auc_score_final": 0.016391559629116238,
+          "taxa_revisao": 0.0010175010175010174
+        },
+        "EMPRESTIMO": {
+          "n": 513,
+          "fraudes": 7,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 7,
+              "legitima": 488
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 18
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 7,
+            "tn": 506
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 18,
+            "fn": 7,
+            "tn": 488
+          },
+          "pr_auc_score_final": 0.011154130983914025,
+          "taxa_revisao": 0.03508771929824561
+        },
+        "PIX_AUTOMATICO": {
+          "n": 984,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 5,
+              "legitima": 703
+            },
+            "REVISÃO": {
+              "fraude": 3,
+              "legitima": 273
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 8,
+            "tn": 976
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.010869565217391304,
+            "recall": 0.375,
+            "f1": 0.02112676056338028,
+            "tp": 3,
+            "fp": 273,
+            "fn": 5,
+            "tn": 703
+          },
+          "pr_auc_score_final": 0.013202713281389649,
+          "taxa_revisao": 0.2804878048780488
+        },
+        "PIX_P2P": {
+          "n": 6448,
+          "fraudes": 610,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 63,
+              "legitima": 4847
+            },
+            "REVISÃO": {
+              "fraude": 264,
+              "legitima": 991
+            },
+            "BLOQUEADO": {
+              "fraude": 283,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.4639344262295082,
+            "f1": 0.6338185890257558,
+            "tp": 283,
+            "fp": 0,
+            "fn": 327,
+            "tn": 5838
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.35565669700910274,
+            "recall": 0.8967213114754098,
+            "f1": 0.5093109869646183,
+            "tp": 547,
+            "fp": 991,
+            "fn": 63,
+            "tn": 4847
+          },
+          "pr_auc_score_final": 0.8692650762572947,
+          "taxa_revisao": 0.19463399503722084
+        },
+        "PIX_QRCODE": {
+          "n": 873,
+          "fraudes": 20,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 7,
+              "legitima": 708
+            },
+            "REVISÃO": {
+              "fraude": 13,
+              "legitima": 145
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 853
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.08227848101265822,
+            "recall": 0.65,
+            "f1": 0.14606741573033707,
+            "tp": 13,
+            "fp": 145,
+            "fn": 7,
+            "tn": 708
+          },
+          "pr_auc_score_final": 0.20532448390235025,
+          "taxa_revisao": 0.18098510882016036
+        },
+        "PIX_SAQUE": {
+          "n": 2521,
+          "fraudes": 377,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 12,
+              "legitima": 1693
+            },
+            "REVISÃO": {
+              "fraude": 170,
+              "legitima": 451
+            },
+            "BLOQUEADO": {
+              "fraude": 195,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.5172413793103449,
+            "f1": 0.6818181818181819,
+            "tp": 195,
+            "fp": 0,
+            "fn": 182,
+            "tn": 2144
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.44730392156862747,
+            "recall": 0.9681697612732095,
+            "f1": 0.6119027661357921,
+            "tp": 365,
+            "fp": 451,
+            "fn": 12,
+            "tn": 1693
+          },
+          "pr_auc_score_final": 0.9352576735821625,
+          "taxa_revisao": 0.24633082110273702
+        },
+        "PIX_TROCO": {
+          "n": 1654,
+          "fraudes": 124,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 1154
+            },
+            "REVISÃO": {
+              "fraude": 57,
+              "legitima": 376
+            },
+            "BLOQUEADO": {
+              "fraude": 67,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.5403225806451613,
+            "f1": 0.7015706806282722,
+            "tp": 67,
+            "fp": 0,
+            "fn": 57,
+            "tn": 1530
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.248,
+            "recall": 1.0,
+            "f1": 0.3974358974358974,
+            "tp": 124,
+            "fp": 376,
+            "fn": 0,
+            "tn": 1154
+          },
+          "pr_auc_score_final": 0.9334701145377329,
+          "taxa_revisao": 0.2617896009673519
+        },
+        "SAQUE": {
+          "n": 1583,
+          "fraudes": 45,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 36,
+              "legitima": 1492
+            },
+            "REVISÃO": {
+              "fraude": 9,
+              "legitima": 46
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 45,
+            "tn": 1538
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.16363636363636364,
+            "recall": 0.2,
+            "f1": 0.18000000000000002,
+            "tp": 9,
+            "fp": 46,
+            "fn": 36,
+            "tn": 1492
+          },
+          "pr_auc_score_final": 0.18798884364184495,
+          "taxa_revisao": 0.03474415666456096
+        },
+        "TED": {
+          "n": 2089,
+          "fraudes": 12,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 7,
+              "legitima": 1805
+            },
+            "REVISÃO": {
+              "fraude": 4,
+              "legitima": 107
+            },
+            "BLOQUEADO": {
+              "fraude": 1,
+              "legitima": 165
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.006024096385542169,
+            "recall": 0.08333333333333333,
+            "f1": 0.011235955056179775,
+            "tp": 1,
+            "fp": 165,
+            "fn": 11,
+            "tn": 1912
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.018050541516245487,
+            "recall": 0.4166666666666667,
+            "f1": 0.03460207612456748,
+            "tp": 5,
+            "fp": 272,
+            "fn": 7,
+            "tn": 1805
+          },
+          "pr_auc_score_final": 0.01739027906245062,
+          "taxa_revisao": 0.05313547151747248
+        },
+        "TEF": {
+          "n": 2150,
+          "fraudes": 6,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 2123
+            },
+            "REVISÃO": {
+              "fraude": 6,
+              "legitima": 21
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 2144
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.2222222222222222,
+            "recall": 1.0,
+            "f1": 0.3636363636363636,
+            "tp": 6,
+            "fp": 21,
+            "fn": 0,
+            "tn": 2123
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.012558139534883722
+        }
+      }
+    },
+    "B_sem_regra": {
+      "n": 30677,
+      "fraudes": 1653,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 354,
+          "legitima": 26470
+        },
+        "REVISÃO": {
+          "fraude": 1000,
+          "legitima": 2554
+        },
+        "BLOQUEADO": {
+          "fraude": 299,
+          "legitima": 0
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 1.0,
+        "recall": 0.1808832425892317,
+        "f1": 0.3063524590163934,
+        "tp": 299,
+        "fp": 0,
+        "fn": 1354,
+        "tn": 29024
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 0.33713989099403063,
+        "recall": 0.7858439201451906,
+        "f1": 0.47184889211768977,
+        "tp": 1299,
+        "fp": 2554,
+        "fn": 354,
+        "tn": 26470
+      },
+      "pr_auc_score_final": 0.698335101215045,
+      "taxa_revisao": 0.11585226717084461,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 1796,
+          "fraudes": 20,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 17,
+              "legitima": 1761
+            },
+            "REVISÃO": {
+              "fraude": 3,
+              "legitima": 15
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 1776
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.16666666666666666,
+            "recall": 0.15,
+            "f1": 0.15789473684210525,
+            "tp": 3,
+            "fp": 15,
+            "fn": 17,
+            "tn": 1761
+          },
+          "pr_auc_score_final": 0.15756835949974352,
+          "taxa_revisao": 0.01002227171492205
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 5152,
+          "fraudes": 397,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 170,
+              "legitima": 4751
+            },
+            "REVISÃO": {
+              "fraude": 224,
+              "legitima": 4
+            },
+            "BLOQUEADO": {
+              "fraude": 3,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.007556675062972292,
+            "f1": 0.015,
+            "tp": 3,
+            "fp": 0,
+            "fn": 394,
+            "tn": 4755
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.9826839826839827,
+            "recall": 0.5717884130982368,
+            "f1": 0.7229299363057325,
+            "tp": 227,
+            "fp": 4,
+            "fn": 170,
+            "tn": 4751
+          },
+          "pr_auc_score_final": 0.7768210204067052,
+          "taxa_revisao": 0.04425465838509317
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 4914,
+          "fraudes": 27,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 27,
+              "legitima": 4882
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 5
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 27,
+            "tn": 4887
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 27,
+            "tn": 4882
+          },
+          "pr_auc_score_final": 0.016391559629116238,
+          "taxa_revisao": 0.0010175010175010174
+        },
+        "EMPRESTIMO": {
+          "n": 513,
+          "fraudes": 7,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 7,
+              "legitima": 488
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 18
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 7,
+            "tn": 506
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 18,
+            "fn": 7,
+            "tn": 488
+          },
+          "pr_auc_score_final": 0.011154130983914025,
+          "taxa_revisao": 0.03508771929824561
+        },
+        "PIX_AUTOMATICO": {
+          "n": 984,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 5,
+              "legitima": 703
+            },
+            "REVISÃO": {
+              "fraude": 3,
+              "legitima": 273
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 8,
+            "tn": 976
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.010869565217391304,
+            "recall": 0.375,
+            "f1": 0.02112676056338028,
+            "tp": 3,
+            "fp": 273,
+            "fn": 5,
+            "tn": 703
+          },
+          "pr_auc_score_final": 0.013202713281389649,
+          "taxa_revisao": 0.2804878048780488
+        },
+        "PIX_P2P": {
+          "n": 6448,
+          "fraudes": 610,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 66,
+              "legitima": 4847
+            },
+            "REVISÃO": {
+              "fraude": 401,
+              "legitima": 991
+            },
+            "BLOQUEADO": {
+              "fraude": 143,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.23442622950819672,
+            "f1": 0.3798140770252324,
+            "tp": 143,
+            "fp": 0,
+            "fn": 467,
+            "tn": 5838
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.3543973941368078,
+            "recall": 0.8918032786885246,
+            "f1": 0.5072261072261073,
+            "tp": 544,
+            "fp": 991,
+            "fn": 66,
+            "tn": 4847
+          },
+          "pr_auc_score_final": 0.861209514100028,
+          "taxa_revisao": 0.21588089330024815
+        },
+        "PIX_QRCODE": {
+          "n": 873,
+          "fraudes": 20,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 7,
+              "legitima": 708
+            },
+            "REVISÃO": {
+              "fraude": 13,
+              "legitima": 145
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 853
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.08227848101265822,
+            "recall": 0.65,
+            "f1": 0.14606741573033707,
+            "tp": 13,
+            "fp": 145,
+            "fn": 7,
+            "tn": 708
+          },
+          "pr_auc_score_final": 0.20532448390235025,
+          "taxa_revisao": 0.18098510882016036
+        },
+        "PIX_SAQUE": {
+          "n": 2521,
+          "fraudes": 377,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 12,
+              "legitima": 1693
+            },
+            "REVISÃO": {
+              "fraude": 256,
+              "legitima": 451
+            },
+            "BLOQUEADO": {
+              "fraude": 109,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.2891246684350133,
+            "f1": 0.448559670781893,
+            "tp": 109,
+            "fp": 0,
+            "fn": 268,
+            "tn": 2144
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.44730392156862747,
+            "recall": 0.9681697612732095,
+            "f1": 0.6119027661357921,
+            "tp": 365,
+            "fp": 451,
+            "fn": 12,
+            "tn": 1693
+          },
+          "pr_auc_score_final": 0.9295927034634306,
+          "taxa_revisao": 0.2804442681475605
+        },
+        "PIX_TROCO": {
+          "n": 1654,
+          "fraudes": 124,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 1154
+            },
+            "REVISÃO": {
+              "fraude": 81,
+              "legitima": 376
+            },
+            "BLOQUEADO": {
+              "fraude": 43,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.3467741935483871,
+            "f1": 0.5149700598802396,
+            "tp": 43,
+            "fp": 0,
+            "fn": 81,
+            "tn": 1530
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.248,
+            "recall": 1.0,
+            "f1": 0.3974358974358974,
+            "tp": 124,
+            "fp": 376,
+            "fn": 0,
+            "tn": 1154
+          },
+          "pr_auc_score_final": 0.9134620432305175,
+          "taxa_revisao": 0.2762998790810157
+        },
+        "SAQUE": {
+          "n": 1583,
+          "fraudes": 45,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 36,
+              "legitima": 1492
+            },
+            "REVISÃO": {
+              "fraude": 9,
+              "legitima": 46
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 45,
+            "tn": 1538
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.16363636363636364,
+            "recall": 0.2,
+            "f1": 0.18000000000000002,
+            "tp": 9,
+            "fp": 46,
+            "fn": 36,
+            "tn": 1492
+          },
+          "pr_auc_score_final": 0.18798884364184495,
+          "taxa_revisao": 0.03474415666456096
+        },
+        "TED": {
+          "n": 2089,
+          "fraudes": 12,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 7,
+              "legitima": 1868
+            },
+            "REVISÃO": {
+              "fraude": 4,
+              "legitima": 209
+            },
+            "BLOQUEADO": {
+              "fraude": 1,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.08333333333333333,
+            "f1": 0.15384615384615385,
+            "tp": 1,
+            "fp": 0,
+            "fn": 11,
+            "tn": 2077
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.02336448598130841,
+            "recall": 0.4166666666666667,
+            "f1": 0.04424778761061946,
+            "tp": 5,
+            "fp": 209,
+            "fn": 7,
+            "tn": 1868
+          },
+          "pr_auc_score_final": 0.34813993428254464,
+          "taxa_revisao": 0.10196266156055529
+        },
+        "TEF": {
+          "n": 2150,
+          "fraudes": 6,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 2123
+            },
+            "REVISÃO": {
+              "fraude": 6,
+              "legitima": 21
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 2144
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.2222222222222222,
+            "recall": 1.0,
+            "f1": 0.3636363636363636,
+            "tp": 6,
+            "fp": 21,
+            "fn": 0,
+            "tn": 2123
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.012558139534883722
+        }
+      }
+    },
+    "regra_banco": {
+      "n": 30677,
+      "fraudes": 1653,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 1061,
+          "legitima": 29024
+        },
+        "REVISÃO": {
+          "fraude": 0,
+          "legitima": 0
+        },
+        "BLOQUEADO": {
+          "fraude": 592,
+          "legitima": 0
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 1.0,
+        "recall": 0.35813672111312767,
+        "f1": 0.5273942093541203,
+        "tp": 592,
+        "fp": 0,
+        "fn": 1061,
+        "tn": 29024
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 1.0,
+        "recall": 0.35813672111312767,
+        "f1": 0.5273942093541203,
+        "tp": 592,
+        "fp": 0,
+        "fn": 1061,
+        "tn": 29024
+      },
+      "pr_auc_score_final": null,
+      "taxa_revisao": 0.0,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 1796,
+          "fraudes": 20,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 20,
+              "legitima": 1776
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 1776
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 1776
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 5152,
+          "fraudes": 397,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 389,
+              "legitima": 4755
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 8,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.020151133501259445,
+            "f1": 0.03950617283950617,
+            "tp": 8,
+            "fp": 0,
+            "fn": 389,
+            "tn": 4755
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.020151133501259445,
+            "f1": 0.03950617283950617,
+            "tp": 8,
+            "fp": 0,
+            "fn": 389,
+            "tn": 4755
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 4914,
+          "fraudes": 27,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 27,
+              "legitima": 4887
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 27,
+            "tn": 4887
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 27,
+            "tn": 4887
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "EMPRESTIMO": {
+          "n": 513,
+          "fraudes": 7,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 7,
+              "legitima": 506
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 7,
+            "tn": 506
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 7,
+            "tn": 506
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_AUTOMATICO": {
+          "n": 984,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 8,
+              "legitima": 976
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 8,
+            "tn": 976
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 8,
+            "tn": 976
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_P2P": {
+          "n": 6448,
+          "fraudes": 610,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 306,
+              "legitima": 5838
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 304,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.49836065573770494,
+            "f1": 0.6652078774617068,
+            "tp": 304,
+            "fp": 0,
+            "fn": 306,
+            "tn": 5838
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.49836065573770494,
+            "f1": 0.6652078774617068,
+            "tp": 304,
+            "fp": 0,
+            "fn": 306,
+            "tn": 5838
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_QRCODE": {
+          "n": 873,
+          "fraudes": 20,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 20,
+              "legitima": 853
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 853
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 853
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_SAQUE": {
+          "n": 2521,
+          "fraudes": 377,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 163,
+              "legitima": 2144
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 214,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.5676392572944297,
+            "f1": 0.7241962774957699,
+            "tp": 214,
+            "fp": 0,
+            "fn": 163,
+            "tn": 2144
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.5676392572944297,
+            "f1": 0.7241962774957699,
+            "tp": 214,
+            "fp": 0,
+            "fn": 163,
+            "tn": 2144
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_TROCO": {
+          "n": 1654,
+          "fraudes": 124,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 58,
+              "legitima": 1530
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 66,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.532258064516129,
+            "f1": 0.6947368421052631,
+            "tp": 66,
+            "fp": 0,
+            "fn": 58,
+            "tn": 1530
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.532258064516129,
+            "f1": 0.6947368421052631,
+            "tp": 66,
+            "fp": 0,
+            "fn": 58,
+            "tn": 1530
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "SAQUE": {
+          "n": 1583,
+          "fraudes": 45,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 45,
+              "legitima": 1538
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 45,
+            "tn": 1538
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 45,
+            "tn": 1538
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "TED": {
+          "n": 2089,
+          "fraudes": 12,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 12,
+              "legitima": 2077
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 12,
+            "tn": 2077
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 12,
+            "tn": 2077
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "TEF": {
+          "n": 2150,
+          "fraudes": 6,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 6,
+              "legitima": 2144
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 2144
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 6,
+            "tn": 2144
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        }
+      }
+    },
+    "if_sozinho": {
+      "n": 30677,
+      "fraudes": 1653,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 521,
+          "legitima": 28579
+        },
+        "REVISÃO": {
+          "fraude": 0,
+          "legitima": 0
+        },
+        "BLOQUEADO": {
+          "fraude": 1132,
+          "legitima": 445
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 0.7178186429930248,
+        "recall": 0.6848154869933454,
+        "f1": 0.7009287925696596,
+        "tp": 1132,
+        "fp": 445,
+        "fn": 521,
+        "tn": 28579
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 0.7178186429930248,
+        "recall": 0.6848154869933454,
+        "f1": 0.7009287925696596,
+        "tp": 1132,
+        "fp": 445,
+        "fn": 521,
+        "tn": 28579
+      },
+      "pr_auc_score_final": 0.684380381279137,
+      "taxa_revisao": 0.0,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 1796,
+          "fraudes": 20,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 20,
+              "legitima": 1776
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 1776
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 20,
+            "tn": 1776
+          },
+          "pr_auc_score_final": 0.017444255973206327,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 5152,
+          "fraudes": 397,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 182,
+              "legitima": 4755
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 215,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.5415617128463476,
+            "f1": 0.7026143790849674,
+            "tp": 215,
+            "fp": 0,
+            "fn": 182,
+            "tn": 4755
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.5415617128463476,
+            "f1": 0.7026143790849674,
+            "tp": 215,
+            "fp": 0,
+            "fn": 182,
+            "tn": 4755
+          },
+          "pr_auc_score_final": 0.9136350462915358,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 4914,
+          "fraudes": 27,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 27,
+              "legitima": 4887
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 27,
+            "tn": 4887
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 27,
+            "tn": 4887
+          },
+          "pr_auc_score_final": 0.23963061363644203,
+          "taxa_revisao": 0.0
+        },
+        "EMPRESTIMO": {
+          "n": 513,
+          "fraudes": 7,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 5,
+              "legitima": 405
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 2,
+              "legitima": 101
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.019417475728155338,
+            "recall": 0.2857142857142857,
+            "f1": 0.03636363636363636,
+            "tp": 2,
+            "fp": 101,
+            "fn": 5,
+            "tn": 405
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.019417475728155338,
+            "recall": 0.2857142857142857,
+            "f1": 0.03636363636363636,
+            "tp": 2,
+            "fp": 101,
+            "fn": 5,
+            "tn": 405
+          },
+          "pr_auc_score_final": 0.018417973934458848,
+          "taxa_revisao": 0.0
+        },
+        "PIX_AUTOMATICO": {
+          "n": 984,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 8,
+              "legitima": 965
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 11
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 11,
+            "fn": 8,
+            "tn": 965
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 11,
+            "fn": 8,
+            "tn": 965
+          },
+          "pr_auc_score_final": 0.010776640568531769,
+          "taxa_revisao": 0.0
+        },
+        "PIX_P2P": {
+          "n": 6448,
+          "fraudes": 610,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 175,
+              "legitima": 5838
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 435,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.7131147540983607,
+            "f1": 0.8325358851674641,
+            "tp": 435,
+            "fp": 0,
+            "fn": 175,
+            "tn": 5838
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.7131147540983607,
+            "f1": 0.8325358851674641,
+            "tp": 435,
+            "fp": 0,
+            "fn": 175,
+            "tn": 5838
+          },
+          "pr_auc_score_final": 0.9202244216586266,
+          "taxa_revisao": 0.0
+        },
+        "PIX_QRCODE": {
+          "n": 873,
+          "fraudes": 20,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 19,
+              "legitima": 846
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 1,
+              "legitima": 7
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.125,
+            "recall": 0.05,
+            "f1": 0.07142857142857144,
+            "tp": 1,
+            "fp": 7,
+            "fn": 19,
+            "tn": 846
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.125,
+            "recall": 0.05,
+            "f1": 0.07142857142857144,
+            "tp": 1,
+            "fp": 7,
+            "fn": 19,
+            "tn": 846
+          },
+          "pr_auc_score_final": 0.08126073139642917,
+          "taxa_revisao": 0.0
+        },
+        "PIX_SAQUE": {
+          "n": 2521,
+          "fraudes": 377,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 24,
+              "legitima": 2133
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 353,
+              "legitima": 11
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.9697802197802198,
+            "recall": 0.9363395225464191,
+            "f1": 0.9527665317139002,
+            "tp": 353,
+            "fp": 11,
+            "fn": 24,
+            "tn": 2133
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.9697802197802198,
+            "recall": 0.9363395225464191,
+            "f1": 0.9527665317139002,
+            "tp": 353,
+            "fp": 11,
+            "fn": 24,
+            "tn": 2133
+          },
+          "pr_auc_score_final": 0.9859957582729512,
+          "taxa_revisao": 0.0
+        },
+        "PIX_TROCO": {
+          "n": 1654,
+          "fraudes": 124,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 1506
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 123,
+              "legitima": 24
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.8367346938775511,
+            "recall": 0.9919354838709677,
+            "f1": 0.9077490774907749,
+            "tp": 123,
+            "fp": 24,
+            "fn": 1,
+            "tn": 1506
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.8367346938775511,
+            "recall": 0.9919354838709677,
+            "f1": 0.9077490774907749,
+            "tp": 123,
+            "fp": 24,
+            "fn": 1,
+            "tn": 1506
+          },
+          "pr_auc_score_final": 0.9954486977435052,
+          "taxa_revisao": 0.0
+        },
+        "SAQUE": {
+          "n": 1583,
+          "fraudes": 45,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 45,
+              "legitima": 1538
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 45,
+            "tn": 1538
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 45,
+            "tn": 1538
+          },
+          "pr_auc_score_final": 0.15858100666503405,
+          "taxa_revisao": 0.0
+        },
+        "TED": {
+          "n": 2089,
+          "fraudes": 12,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 10,
+              "legitima": 1787
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 2,
+              "legitima": 290
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.00684931506849315,
+            "recall": 0.16666666666666666,
+            "f1": 0.013157894736842105,
+            "tp": 2,
+            "fp": 290,
+            "fn": 10,
+            "tn": 1787
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.00684931506849315,
+            "recall": 0.16666666666666666,
+            "f1": 0.013157894736842105,
+            "tp": 2,
+            "fp": 290,
+            "fn": 10,
+            "tn": 1787
+          },
+          "pr_auc_score_final": 0.009093401836707307,
+          "taxa_revisao": 0.0
+        },
+        "TEF": {
+          "n": 2150,
+          "fraudes": 6,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 5,
+              "legitima": 2143
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 1,
+              "legitima": 1
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.5,
+            "recall": 0.16666666666666666,
+            "f1": 0.25,
+            "tp": 1,
+            "fp": 1,
+            "fn": 5,
+            "tn": 2143
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.5,
+            "recall": 0.16666666666666666,
+            "f1": 0.25,
+            "tp": 1,
+            "fp": 1,
+            "fn": 5,
+            "tn": 2143
+          },
+          "pr_auc_score_final": 0.3530864197530864,
+          "taxa_revisao": 0.0
+        }
+      }
+    }
+  },
+  "comparacoes_na_amostra_a": {
+    "B_com_regra": {
+      "n": 2000,
+      "fraudes": 116,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 25,
+          "legitima": 1734
+        },
+        "REVISÃO": {
+          "fraude": 46,
+          "legitima": 139
+        },
+        "BLOQUEADO": {
+          "fraude": 45,
+          "legitima": 11
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 0.8035714285714286,
+        "recall": 0.3879310344827586,
+        "f1": 0.5232558139534883,
+        "tp": 45,
+        "fp": 11,
+        "fn": 71,
+        "tn": 1873
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 0.3775933609958506,
+        "recall": 0.7844827586206896,
+        "f1": 0.5098039215686274,
+        "tp": 91,
+        "fp": 150,
+        "fn": 25,
+        "tn": 1734
+      },
+      "pr_auc_score_final": 0.6466128325403961,
+      "taxa_revisao": 0.0925,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 90,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 89
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "pr_auc_score_final": 0.5,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 335,
+          "fraudes": 32,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 16,
+              "legitima": 303
+            },
+            "REVISÃO": {
+              "fraude": 13,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 3,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.09375,
+            "f1": 0.17142857142857143,
+            "tp": 3,
+            "fp": 0,
+            "fn": 29,
+            "tn": 303
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.5,
+            "f1": 0.6666666666666666,
+            "tp": 16,
+            "fp": 0,
+            "fn": 16,
+            "tn": 303
+          },
+          "pr_auc_score_final": 0.8124516532001362,
+          "taxa_revisao": 0.03880597014925373
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 314,
+          "fraudes": 3,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 3,
+              "legitima": 310
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 1
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 3,
+            "tn": 311
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 3,
+            "tn": 310
+          },
+          "pr_auc_score_final": 0.02757936507936508,
+          "taxa_revisao": 0.0031847133757961785
+        },
+        "EMPRESTIMO": {
+          "n": 46,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 46
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 46
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 46
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_AUTOMATICO": {
+          "n": 66,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 47
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 18
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 65
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.05263157894736842,
+            "recall": 1.0,
+            "f1": 0.1,
+            "tp": 1,
+            "fp": 18,
+            "fn": 0,
+            "tn": 47
+          },
+          "pr_auc_score_final": 0.2,
+          "taxa_revisao": 0.2878787878787879
+        },
+        "PIX_P2P": {
+          "n": 443,
+          "fraudes": 40,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 334
+            },
+            "REVISÃO": {
+              "fraude": 17,
+              "legitima": 69
+            },
+            "BLOQUEADO": {
+              "fraude": 22,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.55,
+            "f1": 0.7096774193548387,
+            "tp": 22,
+            "fp": 0,
+            "fn": 18,
+            "tn": 403
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.3611111111111111,
+            "recall": 0.975,
+            "f1": 0.527027027027027,
+            "tp": 39,
+            "fp": 69,
+            "fn": 1,
+            "tn": 334
+          },
+          "pr_auc_score_final": 0.9186093380192955,
+          "taxa_revisao": 0.19413092550790068
+        },
+        "PIX_QRCODE": {
+          "n": 56,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 50
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 6
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 56
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 6,
+            "fn": 0,
+            "tn": 50
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.10714285714285714
+        },
+        "PIX_SAQUE": {
+          "n": 144,
+          "fraudes": 25,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 102
+            },
+            "REVISÃO": {
+              "fraude": 11,
+              "legitima": 17
+            },
+            "BLOQUEADO": {
+              "fraude": 14,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.56,
+            "f1": 0.717948717948718,
+            "tp": 14,
+            "fp": 0,
+            "fn": 11,
+            "tn": 119
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.5952380952380952,
+            "recall": 1.0,
+            "f1": 0.7462686567164178,
+            "tp": 25,
+            "fp": 17,
+            "fn": 0,
+            "tn": 102
+          },
+          "pr_auc_score_final": 0.9855684729064041,
+          "taxa_revisao": 0.19444444444444445
+        },
+        "PIX_TROCO": {
+          "n": 124,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 98
+            },
+            "REVISÃO": {
+              "fraude": 2,
+              "legitima": 18
+            },
+            "BLOQUEADO": {
+              "fraude": 6,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.75,
+            "f1": 0.8571428571428571,
+            "tp": 6,
+            "fp": 0,
+            "fn": 2,
+            "tn": 116
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.3076923076923077,
+            "recall": 1.0,
+            "f1": 0.47058823529411764,
+            "tp": 8,
+            "fp": 18,
+            "fn": 0,
+            "tn": 98
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.16129032258064516
+        },
+        "SAQUE": {
+          "n": 104,
+          "fraudes": 4,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 4,
+              "legitima": 98
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 2
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 4,
+            "tn": 100
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 2,
+            "fn": 4,
+            "tn": 98
+          },
+          "pr_auc_score_final": 0.09038921604711078,
+          "taxa_revisao": 0.019230769230769232
+        },
+        "TED": {
+          "n": 137,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 118
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 7
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 11
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 11,
+            "fn": 1,
+            "tn": 125
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.05263157894736842,
+            "recall": 1.0,
+            "f1": 0.1,
+            "tp": 1,
+            "fp": 18,
+            "fn": 0,
+            "tn": 118
+          },
+          "pr_auc_score_final": 0.07142857142857142,
+          "taxa_revisao": 0.058394160583941604
+        },
+        "TEF": {
+          "n": 141,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 139
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 1
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 140
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.5,
+            "recall": 1.0,
+            "f1": 0.6666666666666666,
+            "tp": 1,
+            "fp": 1,
+            "fn": 0,
+            "tn": 139
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.014184397163120567
+        }
+      }
+    },
+    "B_sem_regra": {
+      "n": 2000,
+      "fraudes": 116,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 29,
+          "legitima": 1738
+        },
+        "REVISÃO": {
+          "fraude": 66,
+          "legitima": 146
+        },
+        "BLOQUEADO": {
+          "fraude": 21,
+          "legitima": 0
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 1.0,
+        "recall": 0.1810344827586207,
+        "f1": 0.3065693430656934,
+        "tp": 21,
+        "fp": 0,
+        "fn": 95,
+        "tn": 1884
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 0.37339055793991416,
+        "recall": 0.75,
+        "f1": 0.498567335243553,
+        "tp": 87,
+        "fp": 146,
+        "fn": 29,
+        "tn": 1738
+      },
+      "pr_auc_score_final": 0.7095996152225337,
+      "taxa_revisao": 0.106,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 90,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 89
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "pr_auc_score_final": 0.5,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 335,
+          "fraudes": 32,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 20,
+              "legitima": 303
+            },
+            "REVISÃO": {
+              "fraude": 11,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 1,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.03125,
+            "f1": 0.06060606060606061,
+            "tp": 1,
+            "fp": 0,
+            "fn": 31,
+            "tn": 303
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.375,
+            "f1": 0.5454545454545454,
+            "tp": 12,
+            "fp": 0,
+            "fn": 20,
+            "tn": 303
+          },
+          "pr_auc_score_final": 0.7982349726648059,
+          "taxa_revisao": 0.03283582089552239
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 314,
+          "fraudes": 3,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 3,
+              "legitima": 310
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 1
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 3,
+            "tn": 311
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 3,
+            "tn": 310
+          },
+          "pr_auc_score_final": 0.02757936507936508,
+          "taxa_revisao": 0.0031847133757961785
+        },
+        "EMPRESTIMO": {
+          "n": 46,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 46
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 46
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 46
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_AUTOMATICO": {
+          "n": 66,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 47
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 18
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 65
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.05263157894736842,
+            "recall": 1.0,
+            "f1": 0.1,
+            "tp": 1,
+            "fp": 18,
+            "fn": 0,
+            "tn": 47
+          },
+          "pr_auc_score_final": 0.2,
+          "taxa_revisao": 0.2878787878787879
+        },
+        "PIX_P2P": {
+          "n": 443,
+          "fraudes": 40,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 334
+            },
+            "REVISÃO": {
+              "fraude": 26,
+              "legitima": 69
+            },
+            "BLOQUEADO": {
+              "fraude": 13,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.325,
+            "f1": 0.4905660377358491,
+            "tp": 13,
+            "fp": 0,
+            "fn": 27,
+            "tn": 403
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.3611111111111111,
+            "recall": 0.975,
+            "f1": 0.527027027027027,
+            "tp": 39,
+            "fp": 69,
+            "fn": 1,
+            "tn": 334
+          },
+          "pr_auc_score_final": 0.9083999605220476,
+          "taxa_revisao": 0.2144469525959368
+        },
+        "PIX_QRCODE": {
+          "n": 56,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 50
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 6
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 56
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 6,
+            "fn": 0,
+            "tn": 50
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.10714285714285714
+        },
+        "PIX_SAQUE": {
+          "n": 144,
+          "fraudes": 25,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 102
+            },
+            "REVISÃO": {
+              "fraude": 20,
+              "legitima": 17
+            },
+            "BLOQUEADO": {
+              "fraude": 5,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.2,
+            "f1": 0.33333333333333337,
+            "tp": 5,
+            "fp": 0,
+            "fn": 20,
+            "tn": 119
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.5952380952380952,
+            "recall": 1.0,
+            "f1": 0.7462686567164178,
+            "tp": 25,
+            "fp": 17,
+            "fn": 0,
+            "tn": 102
+          },
+          "pr_auc_score_final": 0.985568472906404,
+          "taxa_revisao": 0.2569444444444444
+        },
+        "PIX_TROCO": {
+          "n": 124,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 98
+            },
+            "REVISÃO": {
+              "fraude": 6,
+              "legitima": 18
+            },
+            "BLOQUEADO": {
+              "fraude": 2,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.25,
+            "f1": 0.4,
+            "tp": 2,
+            "fp": 0,
+            "fn": 6,
+            "tn": 116
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.3076923076923077,
+            "recall": 1.0,
+            "f1": 0.47058823529411764,
+            "tp": 8,
+            "fp": 18,
+            "fn": 0,
+            "tn": 98
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.1935483870967742
+        },
+        "SAQUE": {
+          "n": 104,
+          "fraudes": 4,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 4,
+              "legitima": 98
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 2
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 4,
+            "tn": 100
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 2,
+            "fn": 4,
+            "tn": 98
+          },
+          "pr_auc_score_final": 0.09038921604711078,
+          "taxa_revisao": 0.019230769230769232
+        },
+        "TED": {
+          "n": 137,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 122
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 14
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 136
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.06666666666666667,
+            "recall": 1.0,
+            "f1": 0.125,
+            "tp": 1,
+            "fp": 14,
+            "fn": 0,
+            "tn": 122
+          },
+          "pr_auc_score_final": 0.125,
+          "taxa_revisao": 0.10948905109489052
+        },
+        "TEF": {
+          "n": 141,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 139
+            },
+            "REVISÃO": {
+              "fraude": 1,
+              "legitima": 1
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 140
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.5,
+            "recall": 1.0,
+            "f1": 0.6666666666666666,
+            "tp": 1,
+            "fp": 1,
+            "fn": 0,
+            "tn": 139
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.014184397163120567
+        }
+      }
+    },
+    "regra_banco": {
+      "n": 2000,
+      "fraudes": 116,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 74,
+          "legitima": 1884
+        },
+        "REVISÃO": {
+          "fraude": 0,
+          "legitima": 0
+        },
+        "BLOQUEADO": {
+          "fraude": 42,
+          "legitima": 0
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 1.0,
+        "recall": 0.3620689655172414,
+        "f1": 0.5316455696202532,
+        "tp": 42,
+        "fp": 0,
+        "fn": 74,
+        "tn": 1884
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 1.0,
+        "recall": 0.3620689655172414,
+        "f1": 0.5316455696202532,
+        "tp": 42,
+        "fp": 0,
+        "fn": 74,
+        "tn": 1884
+      },
+      "pr_auc_score_final": null,
+      "taxa_revisao": 0.0,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 90,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 89
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 335,
+          "fraudes": 32,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 32,
+              "legitima": 303
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 32,
+            "tn": 303
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 32,
+            "tn": 303
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 314,
+          "fraudes": 3,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 3,
+              "legitima": 311
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 3,
+            "tn": 311
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 3,
+            "tn": 311
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "EMPRESTIMO": {
+          "n": 46,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 46
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 46
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 46
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_AUTOMATICO": {
+          "n": 66,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 65
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 65
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 65
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_P2P": {
+          "n": 443,
+          "fraudes": 40,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 16,
+              "legitima": 403
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 24,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.6,
+            "f1": 0.7499999999999999,
+            "tp": 24,
+            "fp": 0,
+            "fn": 16,
+            "tn": 403
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.6,
+            "f1": 0.7499999999999999,
+            "tp": 24,
+            "fp": 0,
+            "fn": 16,
+            "tn": 403
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_QRCODE": {
+          "n": 56,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 56
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 56
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 56
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_SAQUE": {
+          "n": 144,
+          "fraudes": 25,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 13,
+              "legitima": 119
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 12,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.48,
+            "f1": 0.6486486486486487,
+            "tp": 12,
+            "fp": 0,
+            "fn": 13,
+            "tn": 119
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.48,
+            "f1": 0.6486486486486487,
+            "tp": 12,
+            "fp": 0,
+            "fn": 13,
+            "tn": 119
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_TROCO": {
+          "n": 124,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 2,
+              "legitima": 116
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 6,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.75,
+            "f1": 0.8571428571428571,
+            "tp": 6,
+            "fp": 0,
+            "fn": 2,
+            "tn": 116
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.75,
+            "f1": 0.8571428571428571,
+            "tp": 6,
+            "fp": 0,
+            "fn": 2,
+            "tn": 116
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "SAQUE": {
+          "n": 104,
+          "fraudes": 4,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 4,
+              "legitima": 100
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 4,
+            "tn": 100
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 4,
+            "tn": 100
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "TED": {
+          "n": 137,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 136
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 136
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 136
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "TEF": {
+          "n": 141,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 140
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 140
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 140
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        }
+      }
+    },
+    "if_sozinho": {
+      "n": 2000,
+      "fraudes": 116,
+      "matriz": {
+        "APROVADO": {
+          "fraude": 38,
+          "legitima": 1854
+        },
+        "REVISÃO": {
+          "fraude": 0,
+          "legitima": 0
+        },
+        "BLOQUEADO": {
+          "fraude": 78,
+          "legitima": 30
+        }
+      },
+      "bloqueado_e_fraude": {
+        "precisao": 0.7222222222222222,
+        "recall": 0.6724137931034483,
+        "f1": 0.6964285714285714,
+        "tp": 78,
+        "fp": 30,
+        "fn": 38,
+        "tn": 1854
+      },
+      "bloqueado_ou_revisao_e_fraude": {
+        "precisao": 0.7222222222222222,
+        "recall": 0.6724137931034483,
+        "f1": 0.6964285714285714,
+        "tp": 78,
+        "fp": 30,
+        "fn": 38,
+        "tn": 1854
+      },
+      "pr_auc_score_final": 0.6983598646135355,
+      "taxa_revisao": 0.0,
+      "por_tipo": {
+        "BOLETO": {
+          "n": 90,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 89
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 89
+          },
+          "pr_auc_score_final": 0.1111111111111111,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_ECOMMERCE": {
+          "n": 335,
+          "fraudes": 32,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 18,
+              "legitima": 303
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 14,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.4375,
+            "f1": 0.6086956521739131,
+            "tp": 14,
+            "fp": 0,
+            "fn": 18,
+            "tn": 303
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.4375,
+            "f1": 0.6086956521739131,
+            "tp": 14,
+            "fp": 0,
+            "fn": 18,
+            "tn": 303
+          },
+          "pr_auc_score_final": 0.9505701959547772,
+          "taxa_revisao": 0.0
+        },
+        "CARTAO_PRESENCIAL": {
+          "n": 314,
+          "fraudes": 3,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 3,
+              "legitima": 311
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 3,
+            "tn": 311
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 3,
+            "tn": 311
+          },
+          "pr_auc_score_final": 0.5593149540517962,
+          "taxa_revisao": 0.0
+        },
+        "EMPRESTIMO": {
+          "n": 46,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 36
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 10
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 10,
+            "fn": 0,
+            "tn": 36
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 10,
+            "fn": 0,
+            "tn": 36
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_AUTOMATICO": {
+          "n": 66,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 65
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 65
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "tn": 65
+          },
+          "pr_auc_score_final": 0.16666666666666666,
+          "taxa_revisao": 0.0
+        },
+        "PIX_P2P": {
+          "n": 443,
+          "fraudes": 40,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 9,
+              "legitima": 403
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 31,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.775,
+            "f1": 0.8732394366197184,
+            "tp": 31,
+            "fp": 0,
+            "fn": 9,
+            "tn": 403
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 0.775,
+            "f1": 0.8732394366197184,
+            "tp": 31,
+            "fp": 0,
+            "fn": 9,
+            "tn": 403
+          },
+          "pr_auc_score_final": 0.9470965040780386,
+          "taxa_revisao": 0.0
+        },
+        "PIX_QRCODE": {
+          "n": 56,
+          "fraudes": 0,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 56
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 56
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "tn": 56
+          },
+          "pr_auc_score_final": null,
+          "taxa_revisao": 0.0
+        },
+        "PIX_SAQUE": {
+          "n": 144,
+          "fraudes": 25,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 118
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 24,
+              "legitima": 1
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.96,
+            "recall": 0.96,
+            "f1": 0.96,
+            "tp": 24,
+            "fp": 1,
+            "fn": 1,
+            "tn": 118
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.96,
+            "recall": 0.96,
+            "f1": 0.96,
+            "tp": 24,
+            "fp": 1,
+            "fn": 1,
+            "tn": 118
+          },
+          "pr_auc_score_final": 0.9984615384615385,
+          "taxa_revisao": 0.0
+        },
+        "PIX_TROCO": {
+          "n": 124,
+          "fraudes": 8,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 114
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 8,
+              "legitima": 2
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.8,
+            "recall": 1.0,
+            "f1": 0.888888888888889,
+            "tp": 8,
+            "fp": 2,
+            "fn": 0,
+            "tn": 114
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.8,
+            "recall": 1.0,
+            "f1": 0.888888888888889,
+            "tp": 8,
+            "fp": 2,
+            "fn": 0,
+            "tn": 114
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.0
+        },
+        "SAQUE": {
+          "n": 104,
+          "fraudes": 4,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 4,
+              "legitima": 100
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 4,
+            "tn": 100
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 4,
+            "tn": 100
+          },
+          "pr_auc_score_final": 0.09756929087424443,
+          "taxa_revisao": 0.0
+        },
+        "TED": {
+          "n": 137,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 1,
+              "legitima": 119
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 0,
+              "legitima": 17
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 17,
+            "fn": 1,
+            "tn": 119
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "tp": 0,
+            "fp": 17,
+            "fn": 1,
+            "tn": 119
+          },
+          "pr_auc_score_final": 0.0196078431372549,
+          "taxa_revisao": 0.0
+        },
+        "TEF": {
+          "n": 141,
+          "fraudes": 1,
+          "matriz": {
+            "APROVADO": {
+              "fraude": 0,
+              "legitima": 140
+            },
+            "REVISÃO": {
+              "fraude": 0,
+              "legitima": 0
+            },
+            "BLOQUEADO": {
+              "fraude": 1,
+              "legitima": 0
+            }
+          },
+          "bloqueado_e_fraude": {
+            "precisao": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "tp": 1,
+            "fp": 0,
+            "fn": 0,
+            "tn": 140
+          },
+          "bloqueado_ou_revisao_e_fraude": {
+            "precisao": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "tp": 1,
+            "fp": 0,
+            "fn": 0,
+            "tn": 140
+          },
+          "pr_auc_score_final": 1.0,
+          "taxa_revisao": 0.0
+        }
+      }
+    }
+  },
+  "tempo_segundos": {
+    "leitura": 0.07858192500134464,
+    "modelos_b": 14.770683069997176,
+    "juiz_b": 0.15222950700263027,
+    "sistema_a": 232.93001516799995,
+    "total": 248.2823074500011
+  },
+  "ram_pico_gib": 2.029510498046875,
+  "vram_pico_gib": 1.3949694633483887,
+  "modulos_llm_carregados": []
+}

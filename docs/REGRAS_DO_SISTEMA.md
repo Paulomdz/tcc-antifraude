@@ -12,8 +12,8 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Onde está no código: src/preprocessamento/carregar_dataset.py:263-266.
   - Origem: D3.
 - **Uso único do teste**
-  - Valor ou comportamento: o teste é lido depois da configuração fixa e não escolhe nada. Só --ablacao recusa nova leitura; --final-if-lstm e --final-gnn podem reler se forem executados outra vez.
-  - Onde está no código: src/modelos/treinamento/treinar_modelos.py:1598 (recusa); :1499 e :1942 (leitura nos modos finais).
+  - Valor ou comportamento: o teste é lido depois da configuração fixa e não escolhe nada. --ablacao e avaliar_scores.py --split teste recusam nova leitura; --final-if-lstm e --final-gnn podem reler se forem executados outra vez.
+  - Onde está no código: src/modelos/treinamento/treinar_modelos.py:1598 (recusa); :1499 e :1942 (leitura nos modos finais); src/avaliacao/avaliar_scores.py:463 e :443-453.
   - Origem: Etapa 2 (docs/etapas/etapa2.txt, seção 1).
 - **Estatísticas**
   - Valor ou comportamento: feature_stats.json usa só step < 600; outro conteúdo gera erro.
@@ -78,11 +78,11 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
 
 - **Pesos do modo fast**
   - Valor ou comportamento: 0,35 comportamental, 0,30 temporal, 0,35 identidade.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:145.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:150.
   - Origem: sem registro no repositório.
 - **Limites de decisão do modo fast**
   - Valor ou comportamento: score >= 0,80 Recusada; >= 0,50 Revisão Humana necessária; abaixo disso, Aprovada.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:152-157.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:157-162.
   - Origem: sem registro no repositório.
 - **Mapeamento na API**
   - Valor ou comportamento: Aprovada → APROVADO; Revisão Humana necessária → REVISÃO; Recusada → BLOQUEADO. Os rótulos finais são aceitos como vieram; valor desconhecido gera erro.
@@ -101,11 +101,11 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Origem: sem registro no repositório.
 - **Bloqueio imediato do modo fast**
   - Valor ou comportamento: madrugada, amount >= R$ 10.000 e tipo PIX_P2P, PIX_AUTOMATICO, TED ou TEF (variável is_tipo_bloqueio) geram Recusada com score 0,95.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:121-133.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:126-138.
   - Origem: sem registro no repositório para o limite; tipos ajustados na Etapa 3, commit 03227b9.
 - **Bônus de 0,25**
   - Valor ou comportamento: madrugada e amount >= R$ 10.000 somam 0,25 ao score, limitado a 1,0.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:148-149.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:153-154.
   - Origem: sem registro no repositório.
 - **Texto do juiz**
   - Valor ou comportamento: as regras 1 e 2 citam PIX_P2P, PIX_AUTOMATICO, TED e TEF, com valor >= R$ 10.000 entre 00:00 e 05:59.
@@ -119,6 +119,10 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Valor ou comportamento: a tela descreve a regra; o dashboard não a calcula.
   - Onde está no código: src/dashboard/app.py:57.
   - Origem: sem registro no repositório.
+- **Parâmetro aplicar_regra_madrugada**
+  - Valor ou comportamento: padrão True, que mantém o bloqueio imediato e o bônus de 0,25; False desliga os dois. API, dashboard e lote usam o padrão; False é usado só na avaliação.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:112, :135 e :153; src/orquestacao/fluxo_multiagente.py:40 e :50.
+  - Origem: Etapa 4, commit 77fb960.
 
 ## 6. Modos de execução
 
@@ -128,15 +132,15 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Origem: D8.
 - **production**
   - Valor ou comportamento: modelos e juiz Gemini. Usado em /analise_transacao e na análise individual do dashboard.
-  - Onde está no código: src/orquestacao/fluxo_multiagente.py:57 e :77; src/api/main.py:274; src/dashboard/app.py:149.
+  - Onde está no código: src/orquestacao/fluxo_multiagente.py:60 e :80; src/api/main.py:274; src/dashboard/app.py:149.
   - Origem: D8.
 - **deep**
   - Valor ou comportamento: quatro agentes LLM; só função de orquestração, sem endpoint.
-  - Onde está no código: src/orquestacao/fluxo_multiagente.py:83; src/ferramentas/ferramentas_agentes.py:297.
+  - Onde está no código: src/orquestacao/fluxo_multiagente.py:86; src/ferramentas/ferramentas_agentes.py:302.
   - Origem: D8.
 - **Sem fallback determinístico**
   - Valor ou comportamento: production não troca para decisão determinística.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:244.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:249.
   - Origem: D7.
 
 ## 7. API
@@ -228,9 +232,40 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Origem: Etapa 0 (docs/etapas/etapa0.txt, seção 0.4).
 - **Production**
   - Valor ou comportamento: uma execução do juiz por transação.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:283-284.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:288-289.
   - Origem: D8.
 - **fast nunca chama**
   - Valor ou comportamento: usa só judge_tool, sem LLM.
-  - Onde está no código: src/orquestacao/fluxo_multiagente.py:42.
+  - Onde está no código: src/orquestacao/fluxo_multiagente.py:44.
   - Origem: D8.
+
+## 11. Avaliação
+
+- **Comando**
+  - Valor ou comportamento: python -m src.avaliacao.avaliar_scores --split validacao ou --split teste; grava reports/etapa4_avaliacao_<split>.json.
+  - Onde está no código: src/avaliacao/avaliar_scores.py:430 e :610.
+  - Origem: Etapa 4, commit 77fb960.
+- **Sistemas e comparações**
+  - Valor ou comportamento: A usa orchestrate_ml_only, sem histórico; B calcula os scores com histórico, em lote, com as funções da Etapa 2, e passa pelo mesmo juiz. Seis comparações: A e B com e sem a regra da madrugada, regra_banco e if_sozinho.
+  - Onde está no código: src/avaliacao/avaliar_scores.py:203, :288, :312 e :340.
+  - Origem: Etapa 4.
+- **Regra do banco**
+  - Valor ou comportamento: amount ≥ 0,9 × oldbalanceOrg e amount ≥ 5.000 → BLOQUEADO; só na avaliação.
+  - Onde está no código: src/avaliacao/avaliar_scores.py:79-82.
+  - Origem: docs/secao_dataset_tcc.txt:103-106; implementada na Etapa 4.
+- **Leituras e precisão sem bloqueio**
+  - Valor ou comportamento: estrita (BLOQUEADO = fraude) e ampla (BLOQUEADO ou REVISÃO = fraude); sem nenhum positivo previsto, a precisão é gravada como 0,0.
+  - Onde está no código: src/avaliacao/avaliar_scores.py:94-107.
+  - Origem: Etapa 4.
+- **Amostra de A na validação**
+  - Valor ou comportamento: 2.000 transações, seed 42; no teste, A é completo.
+  - Onde está no código: src/avaliacao/avaliar_scores.py:40-41 e :512.
+  - Origem: Etapa 4.
+- **Uma leitura do teste**
+  - Valor ou comportamento: se reports/etapa4_avaliacao_teste.json existir, encerra sem ler nada. Antes da leitura, confere artefatos, limiar do IF e RAM (≥ 2 GiB) e reserva o relatório com criação exclusiva (status em_andamento). Uma falha grava status falhou, e o arquivo continua bloqueando nova execução.
+  - Onde está no código: src/avaliacao/avaliar_scores.py:413-427, :443-453, :463-467 e :475-485.
+  - Origem: Etapa 4.
+- **Sem LLM**
+  - Valor ou comportamento: durante a execução, a chave fica vazia e as funções do juiz Gemini e do modo deep recusam qualquer chamada; o relatório lista módulos de LLM carregados.
+  - Onde está no código: src/avaliacao/avaliar_scores.py:381 e :389-410.
+  - Origem: Etapa 4.
