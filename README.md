@@ -230,8 +230,8 @@ projeto: contas que não estão nele não têm passado.
 
 **Regra noturna (Banco Central):** das 20h às 6h, Pix (entre pessoas, QR Code
 e Automático) e TED de pessoa física para outra pessoa física têm limite de
-R$ 1.000 somados na noite, por conta pagadora (IN BCB 331/2022, alterada pelas
-IN BCB 512/2024 e 669/2025). A transação que passa desse total vai, no mínimo,
+R$ 1.000 somados na noite, por conta pagadora (Resolução BCB nº 142/2021,
+art. 2º, I). A transação que passa desse total vai, no mínimo,
 para revisão humana, nos modos fast, production e deep; a regra não bloqueia e
 não muda o score. Detalhes e limitações: `docs/REGRAS_DO_SISTEMA.md`,
 `docs/LIMITACOES.md` e `docs/etapas/etapa5.md`.

@@ -41,12 +41,18 @@ A diferença pequena na LSTM vem de o lote rodar na GPU e o sistema na CPU. Temp
 
 ## 3. Regra noturna do Banco Central
 
-Fonte: IN BCB 331/2022, alterada pelas IN BCB 512/2024 e 669/2025. Limite de R$ 1.000,00 para Pix e TED entre pessoas físicas, das 20h às 6h.
+Fontes:
+- **Resolução BCB nº 142, de 23/09/2021, art. 2º, I:** limite de R$ 1.000 por conta, das 20h às 6h, para o total de transações entre pessoas físicas distintas, exceto empresários individuais. Não vale só para Pix: inclui TED, DOC, boletos e transferências entre contas. O cliente pode definir outros limites e cadastrar contas autorizadas (art. 3º).
+- **IN BCB nº 185/2021:** limitou a janela a 20h–6h (padrão) ou 22h–6h.
+- **IN BCB nº 331/2022, art. 10:** Pix Saque e Pix Troco têm limite de R$ 1.000 à noite; de dia, entre R$ 1.000 e R$ 3.000, salvo pedido expresso do usuário.
+
+Na primeira versão desta etapa, a fonte citada era a IN BCB nº 331/2022, alterada pelas IN BCB nº 512/2024 e nº 669/2025. A fonte do limite noturno entre pessoas físicas é a Resolução BCB nº 142/2021; a IN 331/2022 trata do Pix Saque e do Pix Troco.
 
 Como o projeto aplica a regra (`src/ferramentas/regra_noturna.py`):
 - **Noite:** hora >= 20 ou hora < 6, com hora = step % 24 (mesma fonte de is_madrugada). A noite que começa às 20h termina às 6h do dia seguinte.
 - **Quem entra:** pagador pessoa física e recebedor pessoa física diferente. Pessoa física é o ID que começa com C. MEI não pode ser separado nos dados.
-- **Tipos (escopo B):** PIX_P2P, PIX_QRCODE, PIX_AUTOMATICO e TED. Pix saque e troco ficam fora, embora a norma também os limite à noite.
+- **Tipos (escopo B):** PIX_P2P, PIX_QRCODE, PIX_AUTOMATICO e TED. A Resolução também cobre TEF (transferência entre contas), boletos e DOC: TEF e boletos ficam fora, e DOC não existe nos dados. Incluir TEF e boletos somaria 557 revisões com step < 600 (65 fraudes e 492 legítimas, todas de TEF). Pix saque e troco ficam fora, embora a IN 331/2022, art. 10, também os limite à noite.
+- **Janela e limite:** fixos, das 20h às 6h e R$ 1.000. Sem a opção das 22h (IN 185/2021), sem limite definido pelo cliente e sem contas autorizadas (art. 3º da Resolução).
 - **Total:** acumulado por conta pagadora e por noite, somando só as transações elegíveis com step menor. Transações do mesmo step não se somam entre si.
 - **Consequência:** a transação que faz o total passar de R$ 1.000 vai, no mínimo, para Revisão Humana necessária. É escolha do projeto, não da norma. A regra não bloqueia, não muda o score e não rebaixa uma Recusada.
 - **Modos:** no fast, dentro de `judge_tool`. Em production e deep, o juiz Gemini recebe na tarefa se a regra se aplica, e o orquestrador aplica o mesmo piso depois da resposta.
