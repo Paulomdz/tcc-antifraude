@@ -1,0 +1,44 @@
+{
+  "status": "passou",
+  "data": "2026-11-06T11:49:32.162602+00:00",
+  "commit": "ea9c5ea21f022caab658e25ff363cb3a363fef8c",
+  "split": "validacao",
+  "leitura_teste": "nenhuma (contexto e índice com step < 600)",
+  "transacoes": 2000,
+  "seed_amostra": 42,
+  "step_min": 550,
+  "step_max": 599,
+  "tolerancia": 0.001,
+  "comparacoes": {
+    "isolation_forest": {
+      "diferenca_max": 0.0,
+      "diferenca_media": 0.0,
+      "valores_distintos_sistema": 1966,
+      "valores_distintos_lote": 1966,
+      "passou": true
+    },
+    "lstm": {
+      "diferenca_max": 6.312131881713867e-05,
+      "diferenca_media": 1.97339802980423e-06,
+      "valores_distintos_sistema": 1391,
+      "valores_distintos_lote": 1391,
+      "passou": true
+    },
+    "gnn": {
+      "diferenca_max": 1.1920928955078125e-07,
+      "diferenca_media": 1.2753531336784364e-08,
+      "valores_distintos_sistema": 2000,
+      "valores_distintos_lote": 2000,
+      "passou": true
+    }
+  },
+  "dispositivo_lote": "cuda",
+  "tempo_segundos": {
+    "lote": 1.3379880839997895,
+    "indice_do_passado": 0.3598038920004001,
+    "sistema_total": 46.44157017500038,
+    "sistema_por_transacao": 0.02322078508750019,
+    "total": 48.232595605999904
+  },
+  "ram_pico_gib": 1.7695274353027344
+}

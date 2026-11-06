@@ -389,3 +389,55 @@ def test_cli_exige_split_valido(monkeypatch):
         av._cli(["--split", "treino"])
     with pytest.raises(SystemExit):
         av._cli([])
+
+
+def test_criterio_de_equivalencia_usa_diferenca_maxima_menor_que_0001():
+    import numpy as np
+    from src.avaliacao.equivalencia import _diferencas
+
+    passou = _diferencas(np.array([0.1, 0.2, 0.3]), np.array([0.1, 0.2005, 0.3]))
+    falhou = _diferencas(np.array([0.1, 0.2]), np.array([0.1, 0.2011]))
+
+    assert passou["passou"] is True and passou["diferenca_max"] == pytest.approx(0.0005)
+    assert falhou["passou"] is False
+    assert passou["valores_distintos_sistema"] == 3
+
+
+def test_prova_de_equivalencia_grava_relatorio_sem_ler_o_teste(monkeypatch, tmp_path):
+    import json
+    import numpy as np
+    from src.avaliacao import equivalencia as eq
+
+    alvos = pd.DataFrame(
+        [{c: 0 for c in av.COLUNAS_TRANSACAO} | {"step": 550 + i, "type": "PIX_P2P", "isFraud": 0} for i in range(4)]
+    )
+    contexto = alvos.drop(columns=["isFraud"])
+    monkeypatch.setattr(eq, "carregar_split", lambda split: (contexto, alvos))
+    monkeypatch.setattr(
+        eq,
+        "calcular_scores_b",
+        lambda _c, a: {
+            "comportamental": np.full(len(a), 0.1),
+            "temporal": np.full(len(a), 0.2),
+            "identidade": np.full(len(a), 0.3),
+            "dispositivo": "cpu",
+        },
+    )
+    limites = []
+    monkeypatch.setattr(eq, "grafo_do_passado", lambda limite: limites.append(limite) or "grafo")
+    monkeypatch.setattr(eq, "isolation_forest_score", lambda _tx: 0.1)
+    monkeypatch.setattr(eq, "lstm_sequence_score", lambda _s, current_transaction, passado: 0.2004)
+    monkeypatch.setattr(eq, "gnn_identity_score", lambda _tx, passado: 0.3)
+    monkeypatch.setattr(eq, "RELATORIO", tmp_path / "equivalencia.json")
+
+    relatorio = eq.executar(n=3)
+
+    assert limites == [600]
+    assert relatorio["status"] == "passou"
+    assert relatorio["transacoes"] == 3
+    assert relatorio["comparacoes"]["lstm"]["diferenca_max"] == pytest.approx(0.0004)
+    assert json.loads((tmp_path / "equivalencia.json").read_text())["status"] == "passou"
+
+    monkeypatch.setattr(eq, "gnn_identity_score", lambda _tx, passado: 0.31)
+    with pytest.raises(SystemExit):
+        eq._cli(["--n", "3"])
