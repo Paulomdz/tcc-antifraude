@@ -26,11 +26,16 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 
 ## 2. Modelos
 
-- **GNN não convergiu**
-  - O que é: atingiu o limite de 10 épocas com a validação ainda subindo (0,2931 → 0,3367).
-  - Por que existe: limite de 10 épocas por restrição de tempo; ~145 s por época, treino final de 3.230 s, GPU de 8 GB e 15 GB de RAM.
-  - Evidência: docs/etapas/etapa2.txt, seção 3; reports/etapa2_final_gnn.json; reports/final_gnn.log (local, fora do git), que traz avisos de alocação CUDA, sem erro.
-  - Efeito no TCC: os resultados da GNN são parciais e podem não representar o potencial do modelo.
+- **GNN ainda subindo no limite de épocas**
+  - O que é: no retreino da Etapa 5 (todo o treino core, amostrador corrigido), a PR-AUC de validação sobe em todas as 10 épocas (0,2938 → 0,3464). O limite de 10 épocas foi mantido.
+  - Por que existe: limite de 10 épocas da configuração fixa da Etapa 2.
+  - Evidência: reports/etapa5_retreino_gnn.json; src/modelos/treinamento/retreino_gnn.py.
+  - Efeito no TCC: o modelo atual pode render mais com mais épocas. Isso não foi testado.
+- **Amostrador da GNN ignorava os fanouts (corrigido na Etapa 5)**
+  - O que é: a amostragem de dois saltos (fanouts 10 e 5) expandia toda a componente conectada do passado; uma transação chegava a cerca de 297 mil nós, e a GNN demorava ~1,9 s por transação. O modelo anterior foi treinado com essa entrada.
+  - Por que existe: em src/modelos/arquitetura_gnn.py a fronteira da expansão era a própria lista de nós, que crescia durante a iteração.
+  - Evidência: src/modelos/arquitetura_gnn.py:181 (correção); tests/test_modelos.py (referência corrigida); tests/test_historico.py.
+  - Efeito no TCC: o modelo anterior foi guardado em src/modelos/modelos_salvos/gnn_model_etapa2_v1.pt. Os números do lote B da Etapa 4 usaram o amostrador antigo e não valem como resultado da GNN corrigida.
 - **GNN sem grade e sem ablação**
   - O que é: usa uma única configuração e não mede o efeito da retirada da razão valor/saldo.
   - Por que existe: prazo; a ablação foi estimada em ~55 min.
@@ -63,7 +68,7 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
   - O que é: a Etapa 4 mediu a decisão final do modo fast no teste, em seis comparações (matriz das 3 decisões, precisão, recall, F1, PR-AUC do score final e taxa de REVISÃO). O modo production, com o juiz Gemini, segue sem medida (seção 4).
   - Por que existe: o modo fast é o único avaliável sem chamar o Gemini.
   - Evidência: docs/etapas/etapa4.md; reports/etapa4_avaliacao_teste.json.
-  - Efeito no TCC: os números do sistema entregue (A) medem a LSTM e a GNN sem histórico (seção 4, "LSTM e GNN sem histórico no sistema entregue").
+  - Efeito no TCC: os números do sistema entregue (A) medem a LSTM e a GNN sem histórico (seção 4, "LSTM sem histórico no sistema entregue"); na Etapa 4 a GNN também rodava sem histórico e com o amostrador antigo.
 - **Métricas por tipo de transação: cobertas na Etapa 4, com ressalvas**
   - O que é: há métricas por tipo para as seis comparações no teste; não há para a LSTM e a GNN isoladas.
   - Por que existe: o script calcula por tipo só as decisões e as linhas de base.
@@ -85,7 +90,7 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
   - Evidência: src/modelos/treinamento/treinar_modelos.py:1499, :1942, :1561, :1992 e :1598.
   - Efeito no TCC: a leitura única nos modos finais depende de disciplina de execução, não de bloqueio no código.
 - **Sistema com histórico (B) abaixo do entregue (A)**
-  - O que é: no teste, B ficou abaixo de A em PR-AUC do score final, recall e F1, com e sem a regra da madrugada (PR-AUC 0,6629 contra 0,7653 com a regra; 0,7038 contra 0,8323 sem).
+  - O que é: no teste, B ficou abaixo de A em PR-AUC do score final, recall e F1, com e sem a regra da madrugada antiga, de R$ 10.000 (PR-AUC 0,6629 contra 0,7653 com a regra; 0,7038 contra 0,8323 sem).
   - Por que existe: causa não verificada. Hipótese: com histórico, a LSTM (0,3577) e a GNN (0,4081) têm PR-AUC baixo e diluem o IF (0,6881) no score final.
   - Evidência: reports/etapa4_avaliacao_teste.json; docs/etapas/etapa4.md.
   - Efeito no TCC: corrigir a entrada do sistema entregue (seção 4) não garante melhora; nesta base, a versão com histórico ficou abaixo.
@@ -117,10 +122,10 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 
 ## 4. Sistema multiagente e juiz
 
-- **LSTM e GNN sem histórico no sistema entregue (limitação principal)**
-  - O que é: no modo fast, a transação chega sem histórico. A LSTM recebe uma janela 5 × 17 de zeros e dá score constante 0,8217, acima do seu limiar (0,7408); no score final, soma sempre 0,2465 (0,30 × 0,8217). A GNN roda com um único nó, sem arestas de histórico.
+- **LSTM sem histórico no sistema entregue (limitação principal)**
+  - O que é: no modo fast, a transação chega sem histórico. A LSTM recebe uma janela 5 × 17 de zeros e dá score constante 0,8217, acima do seu limiar (0,7408); no score final, soma sempre 0,2465 (0,30 × 0,8217). A GNN já usa o passado (ver "Amostrador da GNN" abaixo); a LSTM ainda não.
   - Por que existe: sem o campo sequence, o agente temporal usa só a própria transação, e a inferência descarta transações do mesmo step ou posteriores; a API e o dashboard não montam o histórico.
-  - Evidência: src/ferramentas/ferramentas_agentes.py:52; src/ferramentas/inferencia_modelos.py:102-110, :118 e :137-149; reports/etapa4_avaliacao_teste.json (scores_distintos_lstm = 1); reports/etapa2_final_if_lstm.json (limiar 0,7408).
+  - Evidência: src/ferramentas/ferramentas_agentes.py:52; src/ferramentas/inferencia_modelos.py:102-110 e :118; reports/etapa4_avaliacao_teste.json (scores_distintos_lstm = 1); reports/etapa2_final_if_lstm.json (limiar 0,7408).
   - Efeito no TCC: o resultado de A mede o sistema entregue, não os modelos com o histórico do treino. A correção fica como melhoria futura.
 - **Juiz Gemini sem avaliação**
   - O que é: não há avaliação das decisões do juiz. Duas chamadas acidentais no início não foram avaliação.
@@ -130,32 +135,27 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 - **Pesos e limites de decisão sem calibração registrada**
   - O que é: pesos de agregação 0,35 / 0,30 / 0,35 e limites de decisão 0,50 / 0,80.
   - Por que existe: sem registro de calibração no repositório.
-  - Evidência: src/ferramentas/ferramentas_agentes.py:150, :157 e :159.
+  - Evidência: src/ferramentas/ferramentas_agentes.py:119, :121 e :123.
   - Efeito no TCC: esses valores devem ser apresentados como parâmetros definidos, não como resultado de otimização.
 - **Modo deep sem endpoint**
   - O que é: existe só como função de orquestração, sem endpoint na API. Os testes usam agentes simulados.
   - Por que existe: decisão D8: o lote usa fast, a análise individual usa production, e deep permanece só como função.
-  - Evidência: src/ferramentas/ferramentas_agentes.py:302; tests/test_orquestacao.py:139 e :241; docs/etapas/etapa2_api.txt (D8).
+  - Evidência: src/ferramentas/ferramentas_agentes.py:299; tests/test_orquestacao.py:169 e :271; docs/etapas/etapa2_api.txt (D8).
   - Efeito no TCC: o modo deep não pode ser apresentado como avaliado nem como disponível na API.
-- **Limite de R$ 10.000 na madrugada**
-  - O que é: parâmetro de política, não calibrado com os dados. A referência regulatória do Pix é R$ 1.000 por conta entre pessoas físicas, das 20h às 6h (fonte a confirmar na resolução do Banco Central), com janela diferente de is_madrugada (0h a 5h).
-  - Por que existe: sem registro no repositório da origem do valor.
-  - Evidência:
-    - Agente temporal: src/ferramentas/ferramentas_agentes.py:63 e :66.
-    - Agregador do modo fast: src/ferramentas/ferramentas_agentes.py:127, :135 e :153.
-    - Instruções dos agentes: src/orquestacao/definicoes_agentes.py:68, :81, :90, :110, :123, :132 e :133.
-    - is_madrugada: src/preprocessamento/carregar_dataset.py:145, :184 e :236.
-    - Contagem com step < 600 (366.650 transações, 5,54% de fraude): de 0h a 5h, amount >= 10.000 reúne 9.365 (82,77% de fraude) e amount >= 1.000, 17.276 (68,17%); das 20h às 6h, amount >= 10.000 reúne 10.086 (81,80%) e amount >= 1.000, 20.545 (61,69%).
-  - Efeito no TCC: a contagem mostra só cortes de valor e horário em todos os tipos; não separa pessoa física nem limite por conta, então não mede a regra do Pix em si.
+- **Regra noturna: limites da implementação**
+  - O que é: escopo B (Pix entre pessoas, QR Code e Automático, e TED). Pix saque e troco ficam fora, embora a norma também os limite à noite. Pessoa física é inferida pelo prefixo C do ID, e MEI não pode ser separado. Só a transação que faz o total passar de R$ 1.000 vai para revisão; as seguintes da mesma noite, já acima do limite, não. Transações do mesmo step não se somam entre si.
+  - Por que existe: decisões do projeto em 06/11/2026; os dados não identificam MEI nem o tipo de titular.
+  - Evidência: src/ferramentas/regra_noturna.py; tests/test_regra_noturna.py; contagem em docs/etapas/etapa5.md, seção 5.
+  - Efeito no TCC: com step < 600, a regra gera 6.667 revisões (4.123 fraudes e 2.544 legítimas); 2.509 das legítimas são TED, o que enche a fila de revisão com transações honestas. A regra foi revisada depois da primeira leitura do teste (Etapa 4), que usou a regra antiga; as contagens por transação feitas antes (20.545 e afins) não valem para esta regra.
 - **A regra não é evidência independente**
   - O que é: a regra usa padrões que o gerador colocou na base.
   - Por que existe: a base é sintética, com concentração noturna de fraudes definida na geração.
   - Evidência: docs/secao_dataset_tcc.txt, seções 3.X.4 e 3.X.5.
   - Efeito no TCC: bons resultados da regra nesta base não comprovam desempenho independente.
 - **Texto do juiz alterado sem avaliação**
-  - O que é: as menções a DEBIT e TRANSFER foram trocadas pelos tipos usados na regra do código; o efeito no Gemini não foi medido, nem antes nem depois.
-  - Por que existe: os tipos não existem no dataset atual, e a política proíbe chamar o Gemini em teste, treino ou ablação.
-  - Evidência: src/orquestacao/definicoes_agentes.py:132-133.
+  - O que é: na Etapa 3, as menções a DEBIT e TRANSFER foram trocadas pelos tipos usados na regra do código; na Etapa 5, os textos do juiz e dos agentes passaram a descrever a regra noturna. O efeito no Gemini não foi medido em nenhuma das duas mudanças.
+  - Por que existe: a política proíbe chamar o Gemini em teste, treino ou ablação.
+  - Evidência: src/orquestacao/definicoes_agentes.py (especialistas e juiz_final).
   - Efeito no TCC: o comportamento do juiz com o texto novo não tem medida.
 
 ## 5. API
@@ -216,21 +216,61 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 
 ## 7. Dashboard
 
-- **Não chama a API**
-  - O que é: usa o orquestrador direto, então não mostra o top-3.
-  - Por que existe: sem registro no repositório.
-  - Evidência: src/dashboard/app.py:139-150.
-  - Efeito no TCC: o top-3 não pode ser demonstrado pelo dashboard.
-- **Justificativa vazia e nomes técnicos**
-  - O que é: não trata justificativa vazia e mostra nomes técnicos de colunas e tipos.
-  - Por que existe: sem registro no repositório.
-  - Evidência: src/dashboard/app.py:326, :489-493, :588 e :605.
-  - Efeito no TCC: a tela é menos clara para quem não conhece os dados.
-- **Revisão adiada**
-  - O que é: a revisão do dashboard fica para depois da Etapa 3.
-  - Por que existe: decisão do projeto.
-  - Evidência: docs/REGRAS_VIGENTES.md, seção 9 (local, fora do git).
-  - Efeito no TCC: o dashboard não faz parte do que foi validado nesta etapa.
+- **Depende da API no ar**
+  - O que é: o dashboard chama a API para toda análise (individual, lote e histórico) e não carrega os modelos. Com a API fora do ar, mostra o endereço e o comando para subir, e desliga os botões.
+  - Por que existe: decisão de usar a API como única porta de entrada, para o dashboard receber top-3, justificativa do juiz e histórico sem duplicar lógica.
+  - Evidência: src/dashboard/cliente_api.py; src/dashboard/app.py (função main).
+  - Efeito no TCC: o dashboard não funciona sozinho; o endereço padrão é http://127.0.0.1:8000 e muda com API_URL.
+- **Amostragem do lote repetida no dashboard**
+  - O que é: a resposta do lote traz só índice, decisão e scores, sem tipo, valor nem isFraud. O dashboard repete a amostragem da API (seed 42) para ligar cada índice à sua linha.
+  - Por que existe: a API não devolve os dados da transação no lote; ambos usam a mesma função, amostrar_lote.
+  - Evidência: src/ferramentas/leitor_arquivo_lote.py:25; src/api/main.py:405; src/dashboard/app.py:669; tests/test_dashboard.py (test_lote_pelo_cliente_casa_indice_com_linha_amostrada).
+  - Efeito no TCC: se API e dashboard estiverem em versões diferentes, a junção falha com aviso (o número de linhas não bate) ou, no pior caso, trocaria linhas sem aviso. Reiniciar os dois depois de mudar a amostragem.
+- **Métricas do lote por isFraud**
+  - O que é: precisão, recall e F1 nas leituras estrita (só BLOQUEADO) e ampla (BLOQUEADO ou REVISÃO), calculados na amostra de até 500 transações, sem contar erros nem linhas sem rótulo.
+  - Por que existe: o lote devolve só decisões; as métricas são calculadas no dashboard.
+  - Evidência: src/dashboard/lote.py; tests/test_dashboard.py (test_metricas_estrita_e_ampla).
+  - Efeito no TCC: são números de uma amostra pequena e sintética; não substituem a avaliação da Etapa 4 (conjunto de teste completo).
+- **Valores iniciais da simulação vêm de arquivo local**
+  - O que é: saldo e valor iniciais do formulário são a mediana das transações legítimas do tipo com step < 600, lida de dataset/dataset_pix_banco.csv. Sem o arquivo, usa R$ 1.000 de saldo e R$ 100 de valor. Os valores são limitados a R$ 9.999.999,00, o teto do campo; a mediana de saldo de EMPRESTIMO (cerca de R$ 28,8 milhões) é cortada nesse teto.
+  - Por que existe: evitar números sem origem; o campo do dashboard tem teto próprio.
+  - Evidência: src/dashboard/valores_iniciais.py.
+  - Efeito no TCC: é um ponto de partida didático, não uma transação típica de cada tipo.
+- **Top-3 traduzido continua sendo desvio do padrão**
+  - O que é: a tela traduz as características e mostra "acima do normal" ou "abaixo do normal", com aviso fixo de que isso não é o motivo da decisão. Em colunas de tipo (one-hot), "acima do normal" quer dizer que o tipo é menos comum que a média do treino.
+  - Por que existe: o top-3 usa z-score contra feature_stats.json (seção 6).
+  - Evidência: src/dashboard/rotulos.py; src/dashboard/app.py (função _render_top3).
+  - Efeito no TCC: o texto da tela pode ser lido como explicação causal se o aviso for ignorado.
+- **Histórico: filtro de tipo só no que foi carregado**
+  - O que é: a API filtra o histórico por decisão, mas não por tipo; o dashboard filtra o tipo nos registros já carregados (até 1.000). O horário é mostrado em Brasília, convertido do UTC gravado.
+  - Por que existe: o endpoint /historico só tem os parâmetros limit e decisao.
+  - Evidência: src/api/main.py (função historico); src/dashboard/app.py (função _aba_historico).
+  - Efeito no TCC: com histórico maior que o limite, o filtro de tipo pode deixar de mostrar registros antigos.
+- **Lote production do dashboard: limite de 10 e chamadas em sequência**
+  - O que é: no modo production, o dashboard chama POST /analise_transacao uma vez por transação, em sequência, com limite de 10 por lote (o modo fast aceita até 500). A execução para se a API cair, se faltar a chave (503) ou após 3 erros seguidos; o que já foi analisado fica na tela e no histórico.
+  - Por que existe: cada análise chama o Gemini e consome cota da chave; a API não tem endpoint de lote production. Decisão de 06/11/2026.
+  - Evidência: src/dashboard/app.py:69 e :562; src/dashboard/lote.py (função montar_resultados_individuais); tests/test_dashboard.py (testes test_lote_production_*).
+  - Efeito no TCC: o lote production é uma demonstração com amostra pequena e demorada, não uma medida de desempenho do juiz (seção 4, "Juiz Gemini sem avaliação"). A API segue sem lote production.
+- **Aba "Aprenda Simulando" só no modo fast**
+  - O que é: a simulação individual usa POST /analise_transacao?modo=fast, sem Gemini e sem custo; a justificativa vem da regra determinística.
+  - Por que existe: manter a simulação gratuita.
+  - Evidência: src/dashboard/app.py:765; src/api/main.py:268; tests/test_api.py (test_analise_individual_fast_nao_exige_chave_e_nao_usa_gemini).
+  - Efeito no TCC: o juiz Gemini só aparece no dashboard pelo lote production.
+- **Listas de contas do formulário**
+  - O que é: origem e destino são escolhidos entre 15 contas cada, lidas de dataset/dataset_pix_banco.csv (5 de cada um dos 3 prefixos mais comuns, sorteadas com seed 42). Sem o arquivo, a lista tem uma conta de exemplo.
+  - Por que existe: evitar contas digitadas à mão; a lista é uma amostra, não a base inteira (8.257 origens e 5.670 destinos).
+  - Evidência: src/dashboard/valores_iniciais.py (função contas_do_dataset).
+  - Efeito no TCC: o formulário não cobre contas fora da lista; o significado dos prefixos M e A não está documentado no repositório (só o B, em D5).
+- **Validado com a API simulada, sem Gemini**
+  - O que é: os testes do dashboard usam um cliente simulado e, no contrato, a API real com orquestrador simulado. Nenhum teste chama o Gemini, e a tela não foi avaliada com usuários.
+  - Por que existe: a política proíbe chamar o Gemini em teste (seção 4).
+  - Evidência: tests/test_dashboard.py.
+  - Efeito no TCC: o dashboard foi exercitado com orquestrador simulado; o uso real foi manual.
+- **Texto da regra noturna**
+  - O que é: o texto descreve a regra noturna da Etapa 5, escrito à mão; ele não é gerado a partir do código.
+  - Por que existe: o texto é escrito à mão em src/dashboard/app.py.
+  - Evidência: src/dashboard/app.py:72; src/ferramentas/regra_noturna.py.
+  - Efeito no TCC: se a regra mudar, o texto precisa ser atualizado junto.
 
 ## 8. Repositório e processo
 

@@ -164,7 +164,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Prepare os dados e treine os modelos:
+Os modelos usados pelo sistema (`isolation_forest.pkl`, `lstm_model.pt` e
+`gnn_model.pt`, em `src/modelos/modelos_salvos/`) e o
+`dataset/dataset_pix_banco_processado.parquet` estão no repositório: não é
+preciso treinar para usar a API e o dashboard. O Parquet também é a fonte do
+histórico das transações. Para gerar tudo de novo:
 
 ```bash
 python -m src.preprocessamento.carregar_dataset
@@ -172,7 +176,7 @@ python -m src.modelos.treinamento.treinar_modelos
 ```
 
 O primeiro comando gera `dataset/dataset_pix_banco_processado.parquet`,
-usado pelo treinamento e pela simulação. Para executar os testes e a validação
+usado pelo treinamento, pela simulação e pelo histórico. Para executar os testes e a validação
 integrada:
 
 ```bash
@@ -210,15 +214,27 @@ python -m src.avaliacao.avaliar_scores --split teste
 
 O teste é lido uma vez: se `reports/etapa4_avaliacao_teste.json` existir, o comando encerra sem ler nada, mesmo depois de uma falha. Resultados e decisões: `docs/etapas/etapa4.md`.
 
-**Limitação da GNN:** não convergiu em 10 épocas e foi treinada sem grade e sem
-ablação, por restrição de tempo.
+**Limitação da GNN:** a PR-AUC de validação ainda subia na época 10 (limite de
+10 épocas), e ela foi treinada sem grade e sem ablação, por restrição de tempo.
+Na Etapa 5 o amostrador foi corrigido (ele ignorava os fanouts) e o modelo foi
+retreinado com `python -m src.modelos.treinamento.retreino_gnn` (só step < 600,
+sem ler o teste). A GNN por transação usa o passado do Parquet
+(`src/ferramentas/historico.py`). A LSTM ainda não usa histórico no modo fast.
+
+**Regra noturna (Banco Central):** das 20h às 6h, Pix (entre pessoas, QR Code
+e Automático) e TED de pessoa física para outra pessoa física têm limite de
+R$ 1.000 somados na noite, por conta pagadora (IN BCB 331/2022, alterada pelas
+IN BCB 512/2024 e 669/2025). A transação que passa desse total vai, no mínimo,
+para revisão humana, nos modos fast, production e deep; a regra não bloqueia e
+não muda o score. Detalhes e limitações: `docs/REGRAS_DO_SISTEMA.md`,
+`docs/LIMITACOES.md` e `docs/etapas/etapa5.md`.
 
 ### O que significa a cobertura dos testes
 
 A configuração exige pelo menos 80% para a suite passar. Alguns módulos de
 treinamento e definições de agentes estão explicitamente fora do cálculo em
 `.coveragerc`, por isso o percentual não representa cada linha de todo o
-projeto. A última execução completa não-live (05/11/2026) resultou em **150 passed, 0 failed, 1 deselected** e **89,75% de cobertura**, medida sobre o código fora dos módulos listados em omit no .coveragerc.
+projeto. A última execução completa não-live (06/11/2026, Etapa 5: GNN com histórico e regra noturna) resultou em **259 passed, 0 failed, 1 deselected** e **91,23% de cobertura**, medida com a configuração padrão do pytest.ini e do .coveragerc.
 Esse percentual mede as instruções percorridas pelos testes; **não** significa
 que o modelo tem 89,75% de acurácia, nem garante todos os cenários possíveis.
 
@@ -233,8 +249,10 @@ A documentação interativa da API fica disponível em
 
 ### Contrato da API
 
-- `POST /analise_transacao`: análise individual no modo `production`; exige
-  `GOOGLE_API_KEY`. A resposta inclui `explicabilidade.top3`: as 3 features mais
+- `POST /analise_transacao`: análise individual. Por padrão usa o modo
+  `production` e exige `GOOGLE_API_KEY`; com `?modo=fast` roda os três modelos
+  e a agregação determinística, sem Gemini e sem chave (usado pela aba
+  "Aprenda Simulando" do dashboard). A resposta inclui `explicabilidade.top3`: as 3 features mais
   afastadas do padrão do treino, por z-score, entre as 17 candidatas (log_amount
   não entra). O lote não calcula top-3.
   `oldbalanceOrg` é obrigatório: sem o campo, a resposta é HTTP 422.
@@ -256,11 +274,20 @@ O nome oficial apresentado pela API é **Sistema Multiagente de IA para
 Detecção de Fraudes**. O modo `fast` não consulta o Gemini e responde com
 `llm_usado="NAO"` mesmo quando uma chave está configurada.
 
-Para iniciar o dashboard, em outro terminal:
+Para iniciar o dashboard, em outro terminal (a API precisa estar no ar: o
+dashboard faz toda análise pela API e não carrega os modelos):
 
 ```bash
 python -m streamlit run src/dashboard/app.py --server.headless true --server.port 8502
 ```
+
+O dashboard procura a API em `http://127.0.0.1:8000`; para outro endereço,
+defina `API_URL` no `.env`. Ele tem três abas: **Análise em Lote** (modo
+`fast`, grátis, até 500 transações; ou modo `production`, que usa o Gemini,
+**consome cota** e é limitado a 10 transações por lote), **Aprenda Simulando** (análise individual no modo `fast`,
+gratuita, com 15 contas reais da base para escolher como origem e destino) e
+**Histórico** (`/historico` e
+`/historico/estatisticas`).
 
 As limitações conhecidas estão em [`docs/LIMITACOES.md`](docs/LIMITACOES.md).
 
