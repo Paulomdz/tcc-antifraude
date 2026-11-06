@@ -218,8 +218,15 @@ O teste é lido uma vez: se `reports/etapa4_avaliacao_teste.json` existir, o com
 10 épocas), e ela foi treinada sem grade e sem ablação, por restrição de tempo.
 Na Etapa 5 o amostrador foi corrigido (ele ignorava os fanouts) e o modelo foi
 retreinado com `python -m src.modelos.treinamento.retreino_gnn` (só step < 600,
-sem ler o teste). A GNN por transação usa o passado do Parquet
-(`src/ferramentas/historico.py`). A LSTM ainda não usa histórico no modo fast.
+sem ler o teste).
+
+**Histórico das transações:** a LSTM (5 transações anteriores da conta de
+origem), a GNN (subgrafo do passado) e a regra noturna (total da noite) buscam o
+passado no Parquet processado (`src/ferramentas/historico.py`). Na validação,
+os scores por transação são iguais aos do cálculo em lote (2.000 transações,
+diferença máxima abaixo de 0,001), conferidos com
+`python -m src.avaliacao.equivalencia`. O histórico vem só do Parquet do
+projeto: contas que não estão nele não têm passado.
 
 **Regra noturna (Banco Central):** das 20h às 6h, Pix (entre pessoas, QR Code
 e Automático) e TED de pessoa física para outra pessoa física têm limite de
@@ -234,7 +241,7 @@ não muda o score. Detalhes e limitações: `docs/REGRAS_DO_SISTEMA.md`,
 A configuração exige pelo menos 80% para a suite passar. Alguns módulos de
 treinamento e definições de agentes estão explicitamente fora do cálculo em
 `.coveragerc`, por isso o percentual não representa cada linha de todo o
-projeto. A última execução completa não-live (06/11/2026, Etapa 5: GNN com histórico e regra noturna) resultou em **259 passed, 0 failed, 1 deselected** e **91,23% de cobertura**, medida com a configuração padrão do pytest.ini e do .coveragerc.
+projeto. A última execução completa não-live (06/11/2026, Etapa 5: histórico nos três modelos e regra noturna) resultou em **272 passed, 0 failed, 1 deselected** e **91,52% de cobertura**, medida com a configuração padrão do pytest.ini e do .coveragerc.
 Esse percentual mede as instruções percorridas pelos testes; **não** significa
 que o modelo tem 89,75% de acurácia, nem garante todos os cenários possíveis.
 
@@ -252,7 +259,8 @@ A documentação interativa da API fica disponível em
 - `POST /analise_transacao`: análise individual. Por padrão usa o modo
   `production` e exige `GOOGLE_API_KEY`; com `?modo=fast` roda os três modelos
   e a agregação determinística, sem Gemini e sem chave (usado pela aba
-  "Aprenda Simulando" do dashboard). A resposta inclui `explicabilidade.top3`: as 3 features mais
+  "Aprenda Simulando" do dashboard); com `?modo=deep` usa quatro agentes
+  Gemini (exige chave e consome mais cota). A resposta inclui `explicabilidade.top3`: as 3 features mais
   afastadas do padrão do treino, por z-score, entre as 17 candidatas (log_amount
   não entra). O lote não calcula top-3.
   `oldbalanceOrg` é obrigatório: sem o campo, a resposta é HTTP 422.
@@ -283,8 +291,9 @@ python -m streamlit run src/dashboard/app.py --server.headless true --server.por
 
 O dashboard procura a API em `http://127.0.0.1:8000`; para outro endereço,
 defina `API_URL` no `.env`. Ele tem três abas: **Análise em Lote** (modo
-`fast`, grátis, até 500 transações; ou modo `production`, que usa o Gemini,
-**consome cota** e é limitado a 10 transações por lote), **Aprenda Simulando** (análise individual no modo `fast`,
+`fast`, grátis, até 500 transações; `production`, que usa o Gemini,
+**consome cota** e é limitado a 10 transações por lote; ou `deep`, com quatro
+agentes Gemini, mais cota e limite de 5 por lote), **Aprenda Simulando** (análise individual no modo `fast`,
 gratuita, com 15 contas reais da base para escolher como origem e destino) e
 **Histórico** (`/historico` e
 `/historico/estatisticas`).

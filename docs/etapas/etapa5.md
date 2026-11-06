@@ -1,8 +1,8 @@
 # Etapa 5: histórico no sistema entregue e regra noturna
 
 Status em 06/11/2026: em andamento.
-- Feito: GNN por transação com o passado; regra noturna do Banco Central; modelos versionados.
-- Pendente: LSTM com histórico, prova de equivalência na validação (2.000 transações), leitura do teste e juiz Gemini.
+- Feito: histórico nos três modelos (LSTM, GNN e regra noturna); prova de equivalência na validação (2.000 transações); regra noturna do Banco Central; modelos versionados e carregados uma vez; modo deep disponível na API (`?modo=deep`) e no lote do dashboard (até 5 transações).
+- Pendente: avaliação no teste com o sistema novo e juiz Gemini.
 
 ## 1. Problema encontrado
 
@@ -19,6 +19,25 @@ Ao investigar a GNN, achamos um erro no amostrador: `_sample_nodes` expandia a c
   - Modelo anterior guardado em `src/modelos/modelos_salvos/gnn_model_etapa2_v1.pt`.
 - **Índice do passado:** `src/ferramentas/historico.py`. Monta uma vez, por limite de step, o índice das contas de origem e de destino e dos vizinhos anteriores. `grafo_do_passado(600)` é usado na validação; `grafo_do_passado(None)` é o padrão do sistema.
 - **Uso no sistema:** `src/ferramentas/inferencia_modelos.py` (`gnn_identity_score`). Sem `sequence` explícita, a GNN monta o subgrafo do passado. Com `sequence`, o comportamento antigo é mantido.
+
+## 2.1 LSTM
+
+- **Janela:** `GrafoPassado.janela_lstm` (`src/ferramentas/historico.py`) devolve as 5 transações anteriores (step menor) da mesma conta de origem, em ordem de step, com zeros à esquerda quando há menos de 5. Conta vazia não tem histórico. É a mesma regra do lote (`TransactionSequenceDataset`), lida do mesmo índice da GNN.
+- **Uso no sistema:** o agente temporal (`temporal_specialist_tool`) chama `lstm_sequence_score` com `sequence=None` quando a transação não traz histórico, e a LSTM busca a janela no Parquet. Com `sequence`, o comportamento antigo é mantido.
+- **Sem retreino:** a LSTM foi treinada com essa janela; o que faltava era entregá-la no sistema.
+- **Modelos em memória:** IF, LSTM e GNN são lidos do disco na primeira chamada e ficam em cache (`_modelo_em_cache` em `src/ferramentas/inferencia_modelos.py`). Antes, cada transação lia os três arquivos.
+
+## 2.2 Prova de equivalência (Fase C)
+
+`python -m src.avaliacao.equivalencia` compara, em 2.000 transações da validação (step 550 a 599, seed 42), as funções que os agentes chamam com o cálculo em lote da Etapa 4 (`calcular_scores_b`). O índice do passado usa step < 600; o teste não é lido. Critério: diferença máxima menor que 0,001. Relatório: `reports/etapa5_equivalencia_validacao.json`.
+
+| Modelo | Diferença máxima | Diferença média | Valores distintos (sistema / lote) | Passou |
+|---|---|---|---|---|
+| Isolation Forest | 0 | 0 | 1.966 / 1.966 | sim |
+| LSTM | 0,000063 | 0,000002 | 1.391 / 1.391 | sim |
+| GNN | 0,00000012 | 0,00000001 | 2.000 / 2.000 | sim |
+
+A diferença pequena na LSTM vem de o lote rodar na GPU e o sistema na CPU. Tempo do sistema: 23 ms por transação nos três modelos; o lote leva 1,3 s para as 2.000. Pico de RAM: 1,77 GiB.
 
 ## 3. Regra noturna do Banco Central
 
@@ -47,10 +66,12 @@ A regra foi revisada depois da primeira leitura do teste, feita na Etapa 4 com a
 | PR-AUC de validação da GNN anterior | 0,3367 (época 10, com o amostrador antigo) |
 | Regra noturna: lote vs uma transação por vez (4.926 transações, step < 600) | 0 divergências |
 | Modo fast de ponta a ponta (modelos reais, histórico do Parquet) | 1ª chamada 2,2 s (carrega índice e modelos); depois, de 20 a 30 ms |
-| Testes | 259 passed, 0 failed, 1 deselected |
-| Cobertura | 91,23% (1.779 instruções, 156 sem teste; configuração padrão do pytest.ini e do .coveragerc) |
+| LSTM no modo fast | antes: sempre 0,8217; agora: 1.391 valores distintos em 2.000 transações |
+| Modo fast de ponta a ponta com os três modelos com histórico | 1ª chamada 2,3 s; depois, cerca de 22 ms |
+| Testes | 272 passed, 0 failed, 1 deselected |
+| Cobertura | 91,52% (1.887 instruções, 160 sem teste; configuração padrão do pytest.ini e do .coveragerc) |
 
-A equivalência da GNN acima é uma verificação de 200 transações. A prova exigida para a Etapa 5 é a da Fase C, com 2.000 transações.
+A verificação da GNN com 200 transações foi a primeira; a prova completa, com 2.000 transações e os três modelos, está na seção 2.2.
 
 ## 5. Regra noturna: contagem (só leitura, step < 600)
 
@@ -87,9 +108,10 @@ Até esta etapa, o `.gitignore` e as regras do projeto deixavam todos os modelos
 
 ## 7. Limitações ainda abertas
 
-- **LSTM:** continua sem histórico no modo fast, com score constante 0,8217.
+- **Histórico só do Parquet:** contas que não estão no dataset do projeto, ou transações de um CSV enviado ao lote, não ganham histórico com as outras linhas do mesmo arquivo.
 - **Leitura do teste:** o índice padrão do sistema (`grafo_do_passado(None)`) carrega a base inteira, inclusive step >= 600. Ele só usa o passado de cada transação, mas a leitura precisa ser declarada no relatório da avaliação no teste.
 - **GNN ainda subindo:** a validação sobe na época 10; mais épocas não foram testadas.
 - **Regra noturna:** escopo B sem saque e troco; só a transação que cruza o limite vai para revisão; pessoa física inferida pelo prefixo; MEI não separado; muitas revisões de TED legítimas. Detalhes em `docs/LIMITACOES.md`.
 - **Textos do juiz:** mudaram sem avaliação com o Gemini.
+- **Modo deep:** disponível, mas não avaliado; um lote de 5 transações no dashboard é demonstração, não avaliação.
 - **Trecho da norma:** os docs citam os números das instruções normativas; o trecho do texto oficial ainda será anexado.

@@ -25,6 +25,8 @@ build/
 .env.*.local
 dataset/*.CSV
 dataset/*.parquet
+# O Parquet processado é versionado: o sistema lê o histórico das transações dele.
+!dataset/dataset_pix_banco_processado.parquet
 data/*.csv
 data/*.csv.zip
 data/*.parquet
@@ -48,3 +50,11 @@ htmlcov/
 pip_install_log.txt
 reports/*.log
 reports/etapa2_checkpoints/
+
+# Arquivos locais e diagnósticos que não vão para o repositório:
+# regras de trabalho do agente (citadas nos docs como "local, fora do git"),
+# grade da política antiga com vazamento e script de perfil da GNN antiga.
+docs/REGRAS_VIGENTES.md
+reports/etapa2_grid_diagnostico_v1.csv
+reports/medir_gnn_epoca.py
+.pytest_cache/

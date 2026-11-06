@@ -68,7 +68,7 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
   - O que é: a Etapa 4 mediu a decisão final do modo fast no teste, em seis comparações (matriz das 3 decisões, precisão, recall, F1, PR-AUC do score final e taxa de REVISÃO). O modo production, com o juiz Gemini, segue sem medida (seção 4).
   - Por que existe: o modo fast é o único avaliável sem chamar o Gemini.
   - Evidência: docs/etapas/etapa4.md; reports/etapa4_avaliacao_teste.json.
-  - Efeito no TCC: os números do sistema entregue (A) medem a LSTM e a GNN sem histórico (seção 4, "LSTM sem histórico no sistema entregue"); na Etapa 4 a GNN também rodava sem histórico e com o amostrador antigo.
+  - Efeito no TCC: os números do sistema entregue (A) na Etapa 4 medem a LSTM e a GNN sem histórico, e a GNN ainda com o amostrador antigo (seção 4, "Histórico no sistema entregue"). Desde a Etapa 5 o sistema usa histórico; a decisão final com histórico ainda não foi medida no teste.
 - **Métricas por tipo de transação: cobertas na Etapa 4, com ressalvas**
   - O que é: há métricas por tipo para as seis comparações no teste; não há para a LSTM e a GNN isoladas.
   - Por que existe: o script calcula por tipo só as decisões e as linhas de base.
@@ -122,11 +122,11 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 
 ## 4. Sistema multiagente e juiz
 
-- **LSTM sem histórico no sistema entregue (limitação principal)**
-  - O que é: no modo fast, a transação chega sem histórico. A LSTM recebe uma janela 5 × 17 de zeros e dá score constante 0,8217, acima do seu limiar (0,7408); no score final, soma sempre 0,2465 (0,30 × 0,8217). A GNN já usa o passado (ver "Amostrador da GNN" abaixo); a LSTM ainda não.
-  - Por que existe: sem o campo sequence, o agente temporal usa só a própria transação, e a inferência descarta transações do mesmo step ou posteriores; a API e o dashboard não montam o histórico.
-  - Evidência: src/ferramentas/ferramentas_agentes.py:52; src/ferramentas/inferencia_modelos.py:102-110 e :118; reports/etapa4_avaliacao_teste.json (scores_distintos_lstm = 1); reports/etapa2_final_if_lstm.json (limiar 0,7408).
-  - Efeito no TCC: o resultado de A mede o sistema entregue, não os modelos com o histórico do treino. A correção fica como melhoria futura.
+- **Histórico no sistema entregue (resolvido na Etapa 5; vale para os resultados da Etapa 4)**
+  - O que é: até a Etapa 4, no modo fast, a transação chegava sem histórico. A LSTM recebia uma janela 5 × 17 de zeros e dava score constante 0,8217, e a GNN rodava com um único nó. Desde a Etapa 5, a LSTM, a GNN e a regra noturna buscam o passado no Parquet processado, e os scores por transação são iguais aos do lote na validação (2.000 transações, diferença máxima de 0,000063 na LSTM e de 0,0000001 na GNN).
+  - Por que existia: sem o campo sequence, o agente temporal usava só a própria transação; a API e o dashboard não montavam o histórico.
+  - Evidência: reports/etapa5_equivalencia_validacao.json; src/ferramentas/historico.py; reports/etapa4_avaliacao_teste.json (scores_distintos_lstm = 1).
+  - Efeito no TCC: os resultados de A na Etapa 4 medem o sistema sem histórico. O histórico vem só do Parquet do projeto: contas que não estão nele, ou transações de um CSV enviado ao lote, não ganham histórico com as outras linhas do mesmo arquivo.
 - **Juiz Gemini sem avaliação**
   - O que é: não há avaliação das decisões do juiz. Duas chamadas acidentais no início não foram avaliação.
   - Por que existe: a política proíbe chamar o Gemini em teste, treino ou ablação.
@@ -135,13 +135,13 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 - **Pesos e limites de decisão sem calibração registrada**
   - O que é: pesos de agregação 0,35 / 0,30 / 0,35 e limites de decisão 0,50 / 0,80.
   - Por que existe: sem registro de calibração no repositório.
-  - Evidência: src/ferramentas/ferramentas_agentes.py:119, :121 e :123.
+  - Evidência: src/ferramentas/ferramentas_agentes.py:121, :123 e :125.
   - Efeito no TCC: esses valores devem ser apresentados como parâmetros definidos, não como resultado de otimização.
-- **Modo deep sem endpoint**
-  - O que é: existe só como função de orquestração, sem endpoint na API. Os testes usam agentes simulados.
-  - Por que existe: decisão D8: o lote usa fast, a análise individual usa production, e deep permanece só como função.
-  - Evidência: src/ferramentas/ferramentas_agentes.py:299; tests/test_orquestacao.py:169 e :271; docs/etapas/etapa2_api.txt (D8).
-  - Efeito no TCC: o modo deep não pode ser apresentado como avaliado nem como disponível na API.
+- **Modo deep sem avaliação**
+  - O que é: o deep (quatro agentes Gemini) passou a ser acessível por POST /analise_transacao?modo=deep e pelo lote do dashboard, mas os testes usam agentes simulados e não há medida de qualidade.
+  - Por que existe: a política proíbe chamar o Gemini em teste, treino ou ablação; o endpoint foi aberto em 06/11/2026 a pedido do projeto (a decisão D8 o mantinha só como função).
+  - Evidência: src/ferramentas/ferramentas_agentes.py:301; src/api/main.py:268; tests/test_orquestacao.py; tests/test_api.py (test_analise_individual_deep_exige_chave_e_chama_deep).
+  - Efeito no TCC: o modo deep está disponível, mas não pode ser apresentado como avaliado; cada transação consome mais cota que o production.
 - **Regra noturna: limites da implementação**
   - O que é: escopo B (Pix entre pessoas, QR Code e Automático, e TED). Pix saque e troco ficam fora, embora a norma também os limite à noite. Pessoa física é inferida pelo prefixo C do ID, e MEI não pode ser separado. Só a transação que faz o total passar de R$ 1.000 vai para revisão; as seguintes da mesma noite, já acima do limite, não. Transações do mesmo step não se somam entre si.
   - Por que existe: decisões do projeto em 06/11/2026; os dados não identificam MEI nem o tipo de titular.
@@ -224,7 +224,7 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 - **Amostragem do lote repetida no dashboard**
   - O que é: a resposta do lote traz só índice, decisão e scores, sem tipo, valor nem isFraud. O dashboard repete a amostragem da API (seed 42) para ligar cada índice à sua linha.
   - Por que existe: a API não devolve os dados da transação no lote; ambos usam a mesma função, amostrar_lote.
-  - Evidência: src/ferramentas/leitor_arquivo_lote.py:25; src/api/main.py:405; src/dashboard/app.py:669; tests/test_dashboard.py (test_lote_pelo_cliente_casa_indice_com_linha_amostrada).
+  - Evidência: src/ferramentas/leitor_arquivo_lote.py:25; src/api/main.py:408; src/dashboard/app.py:687; tests/test_dashboard.py (test_lote_pelo_cliente_casa_indice_com_linha_amostrada).
   - Efeito no TCC: se API e dashboard estiverem em versões diferentes, a junção falha com aviso (o número de linhas não bate) ou, no pior caso, trocaria linhas sem aviso. Reiniciar os dois depois de mudar a amostragem.
 - **Métricas do lote por isFraud**
   - O que é: precisão, recall e F1 nas leituras estrita (só BLOQUEADO) e ampla (BLOQUEADO ou REVISÃO), calculados na amostra de até 500 transações, sem contar erros nem linhas sem rótulo.
@@ -246,15 +246,15 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
   - Por que existe: o endpoint /historico só tem os parâmetros limit e decisao.
   - Evidência: src/api/main.py (função historico); src/dashboard/app.py (função _aba_historico).
   - Efeito no TCC: com histórico maior que o limite, o filtro de tipo pode deixar de mostrar registros antigos.
-- **Lote production do dashboard: limite de 10 e chamadas em sequência**
-  - O que é: no modo production, o dashboard chama POST /analise_transacao uma vez por transação, em sequência, com limite de 10 por lote (o modo fast aceita até 500). A execução para se a API cair, se faltar a chave (503) ou após 3 erros seguidos; o que já foi analisado fica na tela e no histórico.
+- **Lote production e deep do dashboard: limites de 10 e 5, chamadas em sequência**
+  - O que é: nos modos production e deep, o dashboard chama POST /analise_transacao uma vez por transação, em sequência, com limite de 10 por lote no production e de 5 no deep, que usa quatro agentes Gemini por transação (o modo fast aceita até 500). A execução para se a API cair, se faltar a chave (503) ou após 3 erros seguidos; o que já foi analisado fica na tela e no histórico.
   - Por que existe: cada análise chama o Gemini e consome cota da chave; a API não tem endpoint de lote production. Decisão de 06/11/2026.
-  - Evidência: src/dashboard/app.py:69 e :562; src/dashboard/lote.py (função montar_resultados_individuais); tests/test_dashboard.py (testes test_lote_production_*).
+  - Evidência: src/dashboard/app.py:69, :70 e :571; src/dashboard/lote.py (função montar_resultados_individuais); tests/test_dashboard.py (testes test_lote_production_*).
   - Efeito no TCC: o lote production é uma demonstração com amostra pequena e demorada, não uma medida de desempenho do juiz (seção 4, "Juiz Gemini sem avaliação"). A API segue sem lote production.
 - **Aba "Aprenda Simulando" só no modo fast**
   - O que é: a simulação individual usa POST /analise_transacao?modo=fast, sem Gemini e sem custo; a justificativa vem da regra determinística.
   - Por que existe: manter a simulação gratuita.
-  - Evidência: src/dashboard/app.py:765; src/api/main.py:268; tests/test_api.py (test_analise_individual_fast_nao_exige_chave_e_nao_usa_gemini).
+  - Evidência: src/dashboard/app.py:783; src/api/main.py:268; tests/test_api.py (test_analise_individual_fast_nao_exige_chave_e_nao_usa_gemini).
   - Efeito no TCC: o juiz Gemini só aparece no dashboard pelo lote production.
 - **Listas de contas do formulário**
   - O que é: origem e destino são escolhidos entre 15 contas cada, lidas de dataset/dataset_pix_banco.csv (5 de cada um dos 3 prefixos mais comuns, sorteadas com seed 42). Sem o arquivo, a lista tem uma conta de exemplo.
@@ -269,7 +269,7 @@ Documento vivo: atualizar a cada mudança que crie, resolva ou altere uma limita
 - **Texto da regra noturna**
   - O que é: o texto descreve a regra noturna da Etapa 5, escrito à mão; ele não é gerado a partir do código.
   - Por que existe: o texto é escrito à mão em src/dashboard/app.py.
-  - Evidência: src/dashboard/app.py:72; src/ferramentas/regra_noturna.py.
+  - Evidência: src/dashboard/app.py:74; src/ferramentas/regra_noturna.py.
   - Efeito no TCC: se a regra mudar, o texto precisa ser atualizado junto.
 
 ## 8. Repositório e processo

@@ -81,16 +81,28 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Valor ou comportamento: sem sequence explícita, a GNN monta o subgrafo do passado a partir do Parquet processado, com o mesmo amostrador do lote; o índice é montado uma vez e fica em cache. Na validação o limite é step < 600.
   - Onde está no código: src/ferramentas/historico.py (grafo_do_passado, GrafoPassado.subgrafo); src/ferramentas/inferencia_modelos.py (gnn_identity_score).
   - Origem: Etapa 5.
+- **Histórico da LSTM por transação**
+  - Valor ou comportamento: sem sequence explícita, a LSTM recebe as 5 transações anteriores (step menor) da mesma conta de origem, em ordem de step, com zeros à esquerda quando há menos de 5; conta vazia não tem histórico. É a mesma janela do lote (TransactionSequenceDataset), lida do mesmo índice da GNN.
+  - Onde está no código: src/ferramentas/historico.py (GrafoPassado.janela_lstm); src/ferramentas/inferencia_modelos.py (lstm_sequence_score com sequence=None); src/ferramentas/ferramentas_agentes.py (temporal_specialist_tool).
+  - Origem: Etapa 5.
+- **Modelos carregados uma vez**
+  - Valor ou comportamento: IF, LSTM e GNN são lidos do disco na primeira chamada e ficam em memória; o arquivo é lido de novo se mudar. Um arquivo ausente não fica em cache.
+  - Onde está no código: src/ferramentas/inferencia_modelos.py (_modelo_em_cache).
+  - Origem: Etapa 5.
+- **Prova de equivalência na validação**
+  - Valor ou comportamento: 2.000 transações da validação (seed 42), só step < 600; diferença máxima abaixo de 0,001 entre o sistema por transação e o lote B para IF, LSTM e GNN.
+  - Onde está no código: src/avaliacao/equivalencia.py; reports/etapa5_equivalencia_validacao.json.
+  - Origem: Etapa 5.
 
 ## 4. Agregação e decisão
 
 - **Pesos do modo fast**
   - Valor ou comportamento: 0,35 comportamental, 0,30 temporal, 0,35 identidade.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:119.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:121.
   - Origem: sem registro no repositório.
 - **Limites de decisão do modo fast**
   - Valor ou comportamento: score >= 0,80 Recusada; >= 0,50 Revisão Humana necessária; abaixo disso, Aprovada.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:121-126.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:123-128.
   - Origem: sem registro no repositório.
 - **Mapeamento na API**
   - Valor ou comportamento: Aprovada → APROVADO; Revisão Humana necessária → REVISÃO; Recusada → BLOQUEADO. Os rótulos finais são aceitos como vieram; valor desconhecido gera erro.
@@ -105,7 +117,7 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Origem: Etapa 1 (docs/etapas/etapa1.txt).
 - **Regra noturna do Banco Central (escopo B)**
   - Valor ou comportamento: das 20h às 6h (hora = step % 24), Pix entre pessoas (PIX_P2P), Pix QR Code, Pix Automático e TED de pessoa física para outra pessoa física têm limite de R$ 1.000,00 somados por conta pagadora e por noite. A transação que faz o total passar de R$ 1.000 vai, no mínimo, para Revisão Humana necessária. A regra não bloqueia, não muda o score e não rebaixa uma Recusada. Pix saque e troco ficam fora.
-  - Onde está no código: src/ferramentas/regra_noturna.py; src/ferramentas/ferramentas_agentes.py:129-131 (modo fast) e aplicar_piso_noturno; src/orquestacao/fluxo_multiagente.py:78 e :97-101 (production e deep).
+  - Onde está no código: src/ferramentas/regra_noturna.py; src/ferramentas/ferramentas_agentes.py:131-133 (modo fast) e aplicar_piso_noturno; src/orquestacao/fluxo_multiagente.py:78 e :97-101 (production e deep).
   - Origem: IN BCB 331/2022, alterada pelas IN BCB 512/2024 e 669/2025 (limite de R$ 1.000 e janela das 20h às 6h). Revisão como consequência, escopo B e total acumulado só com transações entre pessoas físicas: decisões do projeto em 06/11/2026, tomadas depois da primeira leitura do teste (Etapa 4), que usou a regra antiga.
 - **Total noturno acumulado**
   - Valor ou comportamento: soma das transações elegíveis do mesmo pagador com step menor, desde as 20h em que começou a noite. Transações do mesmo step não se somam entre si. O histórico vem do Parquet processado, pelo mesmo índice da GNN.
@@ -125,37 +137,37 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Origem: Etapa 5.
 - **Texto do dashboard**
   - Valor ou comportamento: a tela descreve a regra noturna em linguagem simples, junto com os limiares 0,50 e 0,80, e a ajuda do campo de hora cita a janela das 20h às 6h; o dashboard não calcula a regra.
-  - Onde está no código: src/dashboard/app.py:72.
+  - Onde está no código: src/dashboard/app.py:74.
   - Origem: Etapa 5.
 - **Parâmetro aplicar_regra_madrugada**
   - Valor ou comportamento: padrão True, que aplica a regra noturna; False a desliga. API, dashboard e lote usam o padrão; False é usado só na avaliação. O nome foi mantido por compatibilidade com a avaliação da Etapa 4.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:102 e :129; src/orquestacao/fluxo_multiagente.py:42 e :52.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:104 e :131; src/orquestacao/fluxo_multiagente.py:42 e :52.
   - Origem: Etapa 4, commit 77fb960; significado alterado na Etapa 5.
 
 ## 6. Modos de execução
 
 - **fast**
   - Valor ou comportamento: modelos e agregação determinística, sem LLM. Usado em /analise_lote, /analise_lote/arquivo, em /analise_transacao?modo=fast e no dashboard (lote e aba "Aprenda Simulando").
-  - Onde está no código: src/orquestacao/fluxo_multiagente.py:41; src/api/main.py:290 e :335; src/dashboard/app.py:668.
+  - Onde está no código: src/orquestacao/fluxo_multiagente.py:41; src/api/main.py:293 e :338; src/dashboard/app.py:686.
   - Origem: D8.
 - **production**
   - Valor ou comportamento: modelos e juiz Gemini. Padrão de /analise_transacao (sem o parâmetro modo). No dashboard, só o lote em modo production usa este modo: chama /analise_transacao uma vez por transação, com limite de 10 por lote (a aba "Aprenda Simulando" usa fast).
-  - Onde está no código: src/orquestacao/fluxo_multiagente.py:62 e :85; src/api/main.py:268; src/dashboard/app.py:577 e :69.
+  - Onde está no código: src/orquestacao/fluxo_multiagente.py:62 e :85; src/api/main.py:268; src/dashboard/app.py:571 e :69.
   - Origem: D8.
 - **deep**
-  - Valor ou comportamento: quatro agentes LLM; só função de orquestração, sem endpoint.
-  - Onde está no código: src/orquestacao/fluxo_multiagente.py:92; src/ferramentas/ferramentas_agentes.py:299.
-  - Origem: D8.
+  - Valor ou comportamento: quatro agentes Gemini por transação (três especialistas e o juiz final, em sequência); exige chave e consome cota. Disponível em /analise_transacao?modo=deep e no lote deep do dashboard, com limite de 5 transações por lote.
+  - Onde está no código: src/orquestacao/fluxo_multiagente.py:92; src/ferramentas/ferramentas_agentes.py:301; src/api/main.py:268 e :295; src/dashboard/app.py:70 e :571.
+  - Origem: D8 (função); endpoint e lote no dashboard em 06/11/2026.
 - **Sem fallback determinístico**
   - Valor ou comportamento: production não troca para decisão determinística.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:238.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:240.
   - Origem: D7.
 
 ## 7. API
 
 - **Endpoints**
   - Valor ou comportamento: GET /; GET /config; POST /analise_transacao; POST /analise_lote; POST /analise_lote/arquivo; GET /historico; GET /historico/estatisticas.
-  - Onde está no código: src/api/main.py:238, :243, :254, :294, :370, :417 e :426.
+  - Onde está no código: src/api/main.py:238, :243, :254, :297, :373, :420 e :429.
   - Origem: Etapa 2 (docs/etapas/etapa2_api.txt).
 - **503 sem chave**
   - Valor ou comportamento: /analise_transacao com corpo válido e sem GOOGLE_API_KEY responde 503 com a mensagem do D7.
@@ -183,7 +195,7 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Origem: Etapa 2 (docs/etapas/etapa2_api.txt).
 - **/historico**
   - Valor ou comportamento: funciona sem chave; limit de 1 a 1000, padrão 100.
-  - Onde está no código: src/api/main.py:417-419.
+  - Onde está no código: src/api/main.py:420-422.
   - Origem: D7.
 
 ## 8. Explicabilidade
@@ -240,7 +252,7 @@ Documento vivo: atualizar a cada mudança que crie, altere ou remova uma regra d
   - Origem: Etapa 0 (docs/etapas/etapa0.txt, seção 0.4).
 - **Production**
   - Valor ou comportamento: uma execução do juiz por transação.
-  - Onde está no código: src/ferramentas/ferramentas_agentes.py:285-286.
+  - Onde está no código: src/ferramentas/ferramentas_agentes.py:287-288.
   - Origem: D8.
 - **fast nunca chama**
   - Valor ou comportamento: usa só judge_tool, sem LLM.
