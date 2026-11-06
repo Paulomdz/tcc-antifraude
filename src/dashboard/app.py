@@ -73,9 +73,10 @@ _RISK_RULES_TEXT = (
     "**Como o sistema decide.** Cada transação recebe três notas de 0 a 1 (comportamento, "
     "horário e identidade), combinadas em um score final: abaixo de 0,50 é **aprovado**; "
     "de 0,50 a 0,79, **revisão humana**; de 0,80 em diante, **bloqueado**. "
-    "**Regra da madrugada:** entre 00:00 e 05:59, uma transação de R$ 10.000 ou mais "
-    "(Pix entre pessoas, Pix Automático, TED ou TEF) é bloqueada direto, com score 0,95; "
-    "nos outros tipos, esse valor na madrugada soma 0,25 ao score."
+    "**Regra noturna (Banco Central):** das 20h às 6h, Pix (entre pessoas, QR Code ou "
+    "Automático) e TED entre pessoas físicas têm limite de R$ 1.000 somados na noite, por "
+    "conta pagadora. A transação que passa desse total vai para **revisão humana**; a regra "
+    "não bloqueia e não muda o score."
 )
 _AVISOS_GERAIS = (
     "Os dados são sintéticos: os resultados valem para esta base e não mostram o desempenho "
@@ -736,7 +737,8 @@ def _aba_individual(api_ok: bool) -> None:
             hora = st.number_input(
                 "Hora da transação (0 a 23)", min_value=0, max_value=23, value=12, step=1, key="f_hora",
                 help="Hora do dia em que a transação aconteceu (0 = meia-noite, 23 = 23h). "
-                     "Entre 0h e 5h é madrugada, quando valores altos são tratados como mais arriscados.",
+                     "Das 20h às 6h vale a regra noturna: Pix e TED entre pessoas físicas acima de "
+                     "R$ 1.000 no total da noite vão para revisão humana.",
             )
             origem = st.selectbox(
                 "Conta de origem (15 contas da base)", contas["origem"], key="f_orig",

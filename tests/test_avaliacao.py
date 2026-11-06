@@ -75,52 +75,49 @@ def test_comparar_separa_por_tipo():
     assert resultado["por_tipo"]["TEF"]["taxa_revisao"] == 1.0
 
 
-def test_juiz_com_regra_bloqueia_e_sem_regra_nao():
-    com = _chamar_juiz(3, 20000.0)
-    sem = _chamar_juiz(3, 20000.0, aplicar_regra_madrugada=False)
+def _juiz_noturno(amount, score=0.1, total_anterior=0.0, step=22, tipo="PIX_P2P", **kwargs):
+    from src.ferramentas.regra_noturna import avaliar_regra_noturna
 
-    assert (com["decision"], com["score"]) == ("Recusada", 0.95)
+    tx = {"step": step, "amount": amount, "type": tipo, "nameOrig": "C1", "nameDest": "C2"}
+    if kwargs.get("aplicar_regra_madrugada", True):
+        kwargs["regra_noturna"] = avaliar_regra_noturna(tx, total_anterior=total_anterior)
+    return tools.judge_tool(tx, score, score, score, {}, **kwargs)
+
+
+def test_juiz_com_regra_revisa_e_sem_regra_aprova():
+    com = _juiz_noturno(1_500.0)
+    sem = _juiz_noturno(1_500.0, aplicar_regra_madrugada=False)
+
+    assert com["decision"] == "Revisão Humana necessária"
     assert sem["decision"] == "Aprovada"
-    assert sem["score"] == pytest.approx(0.1)
-
-
-def test_juiz_sem_regra_desliga_o_bonus():
-    # BOLETO não bloqueia de imediato, mas recebe o bônus de 0,25.
-    com = _chamar_juiz(3, 20000.0, tipo="BOLETO")
-    sem = _chamar_juiz(3, 20000.0, tipo="BOLETO", aplicar_regra_madrugada=False)
-
-    assert com["score"] == pytest.approx(0.35)
-    assert sem["score"] == pytest.approx(0.1)
+    assert com["score"] == sem["score"] == pytest.approx(0.1)
 
 
 @pytest.mark.parametrize(
-    ("step", "amount", "tipo", "score", "decisao", "score_final"),
+    ("step", "amount", "tipo", "total_anterior", "score", "decisao"),
     [
-        (3, 20000.0, "PIX_P2P", 0.1, "Recusada", 0.95),
-        (3, 20000.0, "BOLETO", 0.1, "Aprovada", 0.35),
-        (3, 20000.0, "BOLETO", 0.3, "Revisão Humana necessária", 0.55),
-        (3, 20000.0, "BOLETO", 0.9, "Recusada", 1.0),
-        (3, 9999.99, "PIX_P2P", 0.1, "Aprovada", 0.1),
-        (12, 20000.0, "PIX_P2P", 0.6, "Revisão Humana necessária", 0.6),
-        (12, 20000.0, "PIX_P2P", 0.9, "Recusada", 0.9),
+        (22, 1_500.0, "PIX_P2P", 0.0, 0.1, "Revisão Humana necessária"),
+        (3, 600.0, "TED", 500.0, 0.1, "Revisão Humana necessária"),
+        (3, 600.0, "TED", 1_200.0, 0.1, "Aprovada"),  # já tinha estourado antes
+        (22, 1_000.0, "PIX_P2P", 0.0, 0.1, "Aprovada"),  # exatamente o limite
+        (22, 1_500.0, "PIX_SAQUE", 0.0, 0.1, "Aprovada"),  # fora do escopo B
+        (22, 1_500.0, "PIX_P2P", 0.0, 0.6, "Revisão Humana necessária"),
+        (22, 1_500.0, "PIX_P2P", 0.0, 0.9, "Recusada"),
+        (12, 20_000.0, "PIX_P2P", 0.0, 0.1, "Aprovada"),  # de dia
     ],
 )
-def test_juiz_com_regra_mantem_o_comportamento_atual(
-    step, amount, tipo, score, decisao, score_final
-):
-    padrao = _chamar_juiz(step, amount, tipo, score)
-    explicito = _chamar_juiz(step, amount, tipo, score, aplicar_regra_madrugada=True)
+def test_juiz_com_regra_noturna(step, amount, tipo, total_anterior, score, decisao):
+    resultado = _juiz_noturno(amount, score, total_anterior, step=step, tipo=tipo)
 
-    assert padrao == explicito
-    assert padrao["decision"] == decisao
-    assert padrao["score"] == pytest.approx(score_final)
+    assert resultado["decision"] == decisao
+    assert resultado["score"] == pytest.approx(score)
 
 
-def test_fora_da_madrugada_a_regra_nao_muda_nada():
+def test_fora_da_noite_a_regra_nao_muda_nada():
     com = _chamar_juiz(12, 20000.0, score=0.6)
     sem = _chamar_juiz(12, 20000.0, score=0.6, aplicar_regra_madrugada=False)
 
-    assert com == sem
+    assert (com["decision"], com["score"]) == (sem["decision"], sem["score"])
 
 
 def _especialistas_falsos(monkeypatch, chamadas=None):
@@ -138,12 +135,19 @@ def _especialistas_falsos(monkeypatch, chamadas=None):
 
 
 def test_modo_fast_repassa_o_parametro_com_padrao_true(monkeypatch):
-    _especialistas_falsos(monkeypatch)
-    transacao = {"step": 3, "amount": 20000.0, "type": "PIX_P2P"}
+    from src.ferramentas.regra_noturna import avaliar_regra_noturna
 
-    assert flow.orchestrate_ml_only(transacao)["decision"]["score"] == 0.95
-    sem = flow.orchestrate_ml_only(transacao, aplicar_regra_madrugada=False)
-    assert sem["decision"]["score"] == pytest.approx(0.35 * 0.4 + 0.3 * 0.5 + 0.35 * 0.6)
+    _especialistas_falsos(monkeypatch)
+    monkeypatch.setattr(
+        tools, "avaliar_regra_noturna", lambda tx: avaliar_regra_noturna(tx, total_anterior=0.0)
+    )
+    transacao = {"step": 3, "amount": 20000.0, "type": "PIX_P2P", "nameOrig": "C1", "nameDest": "C2"}
+
+    com = flow.orchestrate_ml_only(transacao)["decision"]
+    sem = flow.orchestrate_ml_only(transacao, aplicar_regra_madrugada=False)["decision"]
+    assert com["regra_noturna"]["aplica"] is True
+    assert sem["regra_noturna"] is None
+    assert com["score"] == sem["score"] == pytest.approx(0.35 * 0.4 + 0.3 * 0.5 + 0.35 * 0.6)
 
 
 def _preparar_base(monkeypatch, tmp_path):

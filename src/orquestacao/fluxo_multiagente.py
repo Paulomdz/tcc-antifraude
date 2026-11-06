@@ -7,6 +7,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from src.ferramentas.ferramentas_agentes import (
+    aplicar_piso_noturno,
     behavior_specialist_tool,
     deep_multiagent_tool,
     identity_specialist_tool,
@@ -14,6 +15,7 @@ from src.ferramentas.ferramentas_agentes import (
     llm_judge_tool,
     temporal_specialist_tool,
 )
+from src.ferramentas.regra_noturna import avaliar_regra_noturna
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
@@ -64,13 +66,16 @@ def orchestrate_transaction(
 
     O modo fast fica explicitamente separado em ``orchestrate_ml_only``. A
     chave ausente ou uma falha no CrewAI/Gemini nunca troca silenciosamente o
-    caminho solicitado por uma decisão determinística.
+    caminho solicitado por uma decisão determinística. A regra noturna vale
+    nos dois modos: o LLM recebe o resultado, e uma aprovação vira revisão
+    quando a regra se aplica.
     """
     if modo not in {"production", "deep"}:
         raise ValueError("modo deve ser 'production' ou 'deep'.")
     _require_gemini_key()
 
     outputs = _run_specialists(transaction)
+    regra = avaliar_regra_noturna(transaction)
     scores = {
         "behavior_score": outputs["behavior"]["score"],
         "temporal_score": outputs["temporal"]["score"],
@@ -81,12 +86,19 @@ def orchestrate_transaction(
             transaction=transaction,
             **scores,
             specialist_outputs=outputs,
+            regra_noturna=regra,
         )
     else:
         decision = deep_multiagent_tool(
             transaction=transaction,
             specialist_outputs=outputs,
+            regra_noturna=regra,
         )
+    decision = {
+        **decision,
+        "decision": aplicar_piso_noturno(decision["decision"], regra),
+        "regra_noturna": regra,
+    }
     return {
         "transaction": transaction,
         **outputs,

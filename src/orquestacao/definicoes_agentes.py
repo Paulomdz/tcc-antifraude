@@ -65,8 +65,9 @@ class FraudSimulatorAgents:
                 "Sua função é interpretar o resultado do modelo Isolation Forest, que classifica transações "
                 "como normais ou anômalas. Se o modelo indicar anomalia, explique por que as features da "
                 "transação (montante, saldos, padrão temporal) parecem suspeitas. Você entende que o sistema "
-                "financeiro brasileiro tem padrões específicos e que transações de altíssimo valor (R$ 10.000+) "
-                "fora do horário comercial são indicadores críticos de risco."
+                "financeiro brasileiro tem padrões específicos: o Banco Central limita a R$ 1.000 o total "
+                "noturno (20h às 6h) de Pix e TED entre pessoas físicas, e valores fora do perfil nesse "
+                "período merecem atenção."
             ),
             llm=self._get_llm(),
             verbose=True,
@@ -78,17 +79,17 @@ class FraudSimulatorAgents:
             role="Analista de Séries Temporais (LSTM) e Risco Temporal",
             goal=(
                 "Detectar desvios no padrão sequencial de transações do usuário, com atenção especial "
-                "a cenários de alto risco: transferências de alto valor (R$ 10.000+) ocorrendo em horários "
-                "críticos como madrugada (00:00-05:59). Indicadores como débito noturno de valor elevado "
-                "devem aumentar significativamente a suspeita de fraude."
+                "ao período noturno (20h às 6h), em que o total de Pix e TED entre pessoas físicas é "
+                "limitado a R$ 1.000 por conta pagadora. Débitos noturnos fora do histórico do cliente "
+                "devem aumentar a suspeita de fraude."
             ),
             backstory=(
                 "Você é um especialista sênior em análise temporal e comportamento de risco bancário. "
                 "Sua especialidade é entender se uma transação faz sentido dado o histórico recente do cliente, "
                 "interpretando o output de uma rede neural LSTM. Você conhece bem as regras de risco do sistema "
-                "financeiro brasileiro: transferências muito grandes na madrugada são típicas de fraudes "
-                "coordenadas. Quando detectar amount >= R$ 10.000 + horário entre 00:00-05:59, considere a "
-                "transação ALTAMENTE SUSPEITA e inclinar para BLOQUEIO."
+                "financeiro brasileiro: o limite noturno de R$ 1.000 para Pix e TED entre pessoas físicas "
+                "(IN BCB 331/2022, alterada pelas IN BCB 512/2024 e 669/2025). Quando a regra noturna "
+                "indicar que o limite foi estourado, recomende no mínimo REVISÃO."
             ),
             llm=self._get_llm(),
             verbose=True,
@@ -101,14 +102,14 @@ class FraudSimulatorAgents:
             goal=(
                 "Verificar conexões suspeitas entre contas de origem e destino, com foco especial em padrões "
                 "conhecidos de redes de fraude. Transferências para contas novas ou desconhecidas combinadas "
-                "com alto valor e madrugada são EXTREMAMENTE SUSPEITAS."
+                "com valores altos no período noturno (20h às 6h) merecem atenção especial."
             ),
             backstory=(
                 "Você é especialista em análise de grafos e redes sociais financeiras. Sua função é verificar "
                 "se a conta de destino já foi associada a fraudes, se a conexão entre as partes é atípica usando "
                 "modelos de grafos neurais (GNN). Você conhece as padrões de risco: transferências para contas "
-                "novas, em volume elevado (R$ 10.000+), durante a madrugada (00:00-05:59) são características "
-                "de operações fraudulentas organizadas. Quando detectar estas combinações, recomende BLOQUEIO."
+                "novas, em volume elevado, durante o período noturno (20h às 6h) são características "
+                "de operações fraudulentas organizadas. Quando detectar estas combinações, recomende REVISÃO."
             ),
             llm=self._get_llm(),
             verbose=True,
@@ -120,18 +121,20 @@ class FraudSimulatorAgents:
             role="Juiz de Risco Financeiro (Autoridade Final)",
             goal=(
                 "Consolidar os pareceres dos especialistas e dar o veredito final com critérios rígidos de risco "
-                "bancário brasileiro. BLOQUEIE IMEDIATAMENTE transferências de alto valor (R$ 10.000+) durante "
-                "madrugada (00:00-05:59), independentemente de outros scores."
+                "bancário brasileiro. Quando a regra noturna se aplicar, a decisão mínima é REVISÃO MANUAL."
             ),
             backstory=(
                 "Você é a autoridade máxima do sistema de fraude. Recebe os relatórios técnico-comportamentais, "
                 "temporais e de identidade dos especialistas. Sua decisão deve ser rigorosa e conservadora em "
                 "relação a segurança financeira. Você conhece as regras críticas de risco do sistema financeiro "
                 "brasileiro:\n\n"
-                "REGRAS RÍGIDAS DE BLOQUEIO:\n"
-                "1. PIX_P2P ou PIX_AUTOMATICO de valor >= R$ 10.000 entre 00:00-05:59 (madrugada) = BLOQUEIO IMEDIATO\n"
-                "2. TED ou TEF de valor >= R$ 10.000 entre 00:00-05:59 = BLOQUEIO IMEDIATO\n"
-                "3. Combinação: alto valor noturno + agentes apontando suspeita = BLOQUEIO\n"
+                "REGRAS DE DECISÃO:\n"
+                "1. Regra noturna (IN BCB 331/2022, alterada pelas IN BCB 512/2024 e 669/2025): Pix entre "
+                "pessoas, Pix QR Code, Pix Automático ou TED, de pessoa física para outra pessoa física, das "
+                "20h às 6h, quando o total acumulado da conta pagadora na noite passa de R$ 1.000 = no mínimo "
+                "REVISÃO MANUAL. Não é bloqueio automático e não aumenta o score.\n"
+                "2. A tarefa informa se a regra noturna se aplica; não recalcule o total.\n"
+                "3. Bloqueio só quando os pareceres dos especialistas indicarem risco alto.\n"
                 "4. Se incerto ou houver múltiplas flags, preferir REVISÃO MANUAL a APROVADO\n\n"
                 "Responda sempre no formato solicitado pela tarefa: DECISAO, SCORE e JUSTIFICATIVA."
             ),

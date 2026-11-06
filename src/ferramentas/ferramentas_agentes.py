@@ -8,6 +8,7 @@ from .inferencia_modelos import (
     isolation_forest_score,
     lstm_sequence_score,
 )
+from .regra_noturna import FONTE, LIMITE_NOTURNO, avaliar_regra_noturna, e_noite
 
 
 def _hora_do_dia(transaction: Dict[str, Any]) -> int:
@@ -42,8 +43,7 @@ def behavior_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
         "details": {
             "explanation": (
                 f"O modelo de comportamento avalia a transação por irregularidade de valores "
-                f"e saldo anterior à execução. Horário: {time_24h} (formato 24h). "
-                f"Se a transação ocorre entre 00:00-05:59 com valor alto, é muito suspeita."
+                f"e saldo anterior à execução. Horário: {time_24h} (formato 24h)."
             ),
         },
     }
@@ -57,17 +57,8 @@ def temporal_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
     hours = _hora_do_dia(transaction)
     time_24h = f"{hours:02d}:00"
 
-    # Verifica se está na madrugada (00:00-05:59)
-    is_midnight = 0 <= hours < 6
     amount = float(transaction.get("amount", 0.0))
-    is_high_value = amount >= 10000.0
-
-    extra_warning = ""
-    if is_midnight and is_high_value:
-        extra_warning = (
-            f" ⚠️ ALERTA CRÍTICO: Transação de R$ {amount:,.2f} na madrugada ({time_24h}). "
-            "Padrão altamente suspeito de fraude."
-        )
+    periodo = "noturno (20h às 6h)" if e_noite(transaction.get("step", 0)) else "diurno"
 
     return {
         "score": score,
@@ -75,9 +66,8 @@ def temporal_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
         "details": {
             "explanation": (
                 f"O modelo temporal analisa o histórico de transações e identifica padrões "
-                f"de comportamento inesperados. Horário da transação: {time_24h} (24h). "
-                f"Valor: R$ {amount:,.2f}."
-                f"{extra_warning}"
+                f"de comportamento inesperados. Horário da transação: {time_24h} (24h), "
+                f"período {periodo}. Valor: R$ {amount:,.2f}."
             ),
         },
     }
@@ -110,11 +100,15 @@ def judge_tool(
     identity_score: float,
     specialist_outputs: Dict[str, Any],
     aplicar_regra_madrugada: bool = True,
+    regra_noturna: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Agregador determinístico usado somente pelo modo fast, sem chamada LLM.
 
-    Com ``aplicar_regra_madrugada=False``, desliga o bloqueio imediato e o bônus
-    de 0,25 da madrugada; serve só para a avaliação da Etapa 4.
+    O score é a média ponderada dos três agentes. A regra noturna (limite de
+    R$ 1.000 por noite em Pix e TED entre pessoas físicas) só eleva uma
+    aprovação para revisão: não bloqueia e não muda o score.
+    ``aplicar_regra_madrugada=False`` desliga a regra (usado na avaliação).
+    ``regra_noturna`` permite passar o resultado já calculado.
     """
     hours = _hora_do_dia(transaction)
     time_24h = f"{hours:02d}:00"
@@ -122,44 +116,19 @@ def judge_tool(
     amount = float(transaction.get("amount", 0.0))
     tx_type = str(transaction.get("type", "")).upper()
 
-    # Bloqueio de alto valor na madrugada
-    is_midnight = 0 <= hours < 6
-    is_high_value = amount >= 10000.0
-    is_tipo_bloqueio = tx_type in {
-        "PIX_P2P",
-        "PIX_AUTOMATICO",
-        "TED",
-        "TEF",
-    }
-
-    if aplicar_regra_madrugada and is_midnight and is_high_value and is_tipo_bloqueio:
-        return {
-            "decision": "Recusada",
-            "score": float(0.95),
-            "justification": (
-                f"🚨 BLOQUEIO IMEDIATO - REGRA CRÍTICA DE RISCO:\n"
-                f"Transação {tx_type} de R$ {amount:,.2f} às {time_24h} (madrugada).\n"
-                f"Este padrão (alto valor + madrugada + débito/transferência) é indicador "
-                f"crítico de fraude no sistema financeiro brasileiro.\n"
-                f"Score: 0.950 (máximo risco)"
-            ),
-            "specialist_outputs": specialist_outputs,
-        }
-
-    # Média ponderada com limiares mais equilibrados
     score = 0.35 * behavior_score + 0.30 * temporal_score + 0.35 * identity_score
 
-    # REGRA RÍGIDA 2: Se houver padrão noturno suspeito, elevar score
-    if aplicar_regra_madrugada and is_midnight and is_high_value:
-        score = min(score + 0.25, 1.0)
-
-    # Limiares de decisão
     if score >= 0.80:
         decision = "Recusada"
     elif score >= 0.50:
         decision = "Revisão Humana necessária"
     else:
         decision = "Aprovada"
+
+    regra = None
+    if aplicar_regra_madrugada:
+        regra = regra_noturna if regra_noturna is not None else avaliar_regra_noturna(transaction)
+        decision = aplicar_piso_noturno(decision, regra)
 
     justification = (
         f"Decisão: {decision} | Horário: {time_24h} | Valor: R$ {amount:,.2f} | Tipo: {tx_type}\n"
@@ -168,6 +137,7 @@ def judge_tool(
         f"  • Temporal: {temporal_score:.3f}\n"
         f"  • Identidade: {identity_score:.3f}\n"
         f"Risco consolidado: {score:.3f}"
+        f"{_texto_regra_noturna(regra)}"
     )
 
     return {
@@ -175,7 +145,25 @@ def judge_tool(
         "score": float(score),
         "justification": justification,
         "specialist_outputs": specialist_outputs,
+        "regra_noturna": regra,
     }
+
+
+def aplicar_piso_noturno(decision: str, regra: Dict[str, Any] | None) -> str:
+    """Se a regra noturna se aplica, a decisão mínima é revisão humana."""
+    if regra and regra.get("aplica") and decision == "Aprovada":
+        return "Revisão Humana necessária"
+    return decision
+
+
+def _texto_regra_noturna(regra: Dict[str, Any] | None) -> str:
+    if not regra or not regra.get("aplica"):
+        return ""
+    return (
+        f"\nRegra noturna ({FONTE}): o total da conta pagadora nesta noite passa a "
+        f"R$ {regra['total_com_atual']:,.2f}, acima do limite de R$ {LIMITE_NOTURNO:,.2f} "
+        "para Pix e TED entre pessoas físicas. A transação vai, no mínimo, para revisão humana."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +224,7 @@ def llm_judge_tool(
     temporal_score: float,
     identity_score: float,
     specialist_outputs: Dict[str, Any],
+    regra_noturna: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Tool do agente juiz que consolida os pareceres via LLM (Gemini) orquestrado por CrewAI.
 
@@ -256,14 +245,22 @@ def llm_judge_tool(
     time_24h = f"{hours:02d}:00"
     amount = float(transaction.get("amount", 0.0))
     tx_type = str(transaction.get("type", "")).upper()
+    if regra_noturna and regra_noturna.get("aplica"):
+        texto_regra = (
+            f"Regra noturna ({FONTE}): APLICA. O total da conta pagadora nesta noite passa a "
+            f"R$ {regra_noturna['total_com_atual']:,.2f}, acima do limite de "
+            f"R$ {LIMITE_NOTURNO:,.2f}. A decisão mínima é Revisão Humana necessária.\n\n"
+        )
+    else:
+        texto_regra = f"Regra noturna ({FONTE}): não se aplica a esta transação.\n\n"
 
     description = (
         "Avalie a transação financeira abaixo com base nos pareceres técnicos dos três "
-        "especialistas e emita o veredito final, seguindo rigorosamente as regras de risco "
-        "bancário brasileiro descritas no seu backstory (bloqueio imediato para alto valor "
-        "na madrugada).\n\n"
+        "especialistas e emita o veredito final, seguindo as regras descritas no seu "
+        "backstory.\n\n"
         f"Transação: tipo={tx_type}, valor=R$ {amount:,.2f}, horário={time_24h} (24h), "
         "identificadores de conta omitidos.\n\n"
+        f"{texto_regra}"
         f"Parecer do especialista Comportamental (Isolation Forest) — score {behavior_score:.3f}: "
         f"{specialist_outputs['behavior']['details']['explanation']}\n\n"
         f"Parecer do especialista Temporal (LSTM) — score {temporal_score:.3f}: "
@@ -302,6 +299,7 @@ def llm_judge_tool(
 def deep_multiagent_tool(
     transaction: Dict[str, Any],
     specialist_outputs: Dict[str, Any],
+    regra_noturna: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Executa os três especialistas LLM e o juiz final no modo deep."""
     from crewai import Crew, Process, Task
@@ -348,7 +346,13 @@ def deep_multiagent_tool(
             f"Tipo={transaction.get('type', 'N/A')}; "
             f"valor=R$ {float(transaction.get('amount', 0.0)):,.2f}; "
             f"horário={hours:02d}:00. "
-            "Responda estritamente com DECISAO, SCORE e JUSTIFICATIVA em linhas "
+            + (
+                f"Regra noturna ({FONTE}): APLICA; o total noturno da conta pagadora passa "
+                f"de R$ {LIMITE_NOTURNO:,.2f}, então a decisão mínima é Revisão Humana necessária. "
+                if regra_noturna and regra_noturna.get("aplica")
+                else f"Regra noturna ({FONTE}): não se aplica. "
+            )
+            + "Responda estritamente com DECISAO, SCORE e JUSTIFICATIVA em linhas "
             "separadas. Decisões permitidas: Aprovada, Revisão Humana necessária "
             "ou Recusada; score entre 0 e 1."
         ),
