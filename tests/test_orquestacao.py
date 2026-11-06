@@ -347,3 +347,17 @@ def test_juiz_llm_recebe_o_texto_da_regra_noturna(monkeypatch):
 
     assert "Regra noturna (IN BCB 331/2022" in tarefas[0]["description"]
     assert "APLICA" in tarefas[0]["description"]
+
+
+def test_agente_temporal_sem_sequence_pede_o_historico_do_parquet(monkeypatch):
+    chamadas = []
+
+    def lstm_falsa(sequence, **kwargs):
+        chamadas.append((sequence, kwargs["current_transaction"]))
+        return 0.4
+
+    monkeypatch.setattr(tools, "lstm_sequence_score", lstm_falsa)
+    tx = {"step": 3, "amount": 100.0, "type": "PIX_P2P", "nameOrig": "C1"}
+
+    assert tools.temporal_specialist_tool(tx)["score"] == 0.4
+    assert chamadas == [(None, tx)]

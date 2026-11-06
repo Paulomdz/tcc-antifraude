@@ -106,3 +106,46 @@ def test_grafo_do_passado_respeita_limite_de_step(monkeypatch):
         historico.grafo_do_passado.cache_clear()
 
     assert chamadas == [[("step", "<", 600)]]
+
+
+def _janela_de_referencia(contexto: pd.DataFrame, novo: dict):
+    """Janela do lote (TransactionSequenceDataset) para a mesma transação."""
+    from src.modelos.arquitetura_lstm import TransactionSequenceDataset
+    from src.preprocessamento.carregar_dataset import LSTM_FEATURE_NAMES
+
+    com_novo = pd.concat([contexto, pd.DataFrame([{**novo, "isFraud": 0}])], ignore_index=True)
+    com_novo["isFraud"] = com_novo["isFraud"].fillna(0)
+    alvo = com_novo.tail(1)
+    ds = TransactionSequenceDataset(alvo, seq_length=5, feature_cols=LSTM_FEATURE_NAMES, context_df=com_novo)
+    return ds[0][0].numpy()
+
+
+def test_janela_lstm_igual_ao_lote():
+    from src.preprocessamento.carregar_dataset import LSTM_FEATURE_NAMES
+
+    contexto = pd.DataFrame(
+        [_linha(passo, "C1", f"C{passo + 10}", 10.0 * passo) for passo in range(1, 9)]
+        + [_linha(4, "C2", "C1", 999.0), _linha(9, "C1", "C3", 5.0)]
+    )
+    novo = _linha(9, "C1", "C4", 70.0)
+    janela = historico.GrafoPassado(contexto).janela_lstm(novo, LSTM_FEATURE_NAMES)
+
+    assert janela.shape == (5, len(LSTM_FEATURE_NAMES))
+    assert janela == pytest.approx(_janela_de_referencia(contexto, novo))
+    # as 5 anteriores são os passos 4 a 8; o passo 9 (mesmo step) fica de fora
+    posicao = LSTM_FEATURE_NAMES.index("log_amount")
+    assert janela[:, posicao] == pytest.approx(
+        [float(torch.log1p(torch.tensor(10.0 * p))) for p in range(4, 9)], rel=1e-5
+    )
+
+
+def test_janela_lstm_completa_com_zeros_e_conta_sem_passado():
+    from src.preprocessamento.carregar_dataset import LSTM_FEATURE_NAMES
+
+    contexto = pd.DataFrame([_linha(1, "C1", "C2"), _linha(2, "C1", "C2")])
+    grafo = historico.GrafoPassado(contexto)
+
+    janela = grafo.janela_lstm(_linha(3, "C1", "C2"), LSTM_FEATURE_NAMES)
+    assert (janela[:3] == 0).all() and (janela[3:] != 0).any(axis=1).all()
+    assert (grafo.janela_lstm(_linha(3, "C99", "C2"), LSTM_FEATURE_NAMES) == 0).all()
+    assert (grafo.janela_lstm(_linha(3, "", "C2"), LSTM_FEATURE_NAMES) == 0).all()

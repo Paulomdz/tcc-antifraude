@@ -30,6 +30,28 @@ def load_pickle_model(filename: str) -> Any:
         return pickle.load(file)
 
 
+_CACHE_MODELOS: Dict[tuple, tuple] = {}
+
+
+def _modelo_em_cache(caminho: Path, carregador: Any, *args: Any) -> Any:
+    """Carrega o modelo uma vez por processo e recarrega se o arquivo mudar.
+
+    A chave inclui o caminho e a função de carga; um arquivo ausente não fica
+    em cache (o erro de carga é repetido a cada chamada).
+    """
+    chave = (str(caminho), id(carregador))
+    try:
+        versao = caminho.stat().st_mtime_ns
+    except OSError:
+        versao = None
+    guardado = _CACHE_MODELOS.get(chave)
+    if guardado is not None and versao is not None and guardado[0] == versao:
+        return guardado[1]
+    valor = carregador(*args)
+    _CACHE_MODELOS[chave] = (versao, valor)
+    return valor
+
+
 from src.preprocessamento.carregar_dataset import (
     GNN_FEATURE_NAMES,
     IF_FEATURE_NAMES,
@@ -66,7 +88,9 @@ def isolation_forest_score(transaction: Dict[str, Any], model: Any = None) -> fl
     declarada para todos os agentes.
     """
     if model is None:
-        model = load_pickle_model("isolation_forest.pkl")
+        model = _modelo_em_cache(
+            MODEL_DIR / "isolation_forest.pkl", load_pickle_model, "isolation_forest.pkl"
+        )
     features = extract_behavior_features(transaction)
     features = features.reshape(1, -1)
     prediction = float(model.decision_function(features)[0])
@@ -76,21 +100,65 @@ def isolation_forest_score(transaction: Dict[str, Any], model: Any = None) -> fl
     return float(score)
 
 
+def _carregar_lstm_padrao():
+    from src.modelos.arquitetura_lstm import carregar_lstm
+
+    caminho = MODEL_DIR / "lstm_model.pt"
+    return _modelo_em_cache(caminho, carregar_lstm, str(caminho))
+
+
+def _carregar_gnn_padrao():
+    from src.modelos.arquitetura_gnn import carregar_gnn
+
+    caminho = MODEL_DIR / "gnn_model.pt"
+    return _modelo_em_cache(caminho, carregar_gnn, str(caminho))
+
+
+def _lstm_score_do_passado(
+    transacao: Dict[str, Any], model: Any, passado: Any
+) -> float:
+    """Janela das 5 transações anteriores da conta de origem, como no lote."""
+    from src.ferramentas.historico import grafo_do_passado
+
+    if model is None:
+        model, metadata = _carregar_lstm_padrao()
+    else:
+        metadata = {}
+    feature_names = metadata.get("feature_names", LSTM_FEATURE_NAMES)
+    seq_length = int(metadata.get("seq_length", 5))
+    grafo = passado if passado is not None else grafo_do_passado(None)
+    janela = grafo.janela_lstm(transacao, feature_names, seq_length)
+    model.eval()
+    with torch.no_grad():
+        output = model(torch.from_numpy(janela).unsqueeze(0))
+    return float(output.clamp(0.0, 1.0).item())
+
+
 def lstm_sequence_score(
-    sequence: list[Dict[str, Any]],
+    sequence: list[Dict[str, Any]] | None,
     model: Any = None,
     current_transaction: Dict[str, Any] | None = None,
+    passado: Any = None,
 ) -> float:
-    """Pontua a transação atual usando apenas o histórico anterior da mesma conta."""
+    """Pontua a transação atual usando apenas o histórico anterior da mesma conta.
+
+    Com ``sequence=None``, o histórico vem do Parquet (``passado`` permite
+    injetar um índice, por exemplo com limite de step para a validação). Com
+    uma lista, usa só as transações dela.
+    """
+    if sequence is None:
+        if current_transaction is None:
+            raise ValueError("Sem sequence, a LSTM precisa da transação atual.")
+        if not TORCH_AVAILABLE:
+            raise RuntimeError("PyTorch é necessário para inferir o score da LSTM.")
+        return _lstm_score_do_passado(current_transaction, model, passado)
     if not sequence:
         return 0.0
 
     if not TORCH_AVAILABLE:
         raise RuntimeError("PyTorch é necessário para inferir o score da LSTM.")
     if model is None:
-        from src.modelos.arquitetura_lstm import carregar_lstm
-
-        model, metadata = carregar_lstm(str(MODEL_DIR / "lstm_model.pt"))
+        model, metadata = _carregar_lstm_padrao()
     else:
         metadata = {}
 
@@ -130,10 +198,9 @@ def _gnn_score_do_passado(
 ) -> float:
     """Subgrafo do passado (dois saltos, fanouts 10 e 5), como no lote."""
     from src.ferramentas.historico import grafo_do_passado
-    from src.modelos.arquitetura_gnn import carregar_gnn
 
     if model is None:
-        model, _metadata = carregar_gnn(str(MODEL_DIR / "gnn_model.pt"))
+        model, _metadata = _carregar_gnn_padrao()
     model.eval()
     grafo = passado if passado is not None else grafo_do_passado(None)
     features, edge_index = grafo.subgrafo(transacao)
@@ -153,10 +220,7 @@ def gnn_identity_score(
     """
     if not TORCH_AVAILABLE:
         raise RuntimeError("PyTorch é necessário para inferir o score da GNN.")
-    from src.modelos.arquitetura_gnn import (
-        TransactionMiniBatchDataset,
-        carregar_gnn,
-    )
+    from src.modelos.arquitetura_gnn import TransactionMiniBatchDataset
 
     if "sequence" not in graph_data:
         return _gnn_score_do_passado(graph_data, model, passado)
@@ -174,7 +238,7 @@ def gnn_identity_score(
     ]
     frame = pd.DataFrame([*history, current])
     if model is None:
-        model, metadata = carregar_gnn(str(MODEL_DIR / "gnn_model.pt"))
+        model, metadata = _carregar_gnn_padrao()
     else:
         metadata = {"feature_names": GNN_FEATURE_NAMES}
     feature_names = metadata.get("feature_names", GNN_FEATURE_NAMES)

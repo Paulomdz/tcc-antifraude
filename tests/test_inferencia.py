@@ -146,3 +146,65 @@ def test_gnn_reports_missing_model_instead_of_using_identifier_heuristic(
 
     with pytest.raises(FileNotFoundError, match="Modelo GNN não encontrado"):
         inference.gnn_identity_score(transaction())
+
+
+def test_lstm_sem_sequence_usa_o_historico_do_parquet():
+    from src.ferramentas.historico import GrafoPassado
+    import pandas as pd
+
+    class ModeloQueGuarda(torch.nn.Module):
+        def forward(self, x):
+            self.entrada = x
+            return torch.tensor([[0.3]])
+
+    contexto = pd.DataFrame(
+        [{**transaction(), "step": passo, "amount": 10.0 * passo} for passo in (1, 2, 3)]
+    )
+    modelo = ModeloQueGuarda()
+
+    score = inference.lstm_sequence_score(
+        None, model=modelo, current_transaction=transaction(), passado=GrafoPassado(contexto)
+    )
+
+    assert score == pytest.approx(0.3)
+    assert tuple(modelo.entrada.shape) == (1, 5, len(LSTM_FEATURE_NAMES))
+    assert int((modelo.entrada[0].abs().sum(dim=1) > 0).sum()) == 3
+
+
+def test_lstm_sem_sequence_exige_a_transacao_atual():
+    with pytest.raises(ValueError, match="transação atual"):
+        inference.lstm_sequence_score(None)
+
+
+def test_modelo_em_cache_carrega_uma_vez_e_recarrega_se_o_arquivo_mudar(tmp_path, monkeypatch):
+    import os
+
+    monkeypatch.setattr(inference, "_CACHE_MODELOS", {})
+    arquivo = tmp_path / "modelo.bin"
+    arquivo.write_bytes(b"x")
+    cargas = []
+
+    def carregar(caminho):
+        cargas.append(caminho)
+        return object()
+
+    primeiro = inference._modelo_em_cache(arquivo, carregar, "a")
+    assert inference._modelo_em_cache(arquivo, carregar, "a") is primeiro
+    assert len(cargas) == 1
+
+    estado = arquivo.stat()
+    os.utime(arquivo, ns=(estado.st_atime_ns, estado.st_mtime_ns + 10**9))
+    assert inference._modelo_em_cache(arquivo, carregar, "a") is not primeiro
+    assert len(cargas) == 2
+
+
+def test_modelo_ausente_nao_fica_em_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(inference, "_CACHE_MODELOS", {})
+
+    def falhar(_caminho):
+        raise FileNotFoundError("ausente")
+
+    for _ in range(2):
+        with pytest.raises(FileNotFoundError):
+            inference._modelo_em_cache(tmp_path / "nao_existe.pt", falhar, "x")
+    assert inference._CACHE_MODELOS == {}

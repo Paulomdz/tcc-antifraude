@@ -1,4 +1,7 @@
-"""Subgrafo do passado para uma transação, a partir do Parquet processado.
+"""Histórico do passado para uma transação, a partir do Parquet processado.
+
+Serve à GNN (subgrafo do passado), à LSTM (janela das 5 transações anteriores
+da conta de origem, ``janela_lstm``) e à regra noturna (total da noite).
 
 Replica, para uma transação isolada, o que ``TransactionMiniBatchDataset``
 faz em lote: os vizinhos de um nó são as transações anteriores (step menor)
@@ -58,6 +61,31 @@ class GrafoPassado:
             }
             for coluna in ("nameOrig", "nameDest")
         }
+
+    def janela_lstm(
+        self,
+        transacao: dict[str, Any],
+        feature_names: list[str],
+        seq_length: int = 5,
+    ) -> np.ndarray:
+        """Últimas ``seq_length`` transações da mesma conta de origem com step menor.
+
+        Mesma regra de ``TransactionSequenceDataset``: ordem por step, zeros à
+        esquerda quando há menos transações e conta vazia sem histórico.
+        """
+        janela = np.zeros((seq_length, len(feature_names)), dtype=np.float32)
+        conta = str(transacao.get("nameOrig", "") or "")
+        posicoes = self._contas["nameOrig"].get(conta) if conta else None
+        if posicoes is None:
+            return janela
+        passo = int(transacao["step"])
+        fim = int(np.searchsorted(self.steps[posicoes], passo, side="left"))
+        anteriores = posicoes[max(0, fim - seq_length) : fim]
+        if len(anteriores):
+            janela[seq_length - len(anteriores) :] = compute_if_features(
+                self.contexto.iloc[anteriores]
+            )[feature_names].to_numpy(dtype=np.float32)
+        return janela
 
     def _anterior(self, coluna: str, conta: str, passo: int) -> int | None:
         posicoes = self._contas[coluna].get(conta)

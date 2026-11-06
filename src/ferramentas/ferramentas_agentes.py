@@ -51,7 +51,9 @@ def behavior_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
 
 def temporal_specialist_tool(transaction: Dict[str, Any]) -> Dict[str, Any]:
     """Tool do agente temporal que retorna um score de sequenciamento."""
-    sequence = transaction.get("sequence", [transaction])
+    # Sem ``sequence`` explícita, a LSTM busca no Parquet as 5 transações
+    # anteriores da conta de origem.
+    sequence = transaction.get("sequence")
     score = lstm_sequence_score(sequence, current_transaction=transaction)
 
     hours = _hora_do_dia(transaction)
