@@ -19,6 +19,18 @@ COLUNAS_OBRIGATORIAS = {
 }
 
 
+SEED_AMOSTRAGEM = 42
+
+
+def amostrar_lote(
+    dataframe: pd.DataFrame, quantidade: int, seed: int = SEED_AMOSTRAGEM
+) -> pd.DataFrame:
+    """Amostra usada pela API; o dashboard a repete para casar índice e linha."""
+    if len(dataframe) > quantidade:
+        return dataframe.sample(n=quantidade, random_state=seed)
+    return dataframe
+
+
 def ler_arquivo_lote(conteudo: bytes, nome_arquivo: str) -> pd.DataFrame:
     """Lê CSV/TXT, detectando vírgula ou ponto e vírgula pelo cabeçalho."""
     extensao = Path(nome_arquivo).suffix.lower()

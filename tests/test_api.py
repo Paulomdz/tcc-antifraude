@@ -622,3 +622,48 @@ def test_history_and_statistics_work_without_gemini_key():
 
 def test_get_orchestrator_imports_the_actual_ascii_package():
     assert api._get_orchestrator().__name__ == "src.orquestacao.fluxo_multiagente"
+
+
+def test_analise_individual_fast_nao_exige_chave_e_nao_usa_gemini(monkeypatch):
+    chamadas = []
+
+    class FakeOrchestrator:
+        def orchestrate_ml_only(self, transaction):
+            chamadas.append(transaction["type"])
+            return analysis_result()
+
+        def orchestrate_transaction(self, *_args, **_kwargs):
+            raise AssertionError("fast não deve chamar o juiz Gemini")
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    response = client.post(
+        "/analise_transacao?modo=fast", json={"amount": 100, "oldbalanceOrg": 1000}
+    )
+
+    assert response.status_code == 200
+    corpo = response.json()
+    assert corpo["modo"] == "fast" and corpo["decisao"] == "APROVADO"
+    assert len(corpo["explicabilidade"]["top3"]) == 3
+    assert chamadas == ["PIX_P2P"]
+    with sqlite3.connect(api.DB_PATH) as connection:
+        assert connection.execute("SELECT llm_usado FROM analises").fetchone()[0] == "NAO"
+
+
+def test_analise_individual_modo_invalido_retorna_422():
+    response = client.post(
+        "/analise_transacao?modo=deep", json={"amount": 100, "oldbalanceOrg": 1000}
+    )
+    assert response.status_code == 422
+
+
+def test_analise_individual_fast_falha_do_orquestrador_retorna_502(monkeypatch):
+    class FakeOrchestrator:
+        def orchestrate_ml_only(self, _transaction):
+            raise RuntimeError("falhou")
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    response = client.post(
+        "/analise_transacao?modo=fast", json={"amount": 100, "oldbalanceOrg": 1000}
+    )
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Falha ao executar análise fast."

@@ -9,7 +9,7 @@ from pathlib import Path
 import time
 from contextlib import asynccontextmanager
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
@@ -24,7 +24,11 @@ from src.historico.database import (
     salvar_analise,
 )
 from src.ferramentas.explicabilidade import top3_por_zscore
-from src.ferramentas.leitor_arquivo_lote import ler_arquivo_lote
+from src.ferramentas.leitor_arquivo_lote import (
+    SEED_AMOSTRAGEM,
+    amostrar_lote,
+    ler_arquivo_lote,
+)
 from src.preprocessamento.carregar_dataset import (
     FEATURE_STATS_PATH,
     IF_FEATURE_NAMES,
@@ -37,7 +41,7 @@ logger = logging.getLogger(__name__)
 GEMINI_NOT_CONFIGURED = "Gemini não configurado. Defina GOOGLE_API_KEY no .env."
 SERVICE_NAME = "Sistema Multiagente de IA para Detecção de Fraudes"
 LIMITE_LOTE = 500
-SEED_AMOSTRAGEM_LOTE = 42
+SEED_AMOSTRAGEM_LOTE = SEED_AMOSTRAGEM
 
 @asynccontextmanager
 async def lifespan(_app):
@@ -261,9 +265,19 @@ def obter_configuracao() -> dict[str, bool | str | int | None]:
     response_model=ResultadoAnalise,
     include_in_schema=False,
 )
-def analise_transacao(transacao: TransacaoInput) -> ResultadoAnalise:
-    """Production sempre exige Gemini; não troca para decisão determinística."""
-    if not os.getenv("GOOGLE_API_KEY", "").strip():
+def analise_transacao(
+    transacao: TransacaoInput,
+    modo: Literal["production", "fast"] = Query(
+        default="production",
+        description="production usa o juiz Gemini (exige chave); fast não usa LLM.",
+    ),
+) -> ResultadoAnalise:
+    """Production sempre exige Gemini e não troca para decisão determinística.
+
+    O modo fast (opcional) roda os três modelos com a agregação determinística,
+    sem Gemini e sem custo, e devolve o mesmo contrato, com top-3.
+    """
+    if modo == "production" and not os.getenv("GOOGLE_API_KEY", "").strip():
         raise HTTPException(status_code=503, detail=GEMINI_NOT_CONFIGURED)
 
     payload = transacao.model_dump()
@@ -271,22 +285,24 @@ def analise_transacao(transacao: TransacaoInput) -> ResultadoAnalise:
     resultado: dict[str, Any] | None = None
     parsed: ResultadoAnalise | None = None
     try:
-        resultado = _get_orchestrator().orchestrate_transaction(
-            payload, modo="production"
-        )
+        fluxo = _get_orchestrator()
+        if modo == "fast":
+            resultado = fluxo.orchestrate_ml_only(payload)
+        else:
+            resultado = fluxo.orchestrate_transaction(payload, modo="production")
         parsed = _parse_resultado(resultado, payload)
     except FileNotFoundError as exc:
         duration_ms = round((time.perf_counter() - started) * 1000)
-        _save_analysis(payload, parsed, duration_ms, "production", str(exc))
+        _save_analysis(payload, parsed, duration_ms, modo, str(exc))
         raise HTTPException(status_code=503, detail="Modelo treinado não encontrado.") from exc
     except Exception as exc:
         duration_ms = round((time.perf_counter() - started) * 1000)
-        _save_analysis(payload, parsed, duration_ms, "production", str(exc))
-        logger.exception("Falha na análise production.")
-        raise HTTPException(status_code=502, detail="Falha ao executar análise production.") from exc
+        _save_analysis(payload, parsed, duration_ms, modo, str(exc))
+        logger.exception("Falha na análise %s.", modo)
+        raise HTTPException(status_code=502, detail=f"Falha ao executar análise {modo}.") from exc
 
     duration_ms = round((time.perf_counter() - started) * 1000)
-    _save_analysis(payload, parsed, duration_ms, "production")
+    _save_analysis(payload, parsed, duration_ms, modo)
     return parsed
 
 
@@ -386,12 +402,7 @@ async def analise_lote_arquivo(
 
     total_arquivo = len(dataframe)
     quantidade_usada = min(quantidade, total_arquivo)
-    if total_arquivo > quantidade:
-        amostra = dataframe.sample(
-            n=quantidade, random_state=SEED_AMOSTRAGEM_LOTE
-        )
-    else:
-        amostra = dataframe
+    amostra = amostrar_lote(dataframe, quantidade, SEED_AMOSTRAGEM_LOTE)
 
     transacoes: list[TransacaoInput] = []
     for indice, (_, linha) in enumerate(amostra.iterrows(), start=1):

@@ -1,655 +1,902 @@
-"""Dashboard Streamlit — Sistema Multiagente de IA para detecção de fraudes."""
+"""Dashboard Streamlit — Sistema Multiagente de IA para detecção de fraudes.
 
+Toda análise passa pela API (src/api/main.py); o dashboard não carrega modelos.
+"""
+
+import html
 import random
-import os
 import sys
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
-from src.preprocessamento.carregar_dataset import (
-    TRANSACTION_TYPES,
-    hora_norm_from_step,
-)
 
 _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 load_dotenv(_ROOT / ".env")
 
+from src.dashboard import cliente_api, valores_iniciais  # noqa: E402
+from src.dashboard.cliente_api import APIForaDoAr, ErroAPI  # noqa: E402
+from src.dashboard.lote import (  # noqa: E402
+    calcular_metricas,
+    montar_resultados,
+    montar_resultados_individuais,
+    transacao_da_linha,
+)
+from src.dashboard.rotulos import (  # noqa: E402
+    COLUNAS,
+    DECISOES,
+    ICONES,
+    descricao_tipo,
+    direcao_feature,
+    moeda_br,
+    nome_tipo,
+    numero_br,
+    rotulo_feature,
+    traduzir_colunas,
+    valor_feature,
+)
+from src.ferramentas.leitor_arquivo_lote import (  # noqa: E402
+    SEED_AMOSTRAGEM,
+    amostrar_lote,
+    ler_arquivo_lote,
+)
+from src.preprocessamento.carregar_dataset import TRANSACTION_TYPES  # noqa: E402
 
 # Constantes
 
-_DECISION_MAP = {
-    "Aprovada": "APROVADO",
-    "APROVADO": "APROVADO",
-    "Revisão Humana necessária": "REVISÃO",
-    "REVISÃO MANUAL": "REVISÃO",
-    "REVISÃO": "REVISÃO",
-    "Recusada": "BLOQUEADO",
-    "BLOQUEADO": "BLOQUEADO",
-}
-
-_DECISION_ICON = {
-    "APROVADO": "🟢",
-    "REVISÃO": "🟡",
-    "BLOQUEADO": "🔴",
-}
-
 _DECISION_BG = {
-    "APROVADO": "#d4edda",
-    "REVISÃO": "#fff3cd",
-    "BLOQUEADO": "#f8d7da",
+    "APROVADO": "rgba(22,163,74,0.14)",
+    "REVISÃO": "rgba(217,119,6,0.16)",
+    "BLOQUEADO": "rgba(220,38,38,0.14)",
+    "ERRO": "rgba(128,128,128,0.18)",
 }
-
 _DECISION_FG = {
-    "APROVADO": "#155724",
-    "REVISÃO": "#856404",
-    "BLOQUEADO": "#721c24",
+    "APROVADO": "#16a34a",
+    "REVISÃO": "#d97706",
+    "BLOQUEADO": "#dc2626",
+    "ERRO": "#64748b",
 }
 
+_BRAND = "#2563eb"
+_THRESHOLD_REVIEW = 0.5
+_THRESHOLD_BLOCK = 0.8
 _TX_TYPES = TRANSACTION_TYPES
 _MAX_FINANCIAL_VALUE = 9_999_999.00
-_MAX_BATCH_ROWS = 500
-_MAX_UPLOAD_MB = 1024
+_LIMITE_LOTE = 500  # modo fast
+_LIMITE_LOTE_PRODUCTION = 10  # modo production: cada transação chama o Gemini
+_QUANTIDADE_PADRAO = 300
+
 _RISK_RULES_TEXT = (
-    "Regras de risco ativadas: débito/transferência ≥ R$ 10.000 entre 00:00 e 05:59 "
-    "é bloqueado automaticamente com score 0.95; o dashboard utiliza formato brasileiro "
-    "e horário 24h em toda a interface."
+    "**Como o sistema decide.** Cada transação recebe três notas de 0 a 1 (comportamento, "
+    "horário e identidade), combinadas em um score final: abaixo de 0,50 é **aprovado**; "
+    "de 0,50 a 0,79, **revisão humana**; de 0,80 em diante, **bloqueado**. "
+    "**Regra da madrugada:** entre 00:00 e 05:59, uma transação de R$ 10.000 ou mais "
+    "(Pix entre pessoas, Pix Automático, TED ou TEF) é bloqueada direto, com score 0,95; "
+    "nos outros tipos, esse valor na madrugada soma 0,25 ao score."
 )
+_AVISOS_GERAIS = (
+    "Os dados são sintéticos: os resultados valem para esta base e não mostram o desempenho "
+    "em uma instituição real. Os pesos do juiz (0,35 / 0,30 / 0,35) e os limites 0,50 / 0,80 "
+    "são parâmetros definidos, sem calibração; calibrá-los é uma melhoria futura."
+)
+
 _CSS = """
 <style>
-/* Fundo e corpo */
-.block-container { padding-top: 1.5rem; max-width: 1100px; }
-.stApp { background-color: #f8f9fb; }
+/* Neutro ao tema: usa só transparências, funciona no claro e no escuro */
+.block-container { padding-top: 1.5rem; max-width: 1200px; }
 
 /* Cabeçalho da marca */
 .cs-header {
-    background: linear-gradient(135deg, #ffffff 0%, #eef4fd 100%);
-    border: 1px solid #d0e3f7;
-    border-radius: 14px;
-    padding: 28px 36px;
-    margin-bottom: 24px;
+    display: flex; flex-wrap: wrap; align-items: center;
+    justify-content: space-between; gap: 14px;
+    border: 1px solid rgba(37,99,235,0.30);
+    background: linear-gradient(135deg, rgba(37,99,235,0.16), rgba(37,99,235,0.03));
+    border-radius: 14px; padding: 18px 24px; margin-bottom: 14px;
 }
-.cs-header h1 {
-    margin: 0;
-    font-size: 2rem;
-    font-weight: 700;
-    color: #1a3a5c;
-    letter-spacing: -0.5px;
-}
-.cs-header p {
-    margin: 6px 0 0 0;
-    color: #5a7a9a;
-    font-size: 1rem;
-}
+.cs-header h1 { margin: 0; padding: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.3px; }
+.cs-header p { margin: 2px 0 0 0; opacity: 0.7; font-size: 0.9rem; }
 
-/* Badges de decisão */
+/* Chips de status */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    padding: 4px 12px; border-radius: 999px; border: 1px solid;
+    font-size: 0.78rem; font-weight: 600; cursor: default;
+}
+.chip-ok   { color: #16a34a; background: rgba(22,163,74,0.12);  border-color: rgba(22,163,74,0.38); }
+.chip-warn { color: #d97706; background: rgba(217,119,6,0.13);  border-color: rgba(217,119,6,0.40); }
+.chip-bad  { color: #dc2626; background: rgba(220,38,38,0.12);  border-color: rgba(220,38,38,0.38); }
+.chip-info { color: #2563eb; background: rgba(37,99,235,0.12);  border-color: rgba(37,99,235,0.38); }
+
+/* Badge de decisão */
 .decision-badge {
-    display: inline-block;
-    padding: 10px 20px;
-    border-radius: 10px;
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin: 8px 0 16px 0;
+    display: inline-block; padding: 10px 22px; border-radius: 10px;
+    font-size: 1.3rem; font-weight: 700; margin: 4px 0 12px 0;
 }
 
-/* Cartão de agente */
-.agent-card {
-    background: #ffffff;
-    border: 1px solid #e4ecf7;
-    border-radius: 10px;
-    padding: 16px;
-    text-align: center;
-    margin-bottom: 8px;
+/* KPIs */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 6px 0 18px 0; }
+.kpi {
+    border: 1px solid rgba(128,128,128,0.25); border-top: 3px solid #2563eb;
+    background: rgba(128,128,128,0.07); border-radius: 12px; padding: 14px 16px;
 }
+.kpi .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.65; }
+.kpi .value { font-size: 1.7rem; font-weight: 700; line-height: 1.25; }
+.kpi .sub { font-size: 0.78rem; opacity: 0.65; }
 
-/* Botões secundários */
-div[data-testid="stButton"] button {
-    border-radius: 8px;
-    font-weight: 600;
+/* Cartões de agente e de feature */
+.agent-card, .feat-card {
+    border: 1px solid rgba(128,128,128,0.25); background: rgba(128,128,128,0.07);
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; height: 100%;
 }
+.agent-card .name, .feat-card .name { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
+.agent-card .score { font-size: 1.8rem; font-weight: 700; line-height: 1.2; }
+.agent-card .expl, .feat-card .meta { font-size: 0.82rem; opacity: 0.75; margin-top: 8px; }
+.feat-card .rank { float: right; font-weight: 700; opacity: 0.45; }
+.feat-card .z { font-size: 1.5rem; font-weight: 700; line-height: 1.25; }
+.bar { height: 8px; border-radius: 999px; background: rgba(128,128,128,0.22); margin-top: 8px; overflow: hidden; }
+.bar > span { display: block; height: 100%; border-radius: 999px; }
 
-/* Separador de seção */
+/* Botões */
+div[data-testid="stButton"] button { border-radius: 8px; font-weight: 600; }
+
+/* Rótulo de seção */
 .section-label {
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #7a94ae;
-    margin: 20px 0 6px 0;
+    font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; opacity: 0.6; margin: 20px 0 6px 0;
 }
+/* Botão de alternância do modo (vermelho): metade ativa escura, a outra clara */
+.st-key-lote_modo button[kind="segmented_control"] {
+    background: #ffffff !important; color: #b91c1c !important;
+    border: 1px solid #b91c1c !important; font-weight: 600; padding: 0.35rem 1.4rem;
+}
+.st-key-lote_modo button[kind="segmented_controlActive"] {
+    background: #991b1b !important; color: #ffffff !important;
+    border: 1px solid #991b1b !important; font-weight: 700; padding: 0.35rem 1.4rem;
+}
+.st-key-lote_modo button[kind="segmented_control"]:hover { background: #fee2e2 !important; }
+
+/* Justificativa do juiz e avisos */
+.just-box {
+    border-left: 4px solid #2563eb; background: rgba(37,99,235,0.08);
+    border-radius: 8px; padding: 14px 18px; font-size: 1.02rem; line-height: 1.55;
+    white-space: pre-line;
+}
+.aviso { font-size: 0.82rem; opacity: 0.75; margin-top: 10px; }
 </style>
 """
+
 
 # Funções auxiliares puras (testáveis sem Streamlit)
 
 
-def map_decision(raw: str) -> str:
-    """Converte decisão interna para label exibida no dashboard."""
-    return _DECISION_MAP.get(raw, raw)
-
-
 def decision_icon(decision: str) -> str:
-    """Retorna emoji colorido para a decisão."""
-    return _DECISION_ICON.get(decision, "⚪")
+    return ICONES.get(decision, "⚪")
 
 
-def run_analysis(transaction: dict, modo: str = "production") -> dict:
-    """Usa production na análise individual ou fast para o processamento em lote."""
-    from src.orquestacao.fluxo_multiagente import (
-        orchestrate_ml_only,
-        orchestrate_transaction,
-    )
-
-    if modo == "fast":
-        return orchestrate_ml_only(transaction)
-    if modo == "production":
-        return orchestrate_transaction(transaction, modo="production")
-    raise ValueError("O dashboard suporta apenas os modos fast e production.")
+def _risk_color(score: float) -> str:
+    """Cor do score segundo os limiares de revisão e bloqueio."""
+    if score >= _THRESHOLD_BLOCK:
+        return _DECISION_FG["BLOQUEADO"]
+    if score >= _THRESHOLD_REVIEW:
+        return _DECISION_FG["REVISÃO"]
+    return _DECISION_FG["APROVADO"]
 
 
-def _has_gemini_key() -> bool:
-    return bool(os.getenv("GOOGLE_API_KEY", "").strip())
-
-
-def build_result_row(tx: dict, resultado: dict) -> dict:
-    """Monta dicionário resumido de uma análise para exibição tabular."""
-    decisao = map_decision(resultado["decision"]["decision"])
-    return {
-        "Tipo": tx.get("type", ""),
-        "Valor (R$)": float(tx.get("amount", 0.0)),
-        "Origem": tx.get("nameOrig", ""),
-        "Destino": tx.get("nameDest", ""),
-        "Comportamental": round(float(resultado["behavior"]["score"]), 3),
-        "Temporal": round(float(resultado["temporal"]["score"]), 3),
-        "Identidade": round(float(resultado["identity"]["score"]), 3),
-        "Score Final": round(float(resultado["decision"]["score"]), 3),
-        "Decisão": f"{decision_icon(decisao)} {decisao}",
-    }
-
-
-def _time_to_minutes(value: str) -> int:
-    """Converte string HH:MM em minutos do dia."""
-    try:
-        hh, mm = map(int, str(value).split(":", 1))
-        return (hh % 24) * 60 + (mm % 60)
-    except ValueError:
-        return 0
-
-
-def _coerce_step_to_hour(value) -> int:
-    """Normaliza o campo ``step`` vindo de um upload em lote para hora do dia.
-
-    Aceita: ausente/NaN (usa meio-dia como padrão), string "HH:MM" (upload
-    manual) ou valor numérico do dataset (0-743, horas desde o início da
-    simulação). O valor numérico é mantido e a hora do dia é obtida por `% 24`.
-    """
-    if value is None:
-        return 12
-    if isinstance(value, float) and pd.isna(value):
-        return 12
-    if isinstance(value, str):
-        stripped = value.strip()
-        if not stripped:
-            return 12
-        if ":" in stripped:
-            return _time_to_minutes(stripped) // 60
-        try:
-            return int(float(stripped))
-        except ValueError:
-            return 12
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 12
-
-
-def _minutes_to_hh_mm(minutes: int) -> str:
-    """Converte minutos do dia para string HH:MM em formato 24h."""
-    try:
-        minutes = int(minutes) % 1440
-        hh = minutes // 60
-        mm = minutes % 60
-        return f"{hh:02d}:{mm:02d}"
-    except (ValueError, TypeError):
-        return "00:00"
-
-
-def _is_valid_24h_time(value: str) -> bool:
-    """Valida se a string está no formato HH:MM de 24h."""
-    try:
-        hh, mm = map(int, str(value).strip().split(':', 1))
-        return 0 <= hh < 24 and 0 <= mm < 60
-    except (ValueError, AttributeError):
-        return False
-
-
-def _format_banking_amount(value: float) -> float:
-    """Arredonda valores financeiros no padrão bancário real (2 casas decimais)."""
-    return round(float(value), 2)
-
-
-def _format_currency(value: float) -> str:
-    """Formata valores com separadores de milhares e 2 casas decimais."""
-    return f"{float(value):,.2f}".replace(",", "~").replace(".", ",").replace("~", ".")
-
-
-def _format_currency_br(value: float) -> str:
-    """Formata valores em estilo brasileiro para exibição no dashboard."""
-    return f"R$ {float(value):,.2f}".replace(",", "~").replace(".", ",").replace("~", ".")
-
-
-def _calculate_new_balance(old_balance: float, amount: float, tx_type: str) -> float:
-    """Calcula o novo saldo conforme a natureza da transação."""
-    old_balance = _format_banking_amount(old_balance)
-    amount = _format_banking_amount(amount)
-    if str(tx_type).upper() in {"CASH_IN"}:
-        return _format_banking_amount(old_balance + amount)
-    return _format_banking_amount(old_balance - amount)
-
-
-def _safe_session_value(key: str, fallback: float) -> float:
-    """Garante que valores antigos da sessão não ultrapassem o limite do widget."""
-    try:
-        value = float(st.session_state.get(key, fallback))
-    except (TypeError, ValueError):
-        value = float(fallback)
-    return min(max(value, 0.0), _MAX_FINANCIAL_VALUE)
+def _novo_saldo(saldo: float, valor: float) -> float:
+    """Saldo da origem depois da transação (a API não aceita saldo negativo)."""
+    return round(max(float(saldo) - float(valor), 0.0), 2)
 
 
 def random_transaction() -> dict:
-    """Gera uma transação aleatória com valores bancários realistas.
-
-    ``step`` representa a hora do dia (0-23), normalizada pela regra D2.
-    """
-    tx_type = random.choice(_TX_TYPES)
-    amount = _format_banking_amount(random.uniform(10.0, _MAX_FINANCIAL_VALUE))
-    bal_org = _format_banking_amount(random.uniform(amount, amount * 6))
-    step_minutes = random.randint(0, 1439)
-    hour = step_minutes // 60
+    """Transação aleatória para a aba de simulação (hora em 0–23)."""
+    tipo = random.choice(_TX_TYPES)
+    contas = valores_iniciais.contas_do_dataset()
+    valor = round(min(10 ** random.uniform(1.0, 4.4), _MAX_FINANCIAL_VALUE), 2)
+    saldo = round(min(valor * random.uniform(1.0, 6.0), _MAX_FINANCIAL_VALUE), 2)
     return {
-        "step": hour,
-        "type": tx_type,
-        "amount": amount,
-        "nameOrig": f"C{random.randint(1_000_000, 9_999_999)}",
-        "oldbalanceOrg": bal_org,
-        "newbalanceOrig": _calculate_new_balance(bal_org, amount, tx_type),
-        "nameDest": f"C{random.randint(1_000_000, 9_999_999)}",
-        "hora_norm": hora_norm_from_step(hour),
+        "step": random.randint(0, 23),
+        "type": tipo,
+        "amount": valor,
+        "nameOrig": random.choice(contas["origem"]),
+        "oldbalanceOrg": saldo,
+        "nameDest": random.choice(contas["destino"]),
     }
 
 
 # Componentes de renderização
 
+
+def _chip(text: str, kind: str, tip: str = "") -> str:
+    return f'<span class="chip chip-{kind}" title="{html.escape(tip)}">{text}</span>'
+
+
+def _header_html(config: dict | None) -> str:
+    if config is not None:
+        chip_api = _chip("● API online", "ok", f"API em {cliente_api.url_base()}")
+        if config.get("llm_disponivel"):
+            modelo = config.get("modelo_llm") or "modelo padrão"
+            chip_llm = _chip("● Gemini ativo", "ok", f"Modelo: {modelo}")
+        else:
+            chip_llm = _chip(
+                "● Gemini sem chave", "warn",
+                "Defina GOOGLE_API_KEY no .env e reinicie a API. O lote continua disponível.",
+            )
+    else:
+        chip_api = _chip("● API offline", "bad", cliente_api.mensagem_fora_do_ar())
+        chip_llm = _chip("● Gemini indisponível", "warn", "A API precisa estar no ar.")
+    chip_rules = _chip("Regras de risco ativas", "info", "Veja 'Regras de risco e limites'.")
+    return (
+        '<div class="cs-header"><div>'
+        "<h1>🛡️ Sistema Multiagente de IA para Detecção de Fraudes</h1>"
+        "<p>Análise de risco de transações Pix e meios de pagamento, em tempo real.</p>"
+        f'</div><div class="chips">{chip_api}{chip_llm}{chip_rules}</div></div>'
+    )
+
+
 def _decision_badge(decisao: str) -> None:
-    bg = _DECISION_BG.get(decisao, "#e9ecef")
-    fg = _DECISION_FG.get(decisao, "#343a40")
-    icon = decision_icon(decisao)
+    bg = _DECISION_BG.get(decisao, "rgba(128,128,128,0.15)")
+    fg = _DECISION_FG.get(decisao, "inherit")
     st.markdown(
         f'<div class="decision-badge" style="background:{bg};color:{fg};">'
-        f"{icon}&ensp;{decisao}</div>",
+        f"{decision_icon(decisao)}&ensp;{decisao}</div>",
         unsafe_allow_html=True,
     )
 
 
-def _render_agent_scores(resultado: dict) -> None:
-    c1, c2, c3 = st.columns(3)
-    for col, key, label in [
-        (c1, "behavior", "Comportamental"),
-        (c2, "temporal", "Temporal"),
-        (c3, "identity", "Identidade"),
-    ]:
-        score = float(resultado[key]["score"])
-        explanation = resultado[key]["details"]["explanation"]
+def _score_gauge(score: float):
+    """Gauge de 0 a 1 com faixas de aprovação, revisão e bloqueio."""
+    import plotly.graph_objects as go
+
+    fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=score,
+            number={"valueformat": ".3f"},
+            title={"text": "Score final de risco"},
+            gauge={
+                "axis": {"range": [0, 1], "tickvals": [0, _THRESHOLD_REVIEW, _THRESHOLD_BLOCK, 1]},
+                "bar": {"color": _risk_color(score), "thickness": 0.3},
+                "steps": [
+                    {"range": [0, _THRESHOLD_REVIEW], "color": "rgba(22,163,74,0.22)"},
+                    {"range": [_THRESHOLD_REVIEW, _THRESHOLD_BLOCK], "color": "rgba(217,119,6,0.25)"},
+                    {"range": [_THRESHOLD_BLOCK, 1], "color": "rgba(220,38,38,0.25)"},
+                ],
+            },
+        )
+    )
+    fig.update_layout(height=250, margin=dict(t=60, b=10, l=30, r=30))
+    return fig
+
+
+def _render_agentes(agentes: dict) -> None:
+    cols = st.columns(3)
+    for col, chave, rotulo in zip(
+        cols,
+        ("comportamental", "temporal", "identidade"),
+        ("Comportamental", "Temporal", "Identidade"),
+    ):
+        agente = agentes.get(chave, {})
+        score = float(agente.get("score", 0.0))
+        explicacao = html.escape(str(agente.get("explicacao") or "Sem explicação."))
+        cor = _risk_color(score)
+        pct = min(max(score, 0.0), 1.0) * 100
         with col:
-            st.markdown('<div class="agent-card">', unsafe_allow_html=True)
-            st.metric(label=label, value=f"{score:.3f}")
-            st.progress(min(max(score, 0.0), 1.0))
-            st.caption(explanation)
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="agent-card"><div class="name">{rotulo}</div>'
+                f'<div class="score" style="color:{cor}">{score:.3f}</div>'
+                f'<div class="bar"><span style="width:{pct:.0f}%;background:{cor}"></span></div>'
+                f'<div class="expl">{explicacao}</div></div>',
+                unsafe_allow_html=True,
+            )
 
 
-def _render_single_result(resultado: dict) -> None:
-    decision_raw = resultado["decision"]["decision"]
-    decisao = map_decision(decision_raw)
-    score_final = float(resultado["decision"]["score"])
+def _render_top3(top3: list[dict]) -> None:
+    st.markdown(
+        '<p class="section-label">O que mais fugiu do padrão (top-3)</p>',
+        unsafe_allow_html=True,
+    )
+    if not top3:
+        st.caption("Top-3 indisponível para esta transação.")
+        return
+    cols = st.columns(len(top3))
+    for posicao, (col, item) in enumerate(zip(cols, top3), start=1):
+        z = float(item.get("z", 0.0))
+        cor = _risk_color(min(abs(z) / 5.0, 1.0))
+        pct = min(abs(z) / 5.0, 1.0) * 100
+        nome = item.get("nome", "")
+        direcao = direcao_feature(item.get("direcao", ""), bool(item.get("desvio_zero")))
+        with col:
+            st.markdown(
+                f'<div class="feat-card" title="z = {z:+.2f}"><span class="rank">#{posicao}</span>'
+                f'<div class="name">{html.escape(rotulo_feature(nome))}</div>'
+                f'<div class="z">{html.escape(valor_feature(nome, item.get("valor", 0.0)))}</div>'
+                f'<div class="bar"><span style="width:{pct:.0f}%;background:{cor}"></span></div>'
+                f'<div class="meta">{direcao}</div></div>',
+                unsafe_allow_html=True,
+            )
+    st.markdown(
+        '<p class="aviso">O top-3 mostra o que foge do padrão dos dados de treino. '
+        "Ele <b>não</b> é o motivo da decisão do modelo.</p>",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_resultado_individual(resposta: dict) -> None:
+    """Ordem: decisão, justificativa, top-3, scores e modo usado."""
+    decisao = resposta.get("decisao", "ERRO")
+    score_final = float(resposta.get("score_final", 0.0))
 
     st.markdown('<p class="section-label">Decisão</p>', unsafe_allow_html=True)
     _decision_badge(decisao)
 
-    col_score, col_tipo = st.columns(2)
-    col_score.metric("Score Final", f"{score_final:.3f}")
-    col_tipo.metric("Tipo de Transação", resultado["transaction"].get("type", "N/A"))
+    juiz = "do juiz Gemini" if resposta.get("modo") == "production" else "da decisão"
+    st.markdown(
+        f'<p class="section-label">Justificativa {juiz}</p>', unsafe_allow_html=True
+    )
+    justificativa = str(resposta.get("justificativa") or "").strip()
+    if justificativa:
+        st.markdown(f'<div class="just-box">{html.escape(justificativa)}</div>', unsafe_allow_html=True)
+    else:
+        st.warning("A análise não devolveu justificativa para esta decisão.")
 
-    st.info(resultado["decision"]["justification"], icon="ℹ️")
+    _render_top3(resposta.get("explicabilidade", {}).get("top3", []))
 
-    st.markdown('<p class="section-label">Análise por Agente</p>', unsafe_allow_html=True)
-    _render_agent_scores(resultado)
-
-
-# Seção de Estatísticas (função pública para testabilidade)
-
-
-def render_stats(resultados: list) -> None:
-    """Renderiza a aba de estatísticas a partir de uma lista de resultados de lote."""
-    if not resultados:
-        st.info(
-            "Execute uma **Análise em Lote** para visualizar as estatísticas aqui.",
-            icon="ℹ️",
+    st.markdown('<p class="section-label">Scores</p>', unsafe_allow_html=True)
+    col_gauge, col_info = st.columns([1, 1.6])
+    with col_gauge:
+        try:
+            st.plotly_chart(_score_gauge(score_final), width="stretch")
+        except ImportError:
+            st.metric("Score final", f"{score_final:.3f}")
+    with col_info:
+        st.metric("Score final", f"{score_final:.3f}")
+        st.caption(
+            f"Revisão a partir de {numero_br(_THRESHOLD_REVIEW, 2)} · "
+            f"bloqueio a partir de {numero_br(_THRESHOLD_BLOCK, 2)}"
         )
-        return
+    _render_agentes(resposta.get("agentes", {}))
+    st.caption(f"Modo usado: **{resposta.get('modo', 'fast')}**")
 
+
+# Estatísticas do lote
+
+
+def _kpi_card(label: str, value: str, sub: str = "", color: str = _BRAND) -> str:
+    return (
+        f'<div class="kpi" style="border-top-color:{color}"><div class="label">{label}</div>'
+        f'<div class="value">{value}</div><div class="sub">{sub}&nbsp;</div></div>'
+    )
+
+
+def render_stats(df: pd.DataFrame) -> None:
+    """KPIs e gráficos do lote (colunas de montar_resultados)."""
+    if df is None or df.empty:
+        st.info("Execute uma **Análise em Lote** para visualizar as estatísticas aqui.", icon="ℹ️")
+        return
     try:
         import plotly.express as px
-
-        valid = [r for r in resultados if "Decisão" in r and "Score Final" in r]
-        if not valid:
-            st.warning("Nenhum resultado válido encontrado.")
-            return
-
-        def _clean(label: str) -> str:
-            for icon in ("🟢 ", "🟡 ", "🔴 "):
-                label = label.replace(icon, "")
-            return label
-
-        decisoes = [_clean(r["Decisão"]) for r in valid]
-        scores = [r["Score Final"] for r in valid]
-
-        total = len(valid)
-        aprovados = decisoes.count("APROVADO")
-        revisoes = decisoes.count("REVISÃO")
-        bloqueados = decisoes.count("BLOQUEADO")
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total Analisado", total)
-        c2.metric("✅ Aprovados", aprovados)
-        c3.metric("⚠️ Em Revisão", revisoes)
-        c4.metric("🚫 Bloqueados", bloqueados)
-
-        st.divider()
-
-        col_pie, col_hist = st.columns(2)
-
-        with col_pie:
-            counts = pd.Series(decisoes).value_counts().reset_index()
-            counts.columns = ["Decisão", "Contagem"]
-            fig_pie = px.pie(
-                counts,
-                values="Contagem",
-                names="Decisão",
-                title="Distribuição de Decisões",
-                color="Decisão",
-                color_discrete_map={
-                    "APROVADO": "#2ecc71",
-                    "REVISÃO": "#f39c12",
-                    "BLOQUEADO": "#e74c3c",
-                },
-                hole=0.35,
-            )
-            fig_pie.update_traces(textinfo="percent+label")
-            fig_pie.update_layout(showlegend=False, margin=dict(t=40, b=0))
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-        with col_hist:
-            fig_hist = px.histogram(
-                x=scores,
-                nbins=20,
-                title="Distribuição de Scores Finais",
-                labels={"x": "Score de Risco", "y": "Frequência"},
-                color_discrete_sequence=["#4a90d9"],
-            )
-            fig_hist.add_vline(
-                x=0.5, line_dash="dash", line_color="#f39c12", annotation_text="Revisão (0.5)"
-            )
-            fig_hist.add_vline(
-                x=0.8, line_dash="dash", line_color="#e74c3c", annotation_text="Bloqueio (0.8)"
-            )
-            fig_hist.update_layout(margin=dict(t=40, b=0))
-            st.plotly_chart(fig_hist, use_container_width=True)
-
-        agent_cols = ["Comportamental", "Temporal", "Identidade", "Score Final"]
-        score_data = [r for r in valid if "Comportamental" in r]
-        if score_data:
-            df_scores = pd.DataFrame(score_data)[agent_cols]
-            fig_box = px.box(
-                df_scores,
-                title="Distribuição de Scores por Agente",
-                labels={"variable": "Agente", "value": "Score"},
-                color_discrete_sequence=["#4a90d9"],
-            )
-            st.plotly_chart(fig_box, use_container_width=True)
-
     except ImportError:
         st.warning("Instale `plotly` para visualizar os gráficos: `pip install plotly`")
+        return
+
+    total = len(df)
+    n = {d: int((df["decisao"] == d).sum()) for d in DECISOES}
+    pct = {d: (100 * v / total if total else 0.0) for d, v in n.items()}
+    validos = df[df["decisao"] != "ERRO"]
+    retido = float(df.loc[df["decisao"].isin(["REVISÃO", "BLOQUEADO"]), "valor"].sum())
+    medio = float(validos["score_final"].mean()) if not validos.empty else 0.0
+
+    cards = [
+        _kpi_card("Total analisado", f"{total:,}".replace(",", "."), "transações"),
+        _kpi_card("Aprovados", str(n["APROVADO"]), f"{pct['APROVADO']:.1f}% do lote", _DECISION_FG["APROVADO"]),
+        _kpi_card("Em revisão", str(n["REVISÃO"]), f"{pct['REVISÃO']:.1f}% do lote", _DECISION_FG["REVISÃO"]),
+        _kpi_card("Bloqueados", str(n["BLOQUEADO"]), f"{pct['BLOQUEADO']:.1f}% do lote", _DECISION_FG["BLOQUEADO"]),
+        _kpi_card("Erros", str(n["ERRO"]), f"{pct['ERRO']:.1f}% do lote", _DECISION_FG["ERRO"]),
+        _kpi_card("Score médio", f"{medio:.3f}", "sem contar erros", _risk_color(medio)),
+        _kpi_card("Valor retido", moeda_br(retido), "revisão + bloqueio"),
+    ]
+    st.markdown(f'<div class="kpi-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+    cores = dict(_DECISION_FG)
+    ordem = {"decisao": DECISOES}
+    col_pie, col_tipo = st.columns(2)
+    with col_pie:
+        contagem = df["decisao"].value_counts().reset_index()
+        contagem.columns = ["decisao", "quantidade"]
+        fig = px.pie(
+            contagem, values="quantidade", names="decisao", title="Distribuição de decisões",
+            color="decisao", color_discrete_map=cores, hole=0.55,
+        )
+        fig.update_traces(textinfo="percent+label")
+        fig.update_layout(showlegend=False, margin=dict(t=50, b=10))
+        st.plotly_chart(fig, width="stretch")
+    with col_tipo:
+        por_tipo = df.assign(tipo_nome=df["tipo"].map(nome_tipo)).groupby(
+            ["tipo_nome", "decisao"]
+        ).size().reset_index(name="quantidade")
+        fig = px.bar(
+            por_tipo, x="quantidade", y="tipo_nome", color="decisao", orientation="h",
+            title="Decisões por tipo de transação", color_discrete_map=cores, category_orders=ordem,
+            labels={"quantidade": "Quantidade", "tipo_nome": "Tipo"},
+        )
+        fig.update_layout(barmode="stack", showlegend=False, margin=dict(t=50, b=10))
+        fig.update_yaxes(categoryorder="total ascending")
+        st.plotly_chart(fig, width="stretch")
+
+    if not validos.empty:
+        col_hist, col_box = st.columns(2)
+        with col_hist:
+            fig = px.histogram(
+                validos, x="score_final", nbins=20, color="decisao", title="Distribuição dos scores finais",
+                color_discrete_map=cores, category_orders=ordem,
+                labels={"score_final": "Score de risco", "count": "Frequência"},
+            )
+            fig.update_xaxes(range=[0, 1])
+            fig.add_vline(x=_THRESHOLD_REVIEW, line_dash="dash", line_color=cores["REVISÃO"],
+                          annotation_text=f"Revisão ({_THRESHOLD_REVIEW})")
+            fig.add_vline(x=_THRESHOLD_BLOCK, line_dash="dash", line_color=cores["BLOQUEADO"],
+                          annotation_text=f"Bloqueio ({_THRESHOLD_BLOCK})")
+            fig.update_layout(showlegend=False, bargap=0.05, margin=dict(t=50, b=10))
+            st.plotly_chart(fig, width="stretch")
+        with col_box:
+            colunas = {"comportamental": "Comportamental", "temporal": "Temporal",
+                       "identidade": "Identidade", "score_final": "Score final"}
+            longo = validos[list(colunas)].rename(columns=colunas).melt(var_name="Agente", value_name="Score")
+            fig = px.box(
+                longo, x="Agente", y="Score", color="Agente", title="Scores por agente",
+                color_discrete_sequence=["#2563eb", "#7c3aed", "#0891b2", "#64748b"],
+            )
+            fig.update_yaxes(range=[0, 1])
+            fig.update_layout(showlegend=False, margin=dict(t=50, b=10))
+            st.plotly_chart(fig, width="stretch")
+
+
+def _tabela_lote(sub: pd.DataFrame, com_fraude: bool) -> pd.DataFrame:
+    """Tabela amigável de um grupo de decisões."""
+    saida = pd.DataFrame(
+        {
+            "Tipo": sub["tipo"].map(nome_tipo),
+            "Valor": sub["valor"],
+            "Conta de origem": sub["origem"],
+            "Conta de destino": sub["destino"],
+            "Score final": sub["score_final"].round(3),
+            "Comportamental": sub["comportamental"].round(3),
+            "Temporal": sub["temporal"].round(3),
+            "Identidade": sub["identidade"].round(3),
+        }
+    )
+    if com_fraude and "isFraud" in sub:
+        saida["Fraude real"] = sub["isFraud"].map({1: "sim", 0: "não", True: "sim", False: "não"})
+    return saida
+
+
+def _pct(valor: float | None) -> str:
+    return "indefinida" if valor is None else f"{valor * 100:.1f}%".replace(".", ",")
+
+
+def _render_metricas(df: pd.DataFrame) -> None:
+    metricas = calcular_metricas(df)
+    if metricas is None:
+        return
+    st.markdown('<p class="section-label">Acertos contra a coluna de fraude real</p>', unsafe_allow_html=True)
+    linhas = []
+    for nome, chave in (("Estrita (só BLOQUEADO conta como fraude)", "estrita"),
+                        ("Ampla (BLOQUEADO ou REVISÃO)", "ampla")):
+        m = metricas[chave]
+        linhas.append({"Leitura": nome, "Precisão": _pct(m["precisao"]),
+                       "Recall": _pct(m["recall"]), "F1": _pct(m["f1"])})
+    st.dataframe(pd.DataFrame(linhas), hide_index=True, width="stretch")
+    st.caption(
+        f"{metricas['avaliadas']} transações avaliadas, {metricas['fraudes']} fraudes reais · "
+        f"taxa de REVISÃO: {_pct(metricas['taxa_revisao'])}"
+        + (f" · {metricas['excluidas']} fora da conta (erro ou sem rótulo)" if metricas["excluidas"] else "")
+        + ". Em base desbalanceada a acurácia engana; use precisão, recall e F1."
+    )
+
+
+def _render_lote(estado: dict) -> None:
+    resposta, df = estado["resposta"], estado["df"]
+    production = estado.get("modo") == "production"
+    modo_texto = "**production** (usou o Gemini)" if production else "**fast** (sem Gemini)"
+    st.success(
+        f"Lote analisado: **{resposta['quantidade_usada']}** de {resposta['total_arquivo']} "
+        f"transações do arquivo `{estado['arquivo']}` · modo {modo_texto}."
+    )
+    if estado.get("aviso"):
+        st.warning(estado["aviso"])
+    st.caption(
+        f"A amostra é sorteada com seed {resposta['seed']}: o mesmo arquivo gera sempre as mesmas "
+        "transações. "
+        + (
+            "Escolha uma transação abaixo para ver a justificativa do juiz e o top-3."
+            if production
+            else "O modo fast não calcula top-3 nem usa a justificativa do juiz."
+        )
+    )
+    render_stats(df)
+    _render_metricas(df)
+
+    st.markdown('<p class="section-label">Transações por decisão</p>', unsafe_allow_html=True)
+    grupos = [d for d in DECISOES if (df["decisao"] == d).any()]
+    abas = st.tabs([f"{ICONES[d]} {d.capitalize()} ({int((df['decisao'] == d).sum())})" for d in grupos])
+    for aba, decisao in zip(abas, grupos):
+        with aba:
+            sub = df[df["decisao"] == decisao]
+            if decisao == "ERRO":
+                tabela = pd.DataFrame({"Tipo": sub["tipo"].map(nome_tipo), "Valor": sub["valor"],
+                                       "Erro": sub["erro"]})
+            else:
+                ordenado = sub.sort_values("score_final", ascending=False)
+                tabela = _tabela_lote(ordenado, True)
+                if "justificativa" in ordenado:
+                    tabela["Justificativa"] = ordenado["justificativa"]
+            st.dataframe(tabela, hide_index=True, width="stretch",
+                         column_config={"Valor": st.column_config.NumberColumn(format="R$ %.2f")})
+
+    detalhes = estado.get("detalhes") or {}
+    if detalhes:
+        st.markdown('<p class="section-label">Detalhe de uma transação (Gemini)</p>', unsafe_allow_html=True)
+        escolhida = st.selectbox(
+            "Escolha a transação", list(detalhes), key="lote_detalhe",
+            format_func=lambda i: (
+                f"#{i + 1} · {nome_tipo(df.loc[i, 'tipo'])} · {moeda_br(df.loc[i, 'valor'])} "
+                f"· {df.loc[i, 'decisao']}"
+            ),
+        )
+        _render_resultado_individual(detalhes[escolhida])
+
+
+# Abas
+
+
+@st.cache_data(show_spinner=False)
+def _ler_arquivo(conteudo: bytes, nome: str) -> pd.DataFrame:
+    return ler_arquivo_lote(conteudo, nome)
+
+
+def _rodar_lote_production(amostra: pd.DataFrame) -> tuple[list[dict], str | None]:
+    """Chama /analise_transacao (Gemini) uma transação por vez, com progresso.
+
+    Para cedo se a API cair, se faltar a chave (503) ou após 3 erros seguidos,
+    para não gastar cota em chamadas que vão falhar de novo.
+    """
+    respostas: list[dict] = []
+    aviso: str | None = None
+    seguidos = 0
+    total = len(amostra)
+    barra = st.progress(0.0, text="Iniciando...")
+    for posicao, (_, linha) in enumerate(amostra.iterrows()):
+        barra.progress(posicao / total, text=f"Analisando {posicao + 1} de {total} com o Gemini…")
+        try:
+            respostas.append(
+                cliente_api.analisar_transacao(transacao_da_linha(linha), modo="production")
+            )
+            seguidos = 0
+        except APIForaDoAr as exc:
+            aviso = f"Lote interrompido na transação {posicao + 1}: {exc}"
+            break
+        except ErroAPI as exc:
+            respostas.append({"erro": str(exc)})
+            seguidos += 1
+            if exc.status == 503 or seguidos >= 3:
+                aviso = (
+                    f"Lote interrompido na transação {posicao + 1} "
+                    + ("(Gemini não configurado)." if exc.status == 503 else "(3 erros seguidos).")
+                )
+                break
+    barra.empty()
+    return respostas, aviso
+
+
+_MODOS_LOTE = {"fast": "⚡ Fast", "production": "🤖 Production"}
+_MODOS_DESCRICAO = {
+    "fast": f"Grátis, sem Gemini, até {_LIMITE_LOTE} transações.",
+    "production": f"Usa o Gemini e consome cota, até {_LIMITE_LOTE_PRODUCTION} transações.",
+}
+
+
+def _aba_lote(api_ok: bool, gemini_ok: bool) -> None:
+    st.header("Análise em lote")
+    st.markdown(
+        "Envie um arquivo **CSV** (separado por vírgula) ou **TXT** (separado por ponto e vírgula). "
+        "Colunas obrigatórias: "
+        + ", ".join(f"`{c}` ({COLUNAS[c]})" for c in COLUNAS if c != "isFraud")
+        + ". Opcional: `isFraud` (fraude real, 0 ou 1), que habilita precisão, recall e F1."
+    )
+    modo = st.segmented_control(
+        "Modo de análise", list(_MODOS_LOTE), default="fast", required=True,
+        format_func=_MODOS_LOTE.get, key="lote_modo",
+    ) or "fast"
+    st.caption(_MODOS_DESCRICAO[modo])
+    production = modo == "production"
+    limite = _LIMITE_LOTE_PRODUCTION if production else _LIMITE_LOTE
+    if production:
+        st.warning(
+            f"O modo production chama o Gemini **uma vez por transação** e **consome a cota da chave**. "
+            f"Por isso o lote fica limitado a {_LIMITE_LOTE_PRODUCTION} transações e a demora é maior. "
+            "Em troca, cada transação ganha justificativa do juiz e top-3."
+        )
+        if api_ok and not gemini_ok:
+            st.error("O Gemini não está configurado na API: defina `GOOGLE_API_KEY` no `.env` e reinicie a API.")
+    arquivo = st.file_uploader("Selecione o arquivo de transações", type=["csv", "txt"])
+    if arquivo is not None:
+        conteudo = arquivo.getvalue()
+        try:
+            df = _ler_arquivo(conteudo, arquivo.name)
+        except ValueError as exc:
+            st.error(str(exc))
+        else:
+            st.info(f"Arquivo carregado: **{len(df):,}** transações".replace(",", "."), icon="📄")
+            st.dataframe(traduzir_colunas(df.head(10)), hide_index=True, width="stretch")
+            quantidade = int(st.number_input(
+                f"Quantas transações analisar? (1 a {limite})", min_value=1, max_value=limite,
+                value=min(_QUANTIDADE_PADRAO, limite) if not production else limite, step=1,
+                key=f"lote_qtd_{modo}",
+            ))
+            if len(df) <= quantidade:
+                st.caption("O arquivo tem menos linhas que o pedido: todas serão analisadas.")
+            else:
+                st.caption(f"A amostra será sorteada com seed {SEED_AMOSTRAGEM} (reprodutível).")
+            rotulo = (
+                "🤖 Análise em lote (usa Gemini, consome cota)" if production
+                else "🚀 Análise em lote (sem Gemini, sem custo)"
+            )
+            if st.button(rotulo, width="stretch", type="primary",
+                         disabled=not api_ok or (production and not gemini_ok)):
+                if production:
+                    amostra = amostrar_lote(df, quantidade, SEED_AMOSTRAGEM)
+                    respostas, aviso = _rodar_lote_production(amostra)
+                    if not respostas:
+                        st.error(aviso or "Nenhuma transação foi analisada.")
+                    else:
+                        usada = amostra.head(len(respostas)).reset_index(drop=True)
+                        st.session_state["lote"] = {
+                            "resposta": {"quantidade_usada": len(respostas), "total_arquivo": len(df),
+                                         "seed": SEED_AMOSTRAGEM},
+                            "df": montar_resultados_individuais(usada, respostas),
+                            "arquivo": arquivo.name, "modo": "production", "aviso": aviso,
+                            "detalhes": {i: r for i, r in enumerate(respostas) if "decisao" in r},
+                        }
+                else:
+                    with st.spinner("Analisando o lote na API..."):
+                        try:
+                            resposta = cliente_api.analisar_lote_arquivo(conteudo, arquivo.name, quantidade)
+                            amostra = amostrar_lote(df, quantidade, resposta.get("seed", SEED_AMOSTRAGEM))
+                            resultado = montar_resultados(amostra, resposta)
+                        except (ErroAPI, ValueError) as exc:
+                            st.error(str(exc))
+                        else:
+                            st.session_state["lote"] = {
+                                "resposta": resposta, "df": resultado, "arquivo": arquivo.name,
+                                "modo": "fast",
+                            }
+    estado = st.session_state.get("lote")
+    st.divider()
+    if estado:
+        _render_lote(estado)
+    else:
+        render_stats(None)
+
+
+def _aplicar_simulacao() -> None:
+    sim = random_transaction()
+    tipo = sim["type"]
+    st.session_state.update(
+        {
+            "f_tipo": tipo,
+            f"f_amount_{tipo}": sim["amount"],
+            f"f_old_{tipo}": sim["oldbalanceOrg"],
+            "f_hora": sim["step"],
+            "f_orig": sim["nameOrig"],
+            "f_dest": sim["nameDest"],
+        }
+    )
+    st.session_state.pop("individual", None)
+
+
+def _aba_individual(api_ok: bool) -> None:
+    st.header("Aprenda simulando")
+    st.markdown(
+        "Simule uma transação, ajuste os campos e veja **como o sistema decide**: a decisão, a "
+        "justificativa, o que mais fugiu do padrão e a nota de cada agente. "
+        "Esta aba usa o **modo gratuito (fast)**: roda os três modelos e a regra de decisão, "
+        "**sem Gemini e sem custo**."
+    )
+    if not api_ok:
+        st.warning("A API está fora do ar: não é possível analisar agora.")
+
+    st.button("🎲 Simular nova transação", on_click=_aplicar_simulacao)
+
+    tipo = st.selectbox("Tipo de transação", _TX_TYPES, key="f_tipo", format_func=nome_tipo)
+    st.caption(descricao_tipo(tipo))
+    valor_ini, saldo_ini, dos_dados = valores_iniciais.valores_do_tipo(tipo, _MAX_FINANCIAL_VALUE)
+    st.session_state.setdefault(f"f_amount_{tipo}", valor_ini)
+    st.session_state.setdefault(f"f_old_{tipo}", saldo_ini)
+    if dos_dados:
+        st.caption("Valores iniciais: mediana das transações legítimas deste tipo na base (step < 600).")
+    contas = valores_iniciais.contas_do_dataset()
+
+    with st.form("form_transacao"):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            valor = st.number_input(
+                "Valor da transação (R$)", min_value=0.0, max_value=_MAX_FINANCIAL_VALUE,
+                step=0.01, format="%.2f", key=f"f_amount_{tipo}",
+            )
+            saldo = st.number_input(
+                "Saldo anterior da origem (R$) — obrigatório", min_value=0.0,
+                max_value=_MAX_FINANCIAL_VALUE, step=0.01, format="%.2f", key=f"f_old_{tipo}",
+                help="Quanto havia na conta de origem antes da transação. A API recusa a análise sem ele.",
+            )
+        with col_b:
+            hora = st.number_input(
+                "Hora da transação (0 a 23)", min_value=0, max_value=23, value=12, step=1, key="f_hora",
+                help="Hora do dia em que a transação aconteceu (0 = meia-noite, 23 = 23h). "
+                     "Entre 0h e 5h é madrugada, quando valores altos são tratados como mais arriscados.",
+            )
+            origem = st.selectbox(
+                "Conta de origem (15 contas da base)", contas["origem"], key="f_orig",
+                help="Contas reais do dataset. As que começam com 'B' são de bancos "
+                     "(salário, empréstimo); as demais são de clientes e comércios.",
+            )
+            destino = st.selectbox(
+                "Conta de destino (15 contas da base)", contas["destino"], key="f_dest",
+                help="Contas reais do dataset que aparecem como destino.",
+            )
+        enviado = st.form_submit_button(
+            "Analisar (modo grátis, sem Gemini)", width="stretch", type="primary",
+            disabled=not api_ok,
+        )
+
+    if enviado:
+        tx = {
+            "step": int(hora), "type": tipo, "amount": float(valor), "nameOrig": origem,
+            "oldbalanceOrg": float(saldo), "newbalanceOrig": _novo_saldo(saldo, valor),
+            "nameDest": destino,
+        }
+        with st.spinner("Analisando com os três modelos..."):
+            try:
+                st.session_state["individual"] = {"tx": tx, "resposta": cliente_api.analisar_transacao(tx, modo="fast")}
+            except ErroAPI as exc:
+                st.session_state.pop("individual", None)
+                st.error(str(exc))
+    atual = st.session_state.get("individual")
+    if atual:
+        st.divider()
+        st.caption(
+            f"Saldo depois: {moeda_br(atual['tx']['oldbalanceOrg'])} − "
+            f"{moeda_br(atual['tx']['amount'])} = {moeda_br(atual['tx']['newbalanceOrig'])}"
+        )
+        _render_resultado_individual(atual["resposta"])
+
+
+_COLUNAS_HISTORICO = {
+    "timestamp": "Data e hora",
+    "type": "Tipo",
+    "amount": "Valor",
+    "decisao": "Decisão",
+    "score_final": "Score final",
+    "score_behavior": "Comportamental",
+    "score_temporal": "Temporal",
+    "score_identity": "Identidade",
+    "duracao_ms": "Duração (ms)",
+    "llm_usado": "Usou Gemini",
+    "erro": "Erro",
+}
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def _carregar_historico(limite: int, decisao: str | None) -> list[dict]:
+    return cliente_api.obter_historico(limite, decisao)
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def _carregar_estatisticas() -> dict:
+    return cliente_api.obter_estatisticas()
+
+
+def formatar_historico(registros: list[dict]) -> pd.DataFrame:
+    """Histórico da API em tabela amigável (horário de Brasília)."""
+    df = pd.DataFrame(registros)
+    if df.empty:
+        return df
+    data = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
+    df["timestamp"] = data.dt.tz_convert("America/Sao_Paulo").dt.strftime("%d/%m/%Y %H:%M:%S")
+    df["llm_usado"] = df["llm_usado"].map({"SIM": "sim", "NAO": "não"}).fillna("")
+    df["erro"] = df["erro"].fillna("")
+    return df[[c for c in _COLUNAS_HISTORICO if c in df]].rename(columns=_COLUNAS_HISTORICO)
+
+
+def _aba_historico(api_ok: bool) -> None:
+    st.header("Histórico de análises")
+    if not api_ok:
+        st.info("O histórico fica na API. Suba a API para consultá-lo.")
+        return
+    try:
+        estat = _carregar_estatisticas()
+    except ErroAPI as exc:
+        st.error(str(exc))
+        return
+
+    st.markdown('<p class="section-label">Últimas 24 horas</p>', unsafe_allow_html=True)
+    contagem = estat.get("contagem_por_decisao", {})
+    cards = [_kpi_card("Análises", str(estat.get("total_transacoes", 0)), "nas últimas 24 h"),
+             _kpi_card("Score médio", f"{estat.get('score_medio', 0.0):.3f}", ""),
+             _kpi_card("Latência média", f"{numero_br(estat.get('latencia_media_ms', 0.0), 0)} ms", "por análise")]
+    for decisao in DECISOES:
+        cards.append(_kpi_card(decisao.capitalize(), str(contagem.get(decisao, 0)), "",
+                               _DECISION_FG[decisao]))
+    st.markdown(f'<div class="kpi-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+    col_d, col_t, col_l = st.columns(3)
+    decisao = col_d.selectbox("Decisão", ["Todas", *DECISOES], key="h_decisao")
+    limite = col_l.number_input("Quantidade de registros", 1, 1000, 100, step=50, key="h_limite")
+    try:
+        registros = _carregar_historico(int(limite), None if decisao == "Todas" else decisao)
+    except ErroAPI as exc:
+        st.error(str(exc))
+        return
+    tipos = sorted({r["type"] for r in registros if r.get("type")})
+    tipo = col_t.selectbox("Tipo", ["Todos", *tipos], key="h_tipo",
+                           format_func=lambda c: c if c == "Todos" else nome_tipo(c))
+    if tipo != "Todos":
+        registros = [r for r in registros if r.get("type") == tipo]
+    if not registros:
+        st.info("Nenhuma análise salva com esses filtros. Rode um lote ou uma análise individual.")
+        return
+    tabela = formatar_historico(registros)
+    tabela["Tipo"] = tabela["Tipo"].map(nome_tipo)
+    st.dataframe(tabela, hide_index=True, width="stretch",
+                 column_config={"Valor": st.column_config.NumberColumn(format="R$ %.2f")})
+    st.caption(f"{len(tabela)} registros · horário de Brasília · o filtro de tipo vale para os registros já carregados.")
 
 
 # Interface principal
 
 
+def _consultar_config() -> tuple[dict | None, str | None]:
+    try:
+        return cliente_api.obter_config(), None
+    except ErroAPI as exc:
+        return None, str(exc)
+
+
 def main() -> None:
-    """Ponto de entrada do dashboard SISTEMA MULTIAGENTE DE IA PARA DETECÇÃO DE FRAUDES EM TRANSAÇÕES FINANCEIRAS."""
+    """Ponto de entrada do dashboard."""
     st.set_page_config(
-        page_title="SISTEMA MULTIAGENTE DE IA PARA DETECÇÃO DE FRAUDES EM TRANSAÇÕES FINANCEIRAS",
+        page_title="Detecção de Fraudes · Multiagente IA",
         page_icon="🛡️",
         layout="wide",
         initial_sidebar_state="collapsed",
     )
-
     st.markdown(_CSS, unsafe_allow_html=True)
 
-    # Cabeçalho da marca
-    st.markdown(
-        """
-        <div class="cs-header">
-            <h1>🛡️ SISTEMA MULTIAGENTE DE IA PARA DETECÇÃO DE FRAUDES EM TRANSAÇÕES FINANCEIRAS</h1>
-            <p>Identidade profissional, formato brasileiro e regras de risco bancário aplicadas em tempo real.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    config, erro_api = _consultar_config()
+    api_ok = config is not None
+    gemini_ok = bool(config and config.get("llm_disponivel"))
+
+    st.markdown(_header_html(config), unsafe_allow_html=True)
+    if erro_api:
+        st.error(erro_api)
+    with st.expander("ℹ️ Regras de risco e limites"):
+        st.markdown(_RISK_RULES_TEXT)
+        st.caption("Moeda em R$ · horário em 24h · lote de 1 a 500 transações.")
+
+    tab_lote, tab_individual, tab_historico = st.tabs(
+        ["📦 Análise em Lote", "🎓 Aprenda Simulando", "🗂️ Histórico"]
     )
-
-    st.info(_RISK_RULES_TEXT, icon="✅")
-    st.caption("Moeda exibida em R$ · Horário em 24h · Limite de análise até R$ 9.999.999,00")
-    has_gemini_key = _has_gemini_key()
-    if not has_gemini_key:
-        st.warning(
-            "Gemini não configurado. Defina GOOGLE_API_KEY no .env para habilitar "
-            "a análise individual com CrewAI. A análise em lote continua disponível."
-        )
-
-    tab_individual, tab_lote, tab_stats = st.tabs(
-        ["🔍 Análise Individual", "📦 Análise em Lote", "📊 Estatísticas"]
-    )
-
-
-    # Aba 1: Análise Individual
-
-
-    with tab_individual:
-        st.header("Analisar Transação")
-
-        # Botão de simulação fora do form para não recarregar a página inteira
-        col_sim, _ = st.columns([1, 3])
-        if col_sim.button("🎲 Simular nova transação", use_container_width=True):
-            sim = random_transaction()
-            st.session_state.update(sim)
-
-        st.divider()
-
-        # Recupera valores da sessão (gerados pela simulação ou padrão)
-        def _ss(key, default):
-            return st.session_state.get(key, default)
-
-        with st.form("form_transacao"):
-            col_a, col_b = st.columns(2)
-
-            with col_a:
-                tipo = st.selectbox(
-                    "Tipo de Transação",
-                    _TX_TYPES,
-                    index=_TX_TYPES.index(_ss("type", "PIX_P2P")),
-                )
-                amount = st.number_input(
-                    "Valor da transação (R$)",
-                    min_value=0.0,
-                    max_value=_MAX_FINANCIAL_VALUE,
-                    value=_safe_session_value("amount", 5_000.0),
-                    step=0.01,
-                    format="%.2f",
-                )
-                name_orig = st.text_input("Conta Origem", value=_ss("nameOrig", "C1234567"))
-                old_bal_org = st.number_input(
-                    "Saldo anterior — Origem (R$)",
-                    min_value=0.0,
-                    max_value=_MAX_FINANCIAL_VALUE,
-                    value=_safe_session_value("oldbalanceOrg", 10_000.0),
-                    step=0.01,
-                    format="%.2f",
-                )
-                auto_new_balance = _calculate_new_balance(float(old_bal_org), float(amount), tipo)
-
-                st.caption(
-                    "Pré-visualização do saldo: "
-                    f"{_format_currency_br(float(old_bal_org))} "
-                    f"{'+' if str(tipo).upper() == 'CASH_IN' else '-'} "
-                    f"{_format_currency_br(float(amount))} = "
-                    f"{_format_currency_br(float(auto_new_balance))}"
-                )
-
-                # Campo somente leitura (o valor é sempre recalculado a partir do
-                # saldo anterior, valor e tipo); não precisamos do retorno.
-                st.number_input(
-                    "Novo saldo — Origem (R$)",
-                    min_value=-_MAX_FINANCIAL_VALUE,
-                    max_value=_MAX_FINANCIAL_VALUE,
-                    value=auto_new_balance,
-                    step=0.01,
-                    format="%.2f",
-                    disabled=True,
-                )
-
-            with col_b:
-                hora_interativa = st.number_input(
-                    "Hora do dia (0 a 23h)",
-                    min_value=0,
-                    max_value=23,
-                    value=int(_ss("step", 12)) % 24,
-                    step=1,
-                    help="A hora normalizada é hora / 23, conforme a regra D2 do TCC.",
-                )
-                name_dest = st.text_input("Conta Destino", value=_ss("nameDest", "C7654321"))
-
-            submitted = st.form_submit_button(
-                "Analisar (CrewAI)",
-                use_container_width=True,
-                type="primary",
-                disabled=not has_gemini_key,
-            )
-
-        if submitted and has_gemini_key:
-            calculated_new_balance = _calculate_new_balance(float(old_bal_org), float(amount), tipo)
-            hora_interativa = int(hora_interativa)
-            tx = {
-                "step": hora_interativa,
-                "hora": hora_interativa,
-                "hora_norm": hora_norm_from_step(hora_interativa),
-                "type": tipo,
-                "amount": float(amount),
-                "nameOrig": name_orig,
-                "oldbalanceOrg": float(old_bal_org),
-                "newbalanceOrig": calculated_new_balance,
-                "nameDest": name_dest,
-            }
-            st.caption(
-                "Cálculo aplicado: "
-                f"{_format_currency_br(float(old_bal_org))} "
-                f"{'+' if str(tipo).upper() == 'CASH_IN' else '-'} "
-                f"{_format_currency_br(float(amount))} = "
-                f"{_format_currency_br(float(calculated_new_balance))}"
-            )
-            with st.spinner("Analisando com agentes de IA..."):
-                try:
-                    resultado = run_analysis(tx, modo="production")
-                    st.success("Análise concluída.")
-                    _render_single_result(resultado)
-                except FileNotFoundError as exc:
-                    st.error(f"Modelo não encontrado: {exc}")
-                except Exception as exc:
-                    st.error(f"Erro durante análise: {exc}")
-
-    # Aba 2: Análise em Lote
-
     with tab_lote:
-        st.header("Análise em Lote")
-        st.markdown(
-            "Envie um arquivo **CSV** ou **Parquet** com transações para análise automática. "
-            "Colunas obrigatórias: `amount`, `nameOrig`, `nameDest`, `type`."
-        )
+        _aba_lote(api_ok, gemini_ok)
+    with tab_individual:
+        _aba_individual(api_ok)
+    with tab_historico:
+        _aba_historico(api_ok)
 
-        uploaded = st.file_uploader(
-            "Selecione o arquivo de transações",
-            type=["csv", "parquet"],
-        )
-
-        if uploaded is not None:
-            try:
-                if uploaded.name.endswith(".csv"):
-                    df = pd.read_csv(uploaded)
-                else:
-                    df = pd.read_parquet(uploaded)
-
-                st.info(
-                    f"Arquivo carregado: **{len(df):,}** transações · "
-                    f"Colunas: {', '.join(df.columns.tolist())}",
-                    icon="📄",
-                )
-                st.dataframe(df.head(10), use_container_width=True)
-
-                required_cols = {"amount", "nameOrig", "nameDest", "type"}
-                missing = required_cols - set(df.columns)
-                if missing:
-                    st.warning(f"Colunas obrigatórias ausentes: {', '.join(missing)}")
-                else:
-                    max_rows = st.slider(
-                        "Quantas transações analisar?",
-                        min_value=1,
-                        max_value=min(len(df), _MAX_BATCH_ROWS),
-                        value=min(100, len(df)),
-                    )
-
-                    if st.button("🚀 Iniciar Análise em Lote", use_container_width=True, type="primary"):
-                        sample = df.head(max_rows)
-                        rows: list[dict] = []
-                        bar = st.progress(0, text="Iniciando...")
-
-                        for i, (_, row) in enumerate(sample.iterrows()):
-                            tx = row.to_dict()
-                            tx["step"] = _coerce_step_to_hour(tx.get("step"))
-                            tx["hora_norm"] = hora_norm_from_step(tx["step"])
-                            bar.progress(
-                                (i + 1) / max_rows,
-                                text=f"Analisando transação {i + 1} de {max_rows}…",
-                            )
-                            try:
-                                res = run_analysis(tx, modo="fast")
-                                rows.append(build_result_row(tx, res))
-                            except Exception as exc:
-                                rows.append({"Tipo": tx.get("type", ""), "Erro": str(exc)})
-
-                        bar.empty()
-                        st.success(f"✅ {max_rows} transações analisadas.")
-                        st.dataframe(pd.DataFrame(rows), use_container_width=True)
-                        st.session_state["batch_results"] = rows
-
-            except Exception as exc:
-                st.error(f"Erro ao carregar arquivo: {exc}")
-
-    # Aba 3: Estatísticas
-    with tab_stats:
-        st.header("Estatísticas das Análises")
-        render_stats(st.session_state.get("batch_results", []))
+    st.markdown(f'<p class="aviso">{html.escape(_AVISOS_GERAIS)}</p>', unsafe_allow_html=True)
 
 
 if __name__ == "__main__":

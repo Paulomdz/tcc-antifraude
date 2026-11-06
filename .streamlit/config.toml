@@ -1,2 +1,17 @@
 [server]
 maxUploadSize = 1024
+
+# Tema da marca: segue claro/escuro do sistema (o usuário pode trocar em ⋮ > Settings).
+[theme]
+primaryColor = "#2563eb"
+font = "sans serif"
+
+[theme.light]
+backgroundColor = "#f6f8fc"
+secondaryBackgroundColor = "#e8eef8"
+textColor = "#14233c"
+
+[theme.dark]
+backgroundColor = "#0e1626"
+secondaryBackgroundColor = "#17233a"
+textColor = "#e6edf7"
