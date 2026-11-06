@@ -267,17 +267,20 @@ def obter_configuracao() -> dict[str, bool | str | int | None]:
 )
 def analise_transacao(
     transacao: TransacaoInput,
-    modo: Literal["production", "fast"] = Query(
+    modo: Literal["production", "fast", "deep"] = Query(
         default="production",
-        description="production usa o juiz Gemini (exige chave); fast não usa LLM.",
+        description=(
+            "production usa o juiz Gemini; deep usa quatro agentes Gemini "
+            "(ambos exigem chave e consomem cota); fast não usa LLM."
+        ),
     ),
 ) -> ResultadoAnalise:
-    """Production sempre exige Gemini e não troca para decisão determinística.
+    """Production e deep exigem Gemini e nunca trocam para decisão determinística.
 
     O modo fast (opcional) roda os três modelos com a agregação determinística,
     sem Gemini e sem custo, e devolve o mesmo contrato, com top-3.
     """
-    if modo == "production" and not os.getenv("GOOGLE_API_KEY", "").strip():
+    if modo != "fast" and not os.getenv("GOOGLE_API_KEY", "").strip():
         raise HTTPException(status_code=503, detail=GEMINI_NOT_CONFIGURED)
 
     payload = transacao.model_dump()
@@ -289,7 +292,7 @@ def analise_transacao(
         if modo == "fast":
             resultado = fluxo.orchestrate_ml_only(payload)
         else:
-            resultado = fluxo.orchestrate_transaction(payload, modo="production")
+            resultado = fluxo.orchestrate_transaction(payload, modo=modo)
         parsed = _parse_resultado(resultado, payload)
     except FileNotFoundError as exc:
         duration_ms = round((time.perf_counter() - started) * 1000)

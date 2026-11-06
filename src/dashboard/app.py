@@ -67,6 +67,8 @@ _TX_TYPES = TRANSACTION_TYPES
 _MAX_FINANCIAL_VALUE = 9_999_999.00
 _LIMITE_LOTE = 500  # modo fast
 _LIMITE_LOTE_PRODUCTION = 10  # modo production: cada transação chama o Gemini
+_LIMITE_LOTE_DEEP = 5  # modo deep: quatro agentes Gemini por transação (mais cota)
+_LIMITES_LOTE = {"fast": _LIMITE_LOTE, "production": _LIMITE_LOTE_PRODUCTION, "deep": _LIMITE_LOTE_DEEP}
 _QUANTIDADE_PADRAO = 300
 
 _RISK_RULES_TEXT = (
@@ -150,11 +152,13 @@ div[data-testid="stButton"] button { border-radius: 8px; font-weight: 600; }
     letter-spacing: 0.08em; opacity: 0.6; margin: 20px 0 6px 0;
 }
 /* Botão de alternância do modo (vermelho): metade ativa escura, a outra clara */
-.st-key-lote_modo button[kind="segmented_control"] {
+.st-key-lote_modo button[kind="segmented_control"],
+.st-key-lote_modo [data-testid="stBaseButton-segmented_control"] {
     background: #ffffff !important; color: #b91c1c !important;
     border: 1px solid #b91c1c !important; font-weight: 600; padding: 0.35rem 1.4rem;
 }
-.st-key-lote_modo button[kind="segmented_controlActive"] {
+.st-key-lote_modo button[kind="segmented_controlActive"],
+.st-key-lote_modo [data-testid="stBaseButton-segmented_controlActive"] {
     background: #991b1b !important; color: #ffffff !important;
     border: 1px solid #991b1b !important; font-weight: 700; padding: 0.35rem 1.4rem;
 }
@@ -334,7 +338,7 @@ def _render_resultado_individual(resposta: dict) -> None:
     st.markdown('<p class="section-label">Decisão</p>', unsafe_allow_html=True)
     _decision_badge(decisao)
 
-    juiz = "do juiz Gemini" if resposta.get("modo") == "production" else "da decisão"
+    juiz = "do juiz Gemini" if resposta.get("modo") in ("production", "deep") else "da decisão"
     st.markdown(
         f'<p class="section-label">Justificativa {juiz}</p>', unsafe_allow_html=True
     )
@@ -501,8 +505,13 @@ def _render_metricas(df: pd.DataFrame) -> None:
 
 def _render_lote(estado: dict) -> None:
     resposta, df = estado["resposta"], estado["df"]
-    production = estado.get("modo") == "production"
-    modo_texto = "**production** (usou o Gemini)" if production else "**fast** (sem Gemini)"
+    modo = estado.get("modo", "fast")
+    usa_gemini = modo != "fast"
+    modo_texto = {
+        "fast": "**fast** (sem Gemini)",
+        "production": "**production** (usou o Gemini)",
+        "deep": "**deep** (usou quatro agentes Gemini)",
+    }[modo]
     st.success(
         f"Lote analisado: **{resposta['quantidade_usada']}** de {resposta['total_arquivo']} "
         f"transações do arquivo `{estado['arquivo']}` · modo {modo_texto}."
@@ -514,7 +523,7 @@ def _render_lote(estado: dict) -> None:
         "transações. "
         + (
             "Escolha uma transação abaixo para ver a justificativa do juiz e o top-3."
-            if production
+            if usa_gemini
             else "O modo fast não calcula top-3 nem usa a justificativa do juiz."
         )
     )
@@ -559,8 +568,8 @@ def _ler_arquivo(conteudo: bytes, nome: str) -> pd.DataFrame:
     return ler_arquivo_lote(conteudo, nome)
 
 
-def _rodar_lote_production(amostra: pd.DataFrame) -> tuple[list[dict], str | None]:
-    """Chama /analise_transacao (Gemini) uma transação por vez, com progresso.
+def _rodar_lote_gemini(amostra: pd.DataFrame, modo: str) -> tuple[list[dict], str | None]:
+    """Chama /analise_transacao (production ou deep) uma transação por vez, com progresso.
 
     Para cedo se a API cair, se faltar a chave (503) ou após 3 erros seguidos,
     para não gastar cota em chamadas que vão falhar de novo.
@@ -574,7 +583,7 @@ def _rodar_lote_production(amostra: pd.DataFrame) -> tuple[list[dict], str | Non
         barra.progress(posicao / total, text=f"Analisando {posicao + 1} de {total} com o Gemini…")
         try:
             respostas.append(
-                cliente_api.analisar_transacao(transacao_da_linha(linha), modo="production")
+                cliente_api.analisar_transacao(transacao_da_linha(linha), modo=modo)
             )
             seguidos = 0
         except APIForaDoAr as exc:
@@ -593,10 +602,18 @@ def _rodar_lote_production(amostra: pd.DataFrame) -> tuple[list[dict], str | Non
     return respostas, aviso
 
 
-_MODOS_LOTE = {"fast": "⚡ Fast", "production": "🤖 Production"}
+_MODOS_LOTE = {"fast": "⚡ Fast", "production": "🤖 Production", "deep": "🧠 Deep"}
 _MODOS_DESCRICAO = {
     "fast": f"Grátis, sem Gemini, até {_LIMITE_LOTE} transações.",
     "production": f"Usa o Gemini e consome cota, até {_LIMITE_LOTE_PRODUCTION} transações.",
+    "deep": (
+        f"Usa quatro agentes Gemini por transação e consome ainda mais cota, "
+        f"até {_LIMITE_LOTE_DEEP} transações."
+    ),
+}
+_AVISOS_GEMINI = {
+    "production": "O modo production chama o Gemini **uma vez por transação**",
+    "deep": "O modo deep chama o Gemini **várias vezes por transação** (três especialistas e o juiz final)",
 }
 
 
@@ -613,12 +630,12 @@ def _aba_lote(api_ok: bool, gemini_ok: bool) -> None:
         format_func=_MODOS_LOTE.get, key="lote_modo",
     ) or "fast"
     st.caption(_MODOS_DESCRICAO[modo])
-    production = modo == "production"
-    limite = _LIMITE_LOTE_PRODUCTION if production else _LIMITE_LOTE
-    if production:
+    usa_gemini = modo != "fast"
+    limite = _LIMITES_LOTE[modo]
+    if usa_gemini:
         st.warning(
-            f"O modo production chama o Gemini **uma vez por transação** e **consome a cota da chave**. "
-            f"Por isso o lote fica limitado a {_LIMITE_LOTE_PRODUCTION} transações e a demora é maior. "
+            f"{_AVISOS_GEMINI[modo]} e **consome a cota da chave**. "
+            f"Por isso o lote fica limitado a {limite} transações e a demora é maior. "
             "Em troca, cada transação ganha justificativa do juiz e top-3."
         )
         if api_ok and not gemini_ok:
@@ -635,22 +652,23 @@ def _aba_lote(api_ok: bool, gemini_ok: bool) -> None:
             st.dataframe(traduzir_colunas(df.head(10)), hide_index=True, width="stretch")
             quantidade = int(st.number_input(
                 f"Quantas transações analisar? (1 a {limite})", min_value=1, max_value=limite,
-                value=min(_QUANTIDADE_PADRAO, limite) if not production else limite, step=1,
+                value=limite if usa_gemini else min(_QUANTIDADE_PADRAO, limite), step=1,
                 key=f"lote_qtd_{modo}",
             ))
             if len(df) <= quantidade:
                 st.caption("O arquivo tem menos linhas que o pedido: todas serão analisadas.")
             else:
                 st.caption(f"A amostra será sorteada com seed {SEED_AMOSTRAGEM} (reprodutível).")
-            rotulo = (
-                "🤖 Análise em lote (usa Gemini, consome cota)" if production
-                else "🚀 Análise em lote (sem Gemini, sem custo)"
-            )
+            rotulo = {
+                "fast": "🚀 Análise em lote (sem Gemini, sem custo)",
+                "production": "🤖 Análise em lote (usa Gemini, consome cota)",
+                "deep": "🧠 Análise em lote Deep (vários agentes Gemini, consome mais cota)",
+            }[modo]
             if st.button(rotulo, width="stretch", type="primary",
-                         disabled=not api_ok or (production and not gemini_ok)):
-                if production:
+                         disabled=not api_ok or (usa_gemini and not gemini_ok)):
+                if usa_gemini:
                     amostra = amostrar_lote(df, quantidade, SEED_AMOSTRAGEM)
-                    respostas, aviso = _rodar_lote_production(amostra)
+                    respostas, aviso = _rodar_lote_gemini(amostra, modo)
                     if not respostas:
                         st.error(aviso or "Nenhuma transação foi analisada.")
                     else:
@@ -659,7 +677,7 @@ def _aba_lote(api_ok: bool, gemini_ok: bool) -> None:
                             "resposta": {"quantidade_usada": len(respostas), "total_arquivo": len(df),
                                          "seed": SEED_AMOSTRAGEM},
                             "df": montar_resultados_individuais(usada, respostas),
-                            "arquivo": arquivo.name, "modo": "production", "aviso": aviso,
+                            "arquivo": arquivo.name, "modo": modo, "aviso": aviso,
                             "detalhes": {i: r for i, r in enumerate(respostas) if "decisao" in r},
                         }
                 else:

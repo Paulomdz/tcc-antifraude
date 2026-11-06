@@ -651,7 +651,7 @@ def test_analise_individual_fast_nao_exige_chave_e_nao_usa_gemini(monkeypatch):
 
 def test_analise_individual_modo_invalido_retorna_422():
     response = client.post(
-        "/analise_transacao?modo=deep", json={"amount": 100, "oldbalanceOrg": 1000}
+        "/analise_transacao?modo=turbo", json={"amount": 100, "oldbalanceOrg": 1000}
     )
     assert response.status_code == 422
 
@@ -667,3 +667,27 @@ def test_analise_individual_fast_falha_do_orquestrador_retorna_502(monkeypatch):
     )
     assert response.status_code == 502
     assert response.json()["detail"] == "Falha ao executar análise fast."
+
+
+def test_analise_individual_deep_exige_chave_e_chama_deep(monkeypatch):
+    resposta = client.post(
+        "/analise_transacao?modo=deep", json={"amount": 100, "oldbalanceOrg": 1000}
+    )
+    assert resposta.status_code == 503  # sem chave, como production
+
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key-not-used")
+    pedidos = []
+
+    class FakeOrchestrator:
+        def orchestrate_transaction(self, transaction, modo):
+            pedidos.append(modo)
+            return {**analysis_result(), "modo": modo}
+
+    monkeypatch.setattr(api, "_get_orchestrator", lambda: FakeOrchestrator())
+    resposta = client.post(
+        "/analise_transacao?modo=deep", json={"amount": 100, "oldbalanceOrg": 1000}
+    )
+    assert resposta.status_code == 200 and resposta.json()["modo"] == "deep"
+    assert pedidos == ["deep"]
+    with sqlite3.connect(api.DB_PATH) as connection:
+        assert connection.execute("SELECT llm_usado FROM analises").fetchone()[0] == "SIM"

@@ -699,7 +699,7 @@ def test_lote_comeca_no_modo_fast_com_limite_500(api_simulada):
     at = abrir()
     assert at.button_group(key="lote_modo").value == "fast"
     assert "Grátis, sem Gemini, até 500" in textos(at.caption)
-    assert at.button_group(key="lote_modo").options == ["Fast", "Production"]  # o emoji inicial vira ícone
+    assert at.button_group(key="lote_modo").options == ["Fast", "Production", "Deep"]  # o emoji inicial vira ícone
     at.file_uploader[0].set_value(("lote.csv", csv_lote(6), "text/csv")).run()
     assert at.number_input(key="lote_qtd_fast").max == 500
     assert botao(at, "sem Gemini, sem custo")
@@ -723,10 +723,10 @@ def test_modo_production_sem_chave_desliga_o_botao(api_simulada):
     assert "GOOGLE_API_KEY" in textos(at.error)
 
 
-def rodar_production(at, linhas=6):
-    at.button_group(key="lote_modo").set_value("production").run()
+def rodar_production(at, linhas=6, modo="production", trecho="usa Gemini, consome cota"):
+    at.button_group(key="lote_modo").set_value(modo).run()
     at.file_uploader[0].set_value(("lote.csv", csv_lote(linhas), "text/csv")).run()
-    botao(at, "usa Gemini, consome cota").click().run()
+    botao(at, trecho).click().run()
     return at
 
 
@@ -802,3 +802,32 @@ def test_aprenda_simulando_nunca_usa_production(api_simulada):
     botao(at, "Analisar (modo grátis").click().run()
     assert api_simulada["modos"] == ["fast", "fast"]
     assert "consome" not in textos(at.warning)
+
+
+def test_modo_deep_tem_descricao_aviso_e_limite_de_5(api_simulada):
+    at = abrir()
+    at.button_group(key="lote_modo").set_value("deep").run()
+    assert "quatro agentes Gemini" in textos(at.caption) and "até 5" in textos(at.caption)
+    aviso = textos(at.warning)
+    assert "várias vezes por transação" in aviso and "consome a cota" in aviso
+    at.file_uploader[0].set_value(("lote.csv", csv_lote(30), "text/csv")).run()
+    assert at.number_input(key="lote_qtd_deep").max == 5
+    assert botao(at, "Deep (vários agentes Gemini, consome mais cota)")
+
+
+def test_modo_deep_sem_chave_desliga_o_botao(api_simulada):
+    api_simulada["config"] = {"llm_disponivel": False, "modelo_llm": None, "limite_lote": 500}
+    at = abrir()
+    at.button_group(key="lote_modo").set_value("deep").run()
+    at.file_uploader[0].set_value(("lote.csv", csv_lote(6), "text/csv")).run()
+    assert botao(at, "Deep").disabled and "GOOGLE_API_KEY" in textos(at.error)
+
+
+def test_lote_deep_pede_modo_deep_a_api_e_mostra_detalhe(api_simulada):
+    at = rodar_production(abrir(), linhas=8, modo="deep", trecho="Deep (vários agentes")
+    assert not at.exception and not at.error
+    assert api_simulada["modos"] == ["deep"] * 5  # limite de 5 por lote
+    estado = at.session_state["lote"]
+    assert estado["modo"] == "deep" and len(estado["df"]) == 5
+    assert "modo **deep** (usou quatro agentes Gemini)" in textos(at.success)
+    assert "Justificativa do juiz Gemini" in textos(at.markdown)
