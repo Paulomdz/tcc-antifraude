@@ -33,6 +33,12 @@ data/historico.db
 src/modelos/modelos_salvos/*.pkl
 src/modelos/modelos_salvos/*.pt
 src/modelos/modelos_salvos/*.pth
+# Modelos usados pelo sistema (e o modelo da GNN da Etapa 4, para reproduzir
+# aquela avaliação) são versionados; diagnósticos e ablações ficam fora.
+!src/modelos/modelos_salvos/isolation_forest.pkl
+!src/modelos/modelos_salvos/lstm_model.pt
+!src/modelos/modelos_salvos/gnn_model.pt
+!src/modelos/modelos_salvos/gnn_model_etapa2_v1.pt
 
 .DS_Store
 Thumbs.db
